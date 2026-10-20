@@ -1,0 +1,149 @@
+[
+  {
+    "id": "ord-bba9c2a8-a24b-4212-adb5-e5e12c1b6a3e",
+    "token": "0001",
+    "tableId": "T04",
+    "parcelToken": null,
+    "sessionId": "sess-a2c8e58d",
+    "type": "DINE_IN",
+    "status": "DELIVERED",
+    "paymentStatus": "PAID",
+    "paymentMethod": "bKash",
+    "customerName": "Tahmina Moni",
+    "customerPhone": "01713277707",
+    "customerAddress": "",
+    "serviceType": "SELF_SERVICE",
+    "customerNotes": "",
+    "createdAt": "2026-10-20T11:00:18.660Z",
+    "items": [
+      {
+        "id": "oli-cde3bac2",
+        "menuItemId": "tt-chw-1",
+        "stallId": "top-town",
+        "name": "Chicken Chowmein",
+        "price": 300,
+        "basePrice": 300,
+        "quantity": 1,
+        "variantName": null,
+        "weight": null,
+        "notes": "",
+        "isUnavailable": false
+      },
+      {
+        "id": "oli-36b95032",
+        "menuItemId": "tt-sop-1",
+        "stallId": "top-town",
+        "name": "Chicken Corn Soup",
+        "price": 180,
+        "basePrice": 180,
+        "quantity": 1,
+        "variantName": null,
+        "weight": null,
+        "notes": "",
+        "isUnavailable": false
+      }
+    ],
+    "stalls": [
+      {
+        "stallId": "top-town",
+        "stallName": "Top Town",
+        "status": "COLLECTED",
+        "prepTimeMinutes": 12,
+        "prepTimeEst": "12 min",
+        "prepStartedAt": "2026-10-20T11:00:33.411Z",
+        "readyAt": "2026-10-20T11:00:43.557Z",
+        "counterConfirmedAt": "2026-10-20T11:00:51.057Z",
+        "notifiedAt": "2026-10-20T11:00:51.057Z",
+        "lastNotifiedAt": "2026-10-20T11:01:14.791Z",
+        "notificationCount": 2,
+        "notificationHistory": [
+          {
+            "eventId": "notif-5a68acd5-a1d2-418b-8f5e-c42d2bd291df",
+            "notifiedAt": "2026-10-20T11:00:51.057Z",
+            "confirmedBy": "Top Town Manager",
+            "attempt": 1
+          },
+          {
+            "eventId": "notif-ef1c741b-09a3-4385-bbbe-bd0e25abb04a",
+            "notifiedAt": "2026-10-20T11:01:14.791Z",
+            "confirmedBy": "Top Town Manager",
+            "attempt": 2
+          }
+        ],
+        "collectedAt": "2026-10-20T11:01:24.498Z",
+        "confirmedBy": "Top Town Manager",
+        "notificationEventId": "notif-ef1c741b-09a3-4385-bbbe-bd0e25abb04a",
+        "items": [
+          {
+            "id": "oli-cde3bac2",
+            "menuItemId": "tt-chw-1",
+            "stallId": "top-town",
+            "name": "Chicken Chowmein",
+            "price": 300,
+            "basePrice": 300,
+            "quantity": 1,
+            "variantName": null,
+            "weight": null,
+            "notes": "",
+            "isUnavailable": false
+          },
+          {
+            "id": "oli-36b95032",
+            "menuItemId": "tt-sop-1",
+            "stallId": "top-town",
+            "name": "Chicken Corn Soup",
+            "price": 180,
+            "basePrice": 180,
+            "quantity": 1,
+            "variantName": null,
+            "weight": null,
+            "notes": "",
+            "isUnavailable": false
+          }
+        ]
+      }
+    ],
+    "subtotal": 480,
+    "discount": 0,
+    "tax": 0,
+    "serviceCharge": 0,
+    "grandTotal": 480,
+    "kotGenerated": true,
+    "kotNumber": "KOT-0001",
+    "history": [
+      {
+        "status": "NEW",
+        "time": "2026-10-20T11:00:18.660Z",
+        "note": "Customer submitted master order."
+      },
+      {
+        "status": "PAID",
+        "time": "2026-10-20T11:00:33.411Z",
+        "note": "Payment confirmed via bKash by Cashier Counter."
+      },
+      {
+        "status": "PREPARING",
+        "time": "2026-10-20T11:00:33.411Z",
+        "note": "KOT KOT-0001 generated. Order released to stalls."
+      },
+      {
+        "status": "READY",
+        "time": "2026-10-20T11:00:51.057Z",
+        "note": "Top Town Manager confirmed Top Town is ready. Customer notified to collect."
+      },
+      {
+        "status": "READY",
+        "time": "2026-10-20T11:01:14.791Z",
+        "note": "Repeat reminder #2 dispatched by Top Town Manager for Top Town."
+      },
+      {
+        "status": "DELIVERED",
+        "time": "2026-10-20T11:01:24.498Z",
+        "note": "All food items collected from food court counters! Order complete."
+      }
+    ],
+    "transactionId": "BKASH-034993",
+    "paidAt": "2026-10-20T11:00:33.411Z",
+    "kotGeneratedAt": "2026-10-20T11:00:33.411Z"
+  }
+]
