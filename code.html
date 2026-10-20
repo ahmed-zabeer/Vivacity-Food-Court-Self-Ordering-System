@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>Viva City Food Court • Kiwee Dining OS</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Darker+Grotesque:wght@700;800;900&amp;family=Manrope:wght@400;500;600;700;800&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#e06d24', 600: '#c25514', 50: '#fff7ed' },
+            surface: '#faf9f7',
+            container: '#f4f3f1',
+            charcoal: '#141518'
+          },
+          fontFamily: {
+            kiwee: ['"Darker Grotesque"', 'sans-serif'],
+            sans: ['"Manrope"', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+<style>
+    body { font-family: 'Manrope', sans-serif; background: #faf9f7; -webkit-tap-highlight-color: transparent; }
+    .font-kiwee { font-family: 'Darker Grotesque', sans-serif; }
+    ::-webkit-scrollbar { display: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Cinematic Brand Splash Animations */
+    @keyframes logoFadeIn {
+      0% { opacity: 0; transform: scale(0.85); filter: blur(8px); }
+      100% { opacity: 1; transform: scale(1); filter: blur(0px); }
+    }
+    @keyframes titleReveal {
+      0% { opacity: 0; transform: translateY(28px); letter-spacing: 0.08em; }
+      100% { opacity: 1; transform: translateY(0); letter-spacing: -0.025em; }
+    }
+    @keyframes subtitleReveal {
+      0% { opacity: 0; transform: translateY(14px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes sheenSweep {
+      0% { transform: translateX(-150%) skewX(-25deg); opacity: 0; }
+      50% { opacity: 0.65; }
+      100% { transform: translateX(250%) skewX(-25deg); opacity: 0; }
+    }
+    @keyframes ambientGlowPulse {
+      0%, 100% { transform: scale(1); opacity: 0.45; }
+      50% { transform: scale(1.15); opacity: 0.75; }
+    }
+
+    .animate-logo-fade { animation: logoFadeIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.25s forwards; opacity: 0; }
+    .animate-title-reveal { animation: titleReveal 1.0s cubic-bezier(0.16, 1, 0.3, 1) 0.55s forwards; opacity: 0; }
+    .animate-sub-reveal { animation: subtitleReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.95s forwards; opacity: 0; }
+    .animate-sheen { animation: sheenSweep 1.6s ease-in-out 1.35s infinite; }
+    .animate-glow-pulse { animation: ambientGlowPulse 5s ease-in-out infinite; }
+  </style>
+</head>
+<body class="bg-surface text-charcoal antialiased flex flex-col min-h-screen selection:bg-brand-500 selection:text-white relative">
+<!-- ================= 1. CINEMATIC FULL-SCREEN BRAND INTRO OVERLAY ================= -->
+<div class="fixed inset-0 z-[9999] w-screen h-screen bg-[#08090b] text-white flex flex-col justify-between items-center px-6 py-8 md:py-12 overflow-hidden select-none transition-all duration-700 ease-out" id="splash">
+<!-- Ambient luxury radial warm glow backdrops -->
+<div class="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] max-w-[95vw] rounded-full bg-gradient-to-tr from-[#9d4300]/25 via-[#e06d24]/15 to-amber-500/10 blur-[130px] animate-glow-pulse"></div>
+<div class="pointer-events-none absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-600/10 blur-[110px]"></div>
+<div class="pointer-events-none absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-orange-700/10 blur-[110px]"></div>
+<!-- Top Action Bar -->
+<header class="relative z-10 w-full max-w-4xl flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+<span class="text-[10px] md:text-xs tracking-[0.25em] font-semibold uppercase text-zinc-400">Unified Dining OS</span>
+</div>
+<button class="group flex items-center gap-1.5 text-xs font-semibold tracking-wider text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 hover:border-amber-500/40 rounded-full px-4 py-1.5 transition-all backdrop-blur-md" onclick="dismissSplash()">
+<span>Skip Intro</span>
+<span class="material-symbols-outlined text-sm group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+</button>
+</header>
+<!-- Centerpiece Brand Stage -->
+<main class="relative z-10 flex flex-col items-center text-center my-auto px-4 max-w-3xl">
+<!-- Logo Container with Halo Glow -->
+<div class="animate-logo-fade mb-6 md:mb-8 relative flex items-center justify-center">
+<div class="absolute -inset-4 bg-gradient-to-r from-amber-500/30 to-[#e06d24]/40 rounded-full blur-xl opacity-70"></div>
+<div class="relative w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-[#0d0f1f] p-2.5 shadow-[0_12px_40px_rgba(224,109,36,0.35)] ring-1 ring-white/30 flex items-center justify-center overflow-hidden">
+<img alt="Viva City Logo" class="w-full h-full object-contain" src="/assets/vivacity-logo.png" onerror="this.src='/assets/vivacity-logo.svg'"/>
+</div>
+</div>
+<!-- Grand Editorial Title -->
+<div class="animate-title-reveal relative overflow-hidden">
+<h1 class="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase tracking-tight text-white leading-[1.02] drop-shadow-sm">
+          Viva City
+          <span class="block bg-gradient-to-r from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">Food Court</span>
+</h1>
+<!-- Shimmer light sweep bar over headline -->
+<div class="pointer-events-none absolute inset-0 w-32 h-full bg-gradient-to-r from-transparent via-white/25 to-transparent animate-sheen"></div>
+</div>
+<!-- Sub-Brand Tagline -->
+<div class="animate-sub-reveal mt-4 md:mt-5 flex items-center justify-center gap-3">
+<div class="h-px w-8 md:w-16 bg-gradient-to-r from-transparent to-amber-500/60"></div>
+<span class="text-xs md:text-sm font-bold tracking-[0.25em] uppercase text-amber-400/95">
+          Premier Food Court Experience
+        </span>
+<div class="h-px w-8 md:w-16 bg-gradient-to-l from-transparent to-amber-500/60"></div>
+</div>
+<!-- Experience Description -->
+<p class="animate-sub-reveal text-xs md:text-sm text-zinc-400 max-w-md mt-4 tracking-wide font-normal leading-relaxed">
+        6 Premier Culinary Stalls. One Unified Dine-in Experience. Instant Digital Ordering.
+      </p>
+</main>
+<!-- Bottom Context Pill & Progress indicator -->
+<footer class="animate-sub-reveal relative z-10 w-full max-w-md flex flex-col items-center gap-3">
+<div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-zinc-900/90 border border-zinc-700/60 text-zinc-200 text-xs shadow-2xl backdrop-blur-md">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+<span class="tracking-wider uppercase text-[10px] md:text-[11px] font-bold text-zinc-300">
+          Connected to <strong class="text-amber-400 font-extrabold tracking-normal">Table T17</strong> • Dine-In Session
+        </span>
+</div>
+<!-- Subtle Progress Bar -->
+<div class="w-44 h-1 bg-zinc-800/80 rounded-full overflow-hidden mt-1">
+<div class="h-full bg-gradient-to-r from-amber-500 to-[#e06d24] w-0 transition-all duration-[2700ms] ease-out" id="splash-progress-bar"></div>
+</div>
+<span class="text-[9px] tracking-widest text-zinc-500 uppercase font-medium">Entering Food Court Experience...</span>
+</footer>
+</div>
+<!-- ================= 2. PERSISTENT HEADER ================= -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-zinc-200/80 shadow-xs">
+<div class="max-w-md mx-auto px-4 h-15 flex items-center justify-between">
+<div class="flex items-center gap-2.5 cursor-pointer" onclick="navigateTo('home')">
+<div class="w-7 h-7 rounded-lg overflow-hidden bg-[#0f1123] ring-1 ring-zinc-200 shrink-0 flex items-center justify-center p-0.5">
+<img alt="Viva City" class="w-full h-full object-contain" src="/assets/vivacity-logo.png" onerror="this.src='/assets/vivacity-logo.svg'"/>
+</div>
+<div class="h-4 w-px bg-zinc-300"></div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-xs font-bold leading-tight">Viva City</span>
+<span class="px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-500/20 text-[10px] font-extrabold uppercase">T17</span>
+</div>
+<p class="text-[9px] text-zinc-500 leading-none">Food Court Dine-in</p>
+</div>
+</div>
+<div class="flex items-center gap-1.5">
+<!-- Replay Brand Intro Button -->
+<button class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-zinc-600 hover:text-zinc-900 bg-zinc-100 hover:bg-zinc-200 active:scale-95 transition-all" onclick="replaySplash()" title="Replay Cinematic Intro">
+<span class="material-symbols-outlined text-[14px] text-brand-500">play_circle</span>
+<span>Intro</span>
+</button>
+<button class="relative w-10 h-10 rounded-full flex items-center justify-center text-zinc-700 hover:bg-zinc-100 active:scale-95 transition-all" onclick="navigateTo('cart')">
+<span class="material-symbols-outlined text-[22px]">shopping_bag</span>
+<span class="absolute top-1.5 right-1.5 px-1 min-w-[16px] h-4 rounded-full bg-brand-500 text-white text-[10px] font-black flex items-center justify-center" id="badge-top-cart">4</span>
+</button>
+</div>
+</div>
+</header>
+<!-- ================= 3. APP CONTAINER ================= -->
+<main class="flex-1 max-w-md mx-auto w-full pt-16 pb-24 px-4 min-h-screen relative flex flex-col">
+<!-- VIEW A: HOME DISCOVERY -->
+<div class="view-panel flex flex-col gap-4 mt-2" id="view-home">
+<!-- Table Active Card -->
+<div class="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border border-amber-500/20 rounded-2xl p-3 flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="w-9 h-9 rounded-xl bg-brand-500 text-white flex items-center justify-center font-black shadow-xs">
+<span class="material-symbols-outlined text-[18px]">table_restaurant</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-xs font-bold text-zinc-900">Ordering for Table T17</span>
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+</div>
+<p class="text-[11px] text-zinc-500">Multi-Stall single checkout enabled</p>
+</div>
+</div>
+<button class="text-[11px] font-bold text-brand-600 bg-white px-2.5 py-1 rounded-full border border-zinc-200 shadow-2xs" onclick="navigateTo('cart')">
+          View Tray
+        </button>
+</div>
+<!-- Live Ongoing Order Tracker -->
+<div class="bg-white rounded-2xl p-3.5 border border-zinc-200/80 shadow-xs flex items-center justify-between cursor-pointer" onclick="navigateTo('cart')">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] animate-spin" style="animation-duration: 8s;">skillet</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-xs font-bold text-zinc-900">Token #0047 Preparing</span>
+<span class="text-[9px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-full">12-15m</span>
+</div>
+<p class="text-[10px] text-zinc-500">Coffee Buzz &amp; Momo Buzz in kitchen</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-zinc-400 text-[18px]">chevron_right</span>
+</div>
+<!-- FEATURED STALL: Coffee Buzz Fusion Cafe -->
+<section class="mt-1">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-1.5">
+<span class="text-base">👑</span>
+<h2 class="text-sm font-extrabold text-zinc-900 uppercase tracking-wide">Featured Partner</h2>
+</div>
+<span class="text-[11px] font-bold text-brand-600">Stall 01</span>
+</div>
+<div class="group cursor-pointer bg-white rounded-2xl overflow-hidden border border-zinc-200/80 shadow-sm hover:border-brand-500/50 transition-all active:scale-[0.99]" onclick="openStall('fusion')">
+<div class="relative w-full h-44 bg-zinc-100 overflow-hidden">
+<img alt="Coffee Buzz Fusion Cafe" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA0H1jQE2ZdQSfkgYaNIiF4_b1ItmAF6A7rptOfpj6gzK8FLlQbxbfLUJBJnPzouWGU6118Qg9xwbtdtqzoUlwlPedoV4EvDpLKDGOrGQElTcLsdJMDKidfXzB55khGYIBbbNaz24Vo5D866cqhT1nL3V57VXkiFvbIax08tCVikfKnY5lUx1tJ0UrVNwFdPImHPnnvszYnc8F2RQV1wiwzl8D19QIm-nQaMRkf09sM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-3 left-3 right-3 text-white flex items-end justify-between">
+<div>
+<span class="bg-brand-500 text-[9px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider mb-1 inline-block">Premier Fusion</span>
+<h3 class="text-base font-extrabold text-white leading-tight">Coffee Buzz Fusion Cafe</h3>
+<p class="text-xs text-zinc-200 mt-0.5">Steak • Pizza • Seafood • Boba • Platters</p>
+</div>
+<div class="bg-white/90 backdrop-blur-xs text-charcoal font-black text-xs px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                ★ 4.9
+              </div>
+</div>
+</div>
+<div class="p-3 flex items-center justify-between text-xs bg-white">
+<div class="flex items-center gap-2 text-zinc-500 text-[11px]">
+<span>⏱ 15-20 min</span>
+<span>•</span>
+<span>🔥 Top Rated Steakhouse</span>
+</div>
+<button class="bg-brand-500 text-white px-3.5 py-1.5 rounded-full font-bold text-xs shadow-2xs hover:bg-brand-600 transition-colors flex items-center gap-1">
+              Explore Menu <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+<!-- 2-COLUMN GRID: ALL REMAINING 5 STALLS -->
+<section class="mt-2">
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-sm font-extrabold text-zinc-900 uppercase tracking-wide">Food Court Stalls</h2>
+<span class="text-[11px] text-zinc-500 font-medium">All 6 Kitchens Open</span>
+</div>
+<div class="grid grid-cols-2 gap-3" id="stalls-grid">
+<!-- Top Town -->
+<div class="cursor-pointer bg-white rounded-2xl overflow-hidden border border-zinc-200/80 shadow-xs hover:border-brand-500/40 transition-all flex flex-col justify-between" onclick="openStall('toptown')">
+<div>
+<div class="relative h-28 w-full bg-zinc-100 overflow-hidden">
+<img alt="Top Town" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAM9pl7mtKcZ1iVr148gLWu4DtQfHtVlZZgZi5S_n8j9jCDPnk7rbKe8bjQngziAdjAa567ntXPBXGTG1MtESfCndFdh4aFh5kMd8oV1tsDIrY5Jcle2-Jx4L8KIDVIGo0OQDXyi-EU38nmcOsBhQDsBgNQsC1JdOImCQ_khn8cuq2EwhZoFX00Z_J6Hk_fl5hUd25xs0qshr0s_Kio4krA9x6xeGS1923YQDfwn43"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<span class="absolute bottom-1.5 left-2 text-[9px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded">12-18 min</span>
+<span class="absolute top-1.5 right-1.5 bg-white/90 text-charcoal text-[10px] font-black px-1.5 py-0.2 rounded-full">★ 4.8</span>
+</div>
+<div class="p-2.5">
+<h3 class="text-xs font-extrabold text-zinc-900 truncate">Top Town</h3>
+<p class="text-[10px] text-zinc-500 line-clamp-1 mt-0.5">Thai, Chinese, Dosa, Biryani</p>
+</div>
+</div>
+<div class="p-2.5 pt-0">
+<span class="block w-full text-center bg-zinc-100 hover:bg-brand-50 text-brand-600 font-bold text-[11px] py-1 rounded-lg">View Menu</span>
+</div>
+</div>
+<!-- Momo Buzz -->
+<div class="cursor-pointer bg-white rounded-2xl overflow-hidden border border-zinc-200/80 shadow-xs hover:border-brand-500/40 transition-all flex flex-col justify-between" onclick="openStall('momo')">
+<div>
+<div class="relative h-28 w-full bg-zinc-100 overflow-hidden">
+<img alt="Momo Buzz" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjTnl9B2arLU50Z_daNgl7Sl8GQ1hkz2nyMvrlffU9F-yb6y2oPCXM846sT2xLGYTqttU_pzgV7nn0caaq486Ob-W-bXw66KEqMlyZT-gLttu1VAKILUZo6FMCLq1fyjz7vt5P6BoiofV1QfU9PWLqD3D5ZV-0HzJwONcvi85jN7JYRm49xJbfhF4b8G4cFZwt9PqgCAjUIzWdnF2EA9t0LRrHPo8UYNYJY0CyfpOQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<span class="absolute bottom-1.5 left-2 text-[9px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded">10-15 min</span>
+<span class="absolute top-1.5 right-1.5 bg-white/90 text-charcoal text-[10px] font-black px-1.5 py-0.2 rounded-full">★ 4.9</span>
+</div>
+<div class="p-2.5">
+<h3 class="text-xs font-extrabold text-zinc-900 truncate">Momo Buzz</h3>
+<p class="text-[10px] text-zinc-500 line-clamp-1 mt-0.5">Steamed, Fried Momo, Fuchka</p>
+</div>
+</div>
+<div class="p-2.5 pt-0">
+<span class="block w-full text-center bg-zinc-100 hover:bg-brand-50 text-brand-600 font-bold text-[11px] py-1 rounded-lg">View Menu</span>
+</div>
+</div>
+<!-- Waffle City -->
+<div class="cursor-pointer bg-white rounded-2xl overflow-hidden border border-zinc-200/80 shadow-xs hover:border-brand-500/40 transition-all flex flex-col justify-between" onclick="openStall('waffle')">
+<div>
+<div class="relative h-28 w-full bg-zinc-100 overflow-hidden">
+<img alt="Waffle City" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUsDWXJSfN9tJbHNmMsrA6R6Yzw_pi9wlLJYHFHmdTPqEO6pXH4bGi6NluUQ01DcUrMNB4nW9iXvZJf1n6savPscZOa0I7E_hChxAdKnsuWKcMCJeE0JHLklv7i86xJw0g9La4xkJFs2TcswhioBMWLOvGzi5hnZC_4pAAEkC8ktbn2wq_G-SPM9e1jH0ZZw3GJxnG83d_6A9PZ2zHwah5qWaZmRTd9jQFa_Nfo1o0"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<span class="absolute bottom-1.5 left-2 text-[9px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded">8-12 min</span>
+<span class="absolute top-1.5 right-1.5 bg-white/90 text-charcoal text-[10px] font-black px-1.5 py-0.2 rounded-full">★ 4.9</span>
+</div>
+<div class="p-2.5">
+<h3 class="text-xs font-extrabold text-zinc-900 truncate">Waffle City</h3>
+<p class="text-[10px] text-zinc-500 line-clamp-1 mt-0.5">Belgian Waffles, Shakes, Ice Cream</p>
+</div>
+</div>
+<div class="p-2.5 pt-0">
+<span class="block w-full text-center bg-zinc-100 hover:bg-brand-50 text-brand-600 font-bold text-[11px] py-1 rounded-lg">View Menu</span>
+</div>
+</div>
+<!-- Live Station -->
+<div class="cursor-pointer bg-white rounded-2xl overflow-hidden border border-zinc-200/80 shadow-xs hover:border-brand-500/40 transition-all flex flex-col justify-between" onclick="openStall('livestation')">
+<div>
+<div class="relative h-28 w-full bg-zinc-100 overflow-hidden">
+<img alt="Live Station" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHmicXONDSk_pDmSpvAXqJmqakb6fj926VRH6vR59KkclMGvnZ_qmtNrhnM9EzGpIyiKG3W5H30xmWYPQeqhscIC513DuQ0w5HUqiaSFMdMczr2jCh2FdxZSRGFh0OHiYRArPvvgwOzR3Hbkr-rEvUqOC4HX2ULKbkzJkmvWqC_4vonnrqYXOEwhSKAw9g6kNJkxhbyyw_6wG0Cy1Cy--bsWgCdRIraW8e7awM8sBn"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<span class="absolute bottom-1.5 left-2 text-[9px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded">20-25 min</span>
+<span class="absolute top-1.5 right-1.5 bg-white/90 text-charcoal text-[10px] font-black px-1.5 py-0.2 rounded-full">★ 4.8</span>
+</div>
+<div class="p-2.5">
+<h3 class="text-xs font-extrabold text-zinc-900 truncate">Live Station</h3>
+<p class="text-[10px] text-zinc-500 line-clamp-1 mt-0.5">Charcoal Kebab, BBQ, Naan</p>
+</div>
+</div>
+<div class="p-2.5 pt-0">
+<span class="block w-full text-center bg-zinc-100 hover:bg-brand-50 text-brand-600 font-bold text-[11px] py-1 rounded-lg">View Menu</span>
+</div>
+</div>
+<!-- Burger Bar (Wide) -->
+<div class="col-span-2 cursor-pointer bg-white rounded-2xl overflow-hidden border border-zinc-200/80 shadow-xs hover:border-brand-500/40 transition-all flex items-center justify-between p-2.5" onclick="openStall('burgerbar')">
+<div class="flex items-center gap-3">
+<div class="w-16 h-16 rounded-xl bg-zinc-100 overflow-hidden shrink-0">
+<img alt="Burger Bar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYwOSclaTT9eH0dgjVmtSTtcN7j2f3gOc8CCk1ldd4rg_pbczjQLdrrvhRDMCczZEbf8YQB4EjrqQ_4W5FbrpuSvmHVZecAgVX7zlJkY5NctwXX5GrM35z5rdf-_8ieoOsskBZ9Zqm7ZjZ3s3v0Nr_0YRtnz_IWrVhIR4ahKPWoSFsg3SGsEFC7TDnewhxGLa26w-qXNuPIM4eD10CVv3F_ejyCAyvwcqbP5qC_R4U"/>
+</div>
+<div>
+<span class="text-[9px] font-bold text-brand-600 bg-brand-50 px-1.5 py-0.2 rounded uppercase">Stall 06</span>
+<h3 class="text-xs font-extrabold text-zinc-900 mt-0.5">Burger Bar</h3>
+<p class="text-[10px] text-zinc-500">Smash Burgers, Loaded Fries, Wings • 12-15m</p>
+</div>
+</div>
+<span class="bg-zinc-100 hover:bg-brand-50 text-brand-600 font-bold text-xs px-3 py-1.5 rounded-lg shrink-0">View Menu</span>
+</div>
+</div>
+</section>
+</div>
+<!-- VIEW B: DEDICATED STALL MENU -->
+<div class="view-panel hidden flex-col w-full" id="view-stall">
+<!-- Sub-navigation -->
+<div class="flex items-center justify-between py-2 border-b border-zinc-200 mb-2">
+<button class="flex items-center gap-1 text-xs font-bold text-zinc-700 hover:text-brand-600" onclick="navigateTo('home')">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span> Back to Stalls
+        </button>
+<span class="text-[10px] bg-brand-50 text-brand-600 px-2 py-0.5 rounded-full font-extrabold uppercase" id="stall-table-badge">Table T17 Active</span>
+</div>
+<!-- Stall Banner -->
+<div class="relative w-full h-40 rounded-2xl overflow-hidden bg-zinc-900 shadow-xs mb-3">
+<img alt="Stall" class="w-full h-full object-cover" id="stall-hero-img" src=""/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent"></div>
+<div class="absolute bottom-3 left-3 right-3 text-white">
+<div class="flex items-center gap-2 mb-1">
+<span class="bg-brand-500 text-[9px] font-black uppercase px-2 py-0.5 rounded-full" id="stall-badge">Stall 1</span>
+<span class="text-[10px] font-bold" id="stall-rating">★ 4.9</span>
+<span class="text-[10px] text-zinc-300" id="stall-prep">⏱ 15-20 min</span>
+</div>
+<h1 class="text-lg font-extrabold leading-tight" id="stall-name">Stall Name</h1>
+<p class="text-[11px] text-zinc-300 line-clamp-1" id="stall-tagline">Specialties and cuisine</p>
+</div>
+</div>
+<!-- Horizontal Category Chips -->
+<div class="overflow-x-auto no-scrollbar pb-2 mb-3">
+<div class="flex items-center gap-1.5 w-max" id="stall-category-chips"></div>
+</div>
+<!-- Dishes Container -->
+<div class="space-y-3" id="stall-items-container"></div>
+</div>
+<!-- VIEW C: PERSISTENT MULTI-STALL MASTER CART -->
+<div class="view-panel hidden flex-col w-full" id="view-cart">
+<div class="flex items-center justify-between pb-3 border-b border-zinc-200">
+<button class="flex items-center gap-1 text-xs font-bold text-zinc-700" onclick="navigateTo('home')">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span> Continue Shopping
+        </button>
+<button class="text-xs font-semibold text-rose-600 hover:underline" onclick="clearCart()">Clear Tray</button>
+</div>
+<div class="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-900">
+<span class="material-symbols-outlined text-amber-600 text-[18px] shrink-0 mt-0.5">verified</span>
+<div>
+<span class="font-bold">Table T17 Unified Food Court Order</span>
+<p class="text-[11px] text-amber-800/90 mt-0.5">Dishes are sent simultaneously to each respective kitchen. Central management verifies stock before release.</p>
+</div>
+</div>
+<!-- Items Grouped by Stall -->
+<div class="mt-4 space-y-4" id="cart-grouped-items"></div>
+<!-- Instructions -->
+<div class="mt-4 bg-white rounded-xl p-3 border border-zinc-200 shadow-2xs">
+<label class="block text-xs font-bold text-zinc-800 mb-1">Special Cooking Notes for Table T17</label>
+<input class="w-full text-xs bg-zinc-50 rounded-lg p-2 border border-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-500" id="cart-general-note" placeholder="E.g., Serve momos first, extra napkins" type="text"/>
+</div>
+<!-- Summary -->
+<div class="mt-4 bg-white rounded-xl p-3.5 border border-zinc-200 shadow-2xs space-y-2 text-xs">
+<div class="flex justify-between text-zinc-600">
+<span>Stall Items Subtotal</span>
+<span class="font-bold text-zinc-900" id="cart-subtotal">৳1,189</span>
+</div>
+<div class="flex justify-between text-zinc-600">
+<span>Central Service Fee</span>
+<span class="text-emerald-600 font-bold">৳0 (Free)</span>
+</div>
+<div class="pt-2 border-t border-zinc-100 flex justify-between text-sm font-extrabold text-zinc-900">
+<span>Total Payable</span>
+<span class="text-brand-600 text-base font-black" id="cart-grandtotal">৳1,189</span>
+</div>
+</div>
+<!-- Payment Choice -->
+<div class="mt-4">
+<span class="text-[11px] font-bold uppercase text-zinc-500 tracking-wider block mb-2">Payment Preference</span>
+<div class="grid grid-cols-3 gap-2">
+<label class="flex flex-col items-center p-2 rounded-xl border border-brand-500 bg-brand-50/50 text-center cursor-pointer">
+<span class="text-sm">📱</span>
+<span class="text-[11px] font-bold text-brand-600 mt-1">bKash QR</span>
+<span class="text-[9px] text-zinc-500">Instant</span>
+</label>
+<label class="flex flex-col items-center p-2 rounded-xl border border-zinc-200 bg-white text-center cursor-pointer">
+<span class="text-sm">💳</span>
+<span class="text-[11px] font-bold text-zinc-800 mt-1">Card / POS</span>
+<span class="text-[9px] text-zinc-500">At Table</span>
+</label>
+<label class="flex flex-col items-center p-2 rounded-xl border border-zinc-200 bg-white text-center cursor-pointer">
+<span class="text-sm">💵</span>
+<span class="text-[11px] font-bold text-zinc-800 mt-1">Cash Desk</span>
+<span class="text-[9px] text-zinc-500">Counter</span>
+</label>
+</div>
+</div>
+<div class="mt-5 pb-6">
+<button class="w-full bg-brand-500 hover:bg-brand-600 text-white py-3.5 rounded-xl font-extrabold text-xs shadow-md flex items-center justify-center gap-2 active:scale-[0.99] transition-all" onclick="placeOrderRequest()">
+<span class="material-symbols-outlined text-[18px]">send</span>
+<span>Send Order to Central Gatekeeper (Table T17)</span>
+</button>
+</div>
+</div>
+<!-- VIEW D: ORDER CONFIRMED -->
+<div class="view-panel hidden flex-col w-full pt-8 items-center text-center" id="view-success">
+<div class="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-3xl">done_all</span>
+</div>
+<span class="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full uppercase">Ticket Dispatched</span>
+<h2 class="text-xl font-extrabold text-zinc-900 mt-2">Order Sent to Management!</h2>
+<p class="text-xs text-zinc-500 max-w-xs mt-1">
+        Order <strong class="text-brand-600">#0048</strong> is now with Central Gatekeeper. Your table session remains active.
+      </p>
+<div class="w-full bg-white rounded-xl p-3.5 mt-5 border border-zinc-200 text-left space-y-1.5 text-xs">
+<div class="flex justify-between"><span class="text-zinc-500">Dine-in Table:</span><span class="font-bold text-brand-600">Table T17</span></div>
+<div class="flex justify-between"><span class="text-zinc-500">Assigned Token:</span><span class="font-bold text-zinc-900">#0048</span></div>
+<div class="flex justify-between"><span class="text-zinc-500">Status:</span><span class="font-bold text-amber-600">Reviewing Stalls...</span></div>
+</div>
+<div class="w-full mt-6 space-y-2">
+<button class="w-full bg-brand-500 text-white py-3 rounded-xl font-bold text-xs shadow-xs" onclick="navigateTo('home')">
+          Order More Food (+ Keep Table T17)
+        </button>
+</div>
+</div>
+</main>
+<!-- ================= 4. FLOATING CART PILL ================= -->
+<div class="fixed bottom-18 left-0 right-0 z-40 px-4 max-w-md mx-auto pointer-events-none transition-all" id="float-cart-bar">
+<div class="pointer-events-auto bg-charcoal text-white rounded-full p-2 pl-4 pr-3 shadow-2xl flex items-center justify-between cursor-pointer hover:scale-[1.01] active:scale-[0.98] border border-white/10" onclick="navigateTo('cart')">
+<div class="flex items-center gap-2.5">
+<div class="w-7 h-7 rounded-full bg-brand-500 text-white flex items-center justify-center font-black text-xs shadow-xs">
+<span id="float-cart-count">4</span>
+</div>
+<div>
+<p class="text-xs font-bold leading-tight">View Food Court Tray</p>
+<p class="text-[9px] text-zinc-400" id="float-cart-sub">Multi-Stall • Table T17</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-extrabold text-amber-400" id="float-cart-price">৳1,189</span>
+<span class="material-symbols-outlined text-[16px] text-zinc-400">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- ================= 5. DISH CUSTOMIZER MODAL ================= -->
+<div class="fixed inset-0 z-[80] hidden select-none" id="item-modal">
+<div class="absolute inset-0 bg-black/60 backdrop-blur-2xs" onclick="closeItemModal()"></div>
+<div class="absolute bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl overflow-hidden shadow-2xl max-h-[88vh] flex flex-col">
+<div class="w-10 h-1 bg-zinc-300 rounded-full mx-auto my-2.5 shrink-0"></div>
+<div class="overflow-y-auto no-scrollbar pb-6 px-4">
+<div class="relative w-full h-40 rounded-xl overflow-hidden bg-zinc-100">
+<img alt="Dish" class="w-full h-full object-cover" id="modal-dish-img" src=""/>
+<button class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center" onclick="closeItemModal()">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+<span class="absolute bottom-2 left-2 bg-black/75 text-white text-[9px] font-bold px-2 py-0.5 rounded-full" id="modal-stall-tag">Stall</span>
+</div>
+<div class="mt-2.5 flex items-start justify-between">
+<div>
+<h3 class="text-base font-extrabold text-zinc-900 leading-tight" id="modal-dish-title">Dish Title</h3>
+<p class="text-[11px] text-zinc-500 mt-0.5" id="modal-dish-desc">Dish description.</p>
+</div>
+<span class="text-base font-black text-brand-600 shrink-0" id="modal-dish-price">৳0</span>
+</div>
+<div class="mt-3 pt-3 border-t border-zinc-100">
+<span class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Add-ons &amp; Options</span>
+<div class="space-y-1.5" id="modal-addons-list"></div>
+</div>
+<div class="mt-3 pt-3 border-t border-zinc-100">
+<label class="block text-[11px] font-bold text-zinc-700 mb-1">Cooking Note for Kitchen</label>
+<input class="w-full text-xs bg-zinc-50 rounded-lg p-2 border border-zinc-200 focus:outline-none" id="modal-dish-notes" placeholder="e.g. Less spicy, no mayo" type="text"/>
+</div>
+<div class="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-3">
+<div class="flex items-center gap-2 bg-zinc-100 rounded-full px-3 py-1.5 border border-zinc-200">
+<button class="font-bold text-xs px-1" onclick="decrementModalQty()">-</button>
+<span class="text-xs font-bold w-4 text-center" id="modal-qty-val">1</span>
+<button class="font-bold text-xs px-1" onclick="incrementModalQty()">+</button>
+</div>
+<button class="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2.5 px-4 rounded-full font-bold text-xs shadow-xs flex items-center justify-between" onclick="addModalItemToCart()">
+<span>Add to Multi-Stall Tray</span>
+<span class="font-black" id="modal-total-btn-price">৳0</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- ================= 6. BOTTOM NAVIGATION ================= -->
+<nav class="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-zinc-200">
+<div class="flex justify-around items-center h-15 max-w-md mx-auto px-2">
+<button class="flex flex-col items-center justify-center text-brand-600 font-bold active:scale-95 transition-all" id="nav-btn-home" onclick="navigateTo('home')">
+<span class="material-symbols-outlined text-[20px]">store</span>
+<span class="text-[10px]">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-zinc-500 hover:text-zinc-900 active:scale-95 transition-all" onclick="navigateTo('home'); document.getElementById('stalls-grid').scrollIntoView({behavior:'smooth'});">
+<span class="material-symbols-outlined text-[20px]">restaurant_menu</span>
+<span class="text-[10px]">6 Stalls</span>
+</button>
+<button class="relative flex flex-col items-center justify-center text-zinc-500 hover:text-zinc-900 active:scale-95 transition-all" id="nav-btn-cart" onclick="navigateTo('cart')">
+<span class="material-symbols-outlined text-[20px]">shopping_bag</span>
+<span class="absolute -top-1 -right-1 px-1 rounded-full bg-brand-500 text-white text-[9px] font-black" id="nav-cart-badge">4</span>
+<span class="text-[10px]">Tray</span>
+</button>
+<button class="flex flex-col items-center justify-center text-zinc-500 hover:text-zinc-900 active:scale-95 transition-all" onclick="navigateTo('cart')">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+<span class="text-[10px]">Tracking</span>
+</button>
+</div>
+</nav>
+<!-- ================= 7. ENGINE SCRIPT ================= -->
+<script>
+    const STALL_DATA = {
+      fusion: {
+        id: "fusion",
+        name: "Coffee Buzz Fusion Cafe",
+        badge: "Stall 1 • Premier Fusion",
+        tagline: "Steak • Pizza • Seafood • Boba • Platters",
+        prep: "15-20 min",
+        rating: "★ 4.9 (420+)",
+        banner: "https://lh3.googleusercontent.com/aida-public/AB6AXuA0H1jQE2ZdQSfkgYaNIiF4_b1ItmAF6A7rptOfpj6gzK8FLlQbxbfLUJBJnPzouWGU6118Qg9xwbtdtqzoUlwlPedoV4EvDpLKDGOrGQElTcLsdJMDKidfXzB55khGYIBbbNaz24Vo5D866cqhT1nL3V57VXkiFvbIax08tCVikfKnY5lUx1tJ0UrVNwFdPImHPnnvszYnc8F2RQV1wiwzl8D19QIm-nQaMRkf09sM",
+        categories: ["Signature Steaks", "Neapolitan Pizza", "Boba Drink", "Appetizers"],
+        items: [
+          { id: "tbone", name: "T Bone Steak", price: 1450, cat: "Signature Steaks", desc: "Prime beef cut, herb butter & pepper jus.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDq7kwf_Q0L97EX50faQfJhC6T98XpVg4falKNA7cXGBi8Hu2JqOFaAm7yHrUqnlLra2ZRdF8gP5JPnWCcYd1VGjdZkc0BERQGYw0xsdxu_09khNjP2qyikWJd16yW4lkxKy6_wqSY4jRJK92ZGzeMW4-_OhnGdGeWa5RCKwcpQMJbV0hIbPidyXsTZkp7YgFPFk2XIdKE6jxwyklJvbS67btfQ2D38eojFLtxItBZs", addons: [{name: "Mushroom Sauce", price: 90}] },
+          { id: "texas_meat", name: "Texas Meat Platter", price: 1780, cat: "Signature Steaks", desc: "Slow roasted cuts, sausages, corn, fries.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAHmicXONDSk_pDmSpvAXqJmqakb6fj926VRH6vR59KkclMGvnZ_qmtNrhnM9EzGpIyiKG3W5H30xmWYPQeqhscIC513DuQ0w5HUqiaSFMdMczr2jCh2FdxZSRGFh0OHiYRArPvvgwOzR3Hbkr-rEvUqOC4HX2ULKbkzJkmvWqC_4vonnrqYXOEwhSKAw9g6kNJkxhbyyw_6wG0Cy1Cy--bsWgCdRIraW8e7awM8sBn", addons: [{name: "Extra Sausage", price: 120}] },
+          { id: "tandoori_pizza", name: "Tandori Pizza", price: 580, cat: "Neapolitan Pizza", desc: "Fresh Mozzarella, Tandori Chicken, Green Chili, Tomato.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDq7kwf_Q0L97EX50faQfJhC6T98XpVg4falKNA7cXGBi8Hu2JqOFaAm7yHrUqnlLra2ZRdF8gP5JPnWCcYd1VGjdZkc0BERQGYw0xsdxu_09khNjP2qyikWJd16yW4lkxKy6_wqSY4jRJK92ZGzeMW4-_OhnGdGeWa5RCKwcpQMJbV0hIbPidyXsTZkp7YgFPFk2XIdKE6jxwyklJvbS67btfQ2D38eojFLtxItBZs", addons: [{name: "Extra Mozzarella", price: 60}] },
+          { id: "mexican_pizza", name: "Mexican Hot Pizza", price: 570, cat: "Neapolitan Pizza", desc: "Mozzarella, Mexican Chicken, Tomato & Capsicum.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDq7kwf_Q0L97EX50faQfJhC6T98XpVg4falKNA7cXGBi8Hu2JqOFaAm7yHrUqnlLra2ZRdF8gP5JPnWCcYd1VGjdZkc0BERQGYw0xsdxu_09khNjP2qyikWJd16yW4lkxKy6_wqSY4jRJK92ZGzeMW4-_OhnGdGeWa5RCKwcpQMJbV0hIbPidyXsTZkp7YgFPFk2XIdKE6jxwyklJvbS67btfQ2D38eojFLtxItBZs", addons: [{name: "Extra Mozzarella", price: 60}] },
+          { id: "boba_tea", name: "Boba Pearl Milk Tea", price: 190, cat: "Boba Drink", desc: "Assam tea, brown sugar pearls, creamy dairy blend.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuA0H1jQE2ZdQSfkgYaNIiF4_b1ItmAF6A7rptOfpj6gzK8FLlQbxbfLUJBJnPzouWGU6118Qg9xwbtdtqzoUlwlPedoV4EvDpLKDGOrGQElTcLsdJMDKidfXzB55khGYIBbbNaz24Vo5D866cqhT1nL3V57VXkiFvbIax08tCVikfKnY5lUx1tJ0UrVNwFdPImHPnnvszYnc8F2RQV1wiwzl8D19QIm-nQaMRkf09sM", addons: [{name: "Extra Pearl", price: 50}] },
+          { id: "special_nachos", name: "Special Nachos", price: 260, cat: "Appetizers", desc: "Crisp tortilla chips drenched in melted cheese & salsa.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAM9pl7mtKcZ1iVr148gLWu4DtQfHtVlZZgZi5S_n8j9jCDPnk7rbKe8bjQngziAdjAa567ntXPBXGTG1MtESfCndFdh4aFh5kMd8oV1tsDIrY5Jcle2-Jx4L8KIDVIGo0OQDXyi-EU38nmcOsBhQDsBgNQsC1JdOImCQ_khn8cuq2EwhZoFX00Z_J6Hk_fl5hUd25xs0qshr0s_Kio4krA9x6xeGS1923YQDfwn43", addons: [{name: "Extra Cheese Dip", price: 45}] }
+        ]
+      },
+      toptown: {
+        id: "toptown",
+        name: "Top Town",
+        badge: "Stall 2 • Asian Kitchen",
+        tagline: "Thai, Chinese, Dosa, Biryani",
+        prep: "12-18 min",
+        rating: "★ 4.8 (380+)",
+        banner: "https://lh3.googleusercontent.com/aida-public/AB6AXuAM9pl7mtKcZ1iVr148gLWu4DtQfHtVlZZgZi5S_n8j9jCDPnk7rbKe8bjQngziAdjAa567ntXPBXGTG1MtESfCndFdh4aFh5kMd8oV1tsDIrY5Jcle2-Jx4L8KIDVIGo0OQDXyi-EU38nmcOsBhQDsBgNQsC1JdOImCQ_khn8cuq2EwhZoFX00Z_J6Hk_fl5hUd25xs0qshr0s_Kio4krA9x6xeGS1923YQDfwn43",
+        categories: ["Fried Rice", "Chowmein", "Dosa", "Biriyani"],
+        items: [
+          { id: "fried_rice", name: "Chicken Fried Rice", price: 260, cat: "Fried Rice", desc: "Wok-tossed rice, tender chicken, scrambled egg.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAM9pl7mtKcZ1iVr148gLWu4DtQfHtVlZZgZi5S_n8j9jCDPnk7rbKe8bjQngziAdjAa567ntXPBXGTG1MtESfCndFdh4aFh5kMd8oV1tsDIrY5Jcle2-Jx4L8KIDVIGo0OQDXyi-EU38nmcOsBhQDsBgNQsC1JdOImCQ_khn8cuq2EwhZoFX00Z_J6Hk_fl5hUd25xs0qshr0s_Kio4krA9x6xeGS1923YQDfwn43", addons: [{name: "Fried Egg", price: 30}] },
+          { id: "chowmein", name: "Chicken Chowmein", price: 300, cat: "Chowmein", desc: "Stir-fried noodles with crisp veggies and dark soy.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAM9pl7mtKcZ1iVr148gLWu4DtQfHtVlZZgZi5S_n8j9jCDPnk7rbKe8bjQngziAdjAa567ntXPBXGTG1MtESfCndFdh4aFh5kMd8oV1tsDIrY5Jcle2-Jx4L8KIDVIGo0OQDXyi-EU38nmcOsBhQDsBgNQsC1JdOImCQ_khn8cuq2EwhZoFX00Z_J6Hk_fl5hUd25xs0qshr0s_Kio4krA9x6xeGS1923YQDfwn43", addons: [] },
+          { id: "masala_dosa", name: "Masala Dosa", price: 200, cat: "Dosa", desc: "Crisp crepe filled with spiced potato masala & sambar.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAM9pl7mtKcZ1iVr148gLWu4DtQfHtVlZZgZi5S_n8j9jCDPnk7rbKe8bjQngziAdjAa567ntXPBXGTG1MtESfCndFdh4aFh5kMd8oV1tsDIrY5Jcle2-Jx4L8KIDVIGo0OQDXyi-EU38nmcOsBhQDsBgNQsC1JdOImCQ_khn8cuq2EwhZoFX00Z_J6Hk_fl5hUd25xs0qshr0s_Kio4krA9x6xeGS1923YQDfwn43", addons: [{name: "Extra Cheese", price: 30}] },
+          { id: "biryani", name: "Hyderabadi Chicken Biriyani", price: 250, cat: "Biriyani", desc: "Long-grain Basmati dum rice with marinated chicken.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAM9pl7mtKcZ1iVr148gLWu4DtQfHtVlZZgZi5S_n8j9jCDPnk7rbKe8bjQngziAdjAa567ntXPBXGTG1MtESfCndFdh4aFh5kMd8oV1tsDIrY5Jcle2-Jx4L8KIDVIGo0OQDXyi-EU38nmcOsBhQDsBgNQsC1JdOImCQ_khn8cuq2EwhZoFX00Z_J6Hk_fl5hUd25xs0qshr0s_Kio4krA9x6xeGS1923YQDfwn43", addons: [{name: "Boiled Egg", price: 25}] }
+        ]
+      },
+      momo: {
+        id: "momo",
+        name: "Momo Buzz",
+        badge: "Stall 3 • Dumplings",
+        tagline: "Steamed, Fried, Naga Momo, Fuchka",
+        prep: "10-15 min",
+        rating: "★ 4.9 (510+)",
+        banner: "https://lh3.googleusercontent.com/aida-public/AB6AXuDjTnl9B2arLU50Z_daNgl7Sl8GQ1hkz2nyMvrlffU9F-yb6y2oPCXM846sT2xLGYTqttU_pzgV7nn0caaq486Ob-W-bXw66KEqMlyZT-gLttu1VAKILUZo6FMCLq1fyjz7vt5P6BoiofV1QfU9PWLqD3D5ZV-0HzJwONcvi85jN7JYRm49xJbfhF4b8G4cFZwt9PqgCAjUIzWdnF2EA9t0LRrHPo8UYNYJY0CyfpOQ",
+        categories: ["Momo", "Fuchka Buzz"],
+        items: [
+          { id: "chicken_momo", name: "Chicken Momo (6 pcs)", price: 150, cat: "Momo", desc: "Steamed dumplings with red chili garlic dip.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDjTnl9B2arLU50Z_daNgl7Sl8GQ1hkz2nyMvrlffU9F-yb6y2oPCXM846sT2xLGYTqttU_pzgV7nn0caaq486Ob-W-bXw66KEqMlyZT-gLttu1VAKILUZo6FMCLq1fyjz7vt5P6BoiofV1QfU9PWLqD3D5ZV-0HzJwONcvi85jN7JYRm49xJbfhF4b8G4cFZwt9PqgCAjUIzWdnF2EA9t0LRrHPo8UYNYJY0CyfpOQ", addons: [{name: "Extra Sauce", price: 20}] },
+          { id: "naga_momo", name: "Naga Momo (6 pcs)", price: 180, cat: "Momo", desc: "Tossed in fiery aromatic Naga chili glaze.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDu7dXwosE2PCyiLcOJuVL_-B_sWNML16M6yz0Qn2PNoOVrvikTBBmLd3dGt91k94pg1ZR3r3id8PpXq33smdejhxbwMeVSFbin49_i4MslQfsWpTLpI8DnEFJLkd4TCNHF1GJ8SXqlauF9wsQuX5JLBhmKW-c_ggFP0CFX9WHZMPyujkL_hNDf97ggYSbA94b7x3vKNeB3ABcxmMbQhCt5imKAnQ-a6JAxEbV_nXoB", addons: [] },
+          { id: "momo_chilli_oil", name: "Momo in Chilli Oil", price: 200, cat: "Momo", desc: "Steamed momo immersed in spiced chili garlic oil.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDjTnl9B2arLU50Z_daNgl7Sl8GQ1hkz2nyMvrlffU9F-yb6y2oPCXM846sT2xLGYTqttU_pzgV7nn0caaq486Ob-W-bXw66KEqMlyZT-gLttu1VAKILUZo6FMCLq1fyjz7vt5P6BoiofV1QfU9PWLqD3D5ZV-0HzJwONcvi85jN7JYRm49xJbfhF4b8G4cFZwt9PqgCAjUIzWdnF2EA9t0LRrHPo8UYNYJY0CyfpOQ", addons: [] },
+          { id: "regular_fuchka", name: "Regular Fuchka (12pcs)", price: 130, cat: "Fuchka Buzz", desc: "Crisp shells, potato filling, tangy tamarind water.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDjTnl9B2arLU50Z_daNgl7Sl8GQ1hkz2nyMvrlffU9F-yb6y2oPCXM846sT2xLGYTqttU_pzgV7nn0caaq486Ob-W-bXw66KEqMlyZT-gLttu1VAKILUZo6FMCLq1fyjz7vt5P6BoiofV1QfU9PWLqD3D5ZV-0HzJwONcvi85jN7JYRm49xJbfhF4b8G4cFZwt9PqgCAjUIzWdnF2EA9t0LRrHPo8UYNYJY0CyfpOQ", addons: [] },
+          { id: "doi_fuchka", name: "Doi Fuchka (12pcs)", price: 150, cat: "Fuchka Buzz", desc: "Topped with sweet curd yogurt, cumin & tamarind.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDjTnl9B2arLU50Z_daNgl7Sl8GQ1hkz2nyMvrlffU9F-yb6y2oPCXM846sT2xLGYTqttU_pzgV7nn0caaq486Ob-W-bXw66KEqMlyZT-gLttu1VAKILUZo6FMCLq1fyjz7vt5P6BoiofV1QfU9PWLqD3D5ZV-0HzJwONcvi85jN7JYRm49xJbfhF4b8G4cFZwt9PqgCAjUIzWdnF2EA9t0LRrHPo8UYNYJY0CyfpOQ", addons: [] }
+        ]
+      },
+      waffle: {
+        id: "waffle",
+        name: "Waffle City",
+        badge: "Stall 4 • Desserts",
+        tagline: "Belgian Waffles, Nutella, Shakes",
+        prep: "8-12 min",
+        rating: "★ 4.9 (290+)",
+        banner: "https://lh3.googleusercontent.com/aida-public/AB6AXuDUsDWXJSfN9tJbHNmMsrA6R6Yzw_pi9wlLJYHFHmdTPqEO6pXH4bGi6NluUQ01DcUrMNB4nW9iXvZJf1n6savPscZOa0I7E_hChxAdKnsuWKcMCJeE0JHLklv7i86xJw0g9La4xkJFs2TcswhioBMWLOvGzi5hnZC_4pAAEkC8ktbn2wq_G-SPM9e1jH0ZZw3GJxnG83d_6A9PZ2zHwah5qWaZmRTd9jQFa_Nfo1o0",
+        categories: ["Waffle", "Add Ons"],
+        items: [
+          { id: "nutella_waffle", name: "Nutella Waffle", price: 160, cat: "Waffle", desc: "Warm Belgian waffle smothered in hazelnut Nutella.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAoE-Xbe4phTmwxt560wSVZXtjwTSV8p5hVchfbOh7wms02fte3x3MQFqajknRp58sSZk8wBiYI19zsnhUF83lG4tHsIew8Y1pry_CWZv1UTqBeIuIszSLBvj8-xSQunO1QPe_d8W_2mPNXEpI4poDaymh-PeI93_G41CR7Cqxirwm1TeycieGrbZICtHOOrBBFTMigfdp74gLQ0SfsECD8CoxRnNizeoQwS7gm6jhA", addons: [{name: "Ice Cream", price: 60}, {name: "Extra Nutella", price: 50}] },
+          { id: "nutella_icecream", name: "Nutella With Ice-Cream", price: 220, cat: "Waffle", desc: "Warm waffle with Nutella & Madagascar vanilla ice cream.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAoE-Xbe4phTmwxt560wSVZXtjwTSV8p5hVchfbOh7wms02fte3x3MQFqajknRp58sSZk8wBiYI19zsnhUF83lG4tHsIew8Y1pry_CWZv1UTqBeIuIszSLBvj8-xSQunO1QPe_d8W_2mPNXEpI4poDaymh-PeI93_G41CR7Cqxirwm1TeycieGrbZICtHOOrBBFTMigfdp74gLQ0SfsECD8CoxRnNizeoQwS7gm6jhA", addons: [{name: "Extra Nutella", price: 50}] },
+          { id: "crazy_bliss", name: "Crazy Bliss", price: 280, cat: "Waffle", desc: "Double waffle with Nutella, Oreo, Biscoff & ice cream.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAoE-Xbe4phTmwxt560wSVZXtjwTSV8p5hVchfbOh7wms02fte3x3MQFqajknRp58sSZk8wBiYI19zsnhUF83lG4tHsIew8Y1pry_CWZv1UTqBeIuIszSLBvj8-xSQunO1QPe_d8W_2mPNXEpI4poDaymh-PeI93_G41CR7Cqxirwm1TeycieGrbZICtHOOrBBFTMigfdp74gLQ0SfsECD8CoxRnNizeoQwS7gm6jhA", addons: [] }
+        ]
+      },
+      livestation: {
+        id: "livestation",
+        name: "Live Station",
+        badge: "Stall 5 • Charcoal Grill",
+        tagline: "Charcoal Kebab, BBQ Chicken, Naan",
+        prep: "20-25 min",
+        rating: "★ 4.8 (340+)",
+        banner: "https://lh3.googleusercontent.com/aida-public/AB6AXuAHmicXONDSk_pDmSpvAXqJmqakb6fj926VRH6vR59KkclMGvnZ_qmtNrhnM9EzGpIyiKG3W5H30xmWYPQeqhscIC513DuQ0w5HUqiaSFMdMczr2jCh2FdxZSRGFh0OHiYRArPvvgwOzR3Hbkr-rEvUqOC4HX2ULKbkzJkmvWqC_4vonnrqYXOEwhSKAw9g6kNJkxhbyyw_6wG0Cy1Cy--bsWgCdRIraW8e7awM8sBn",
+        categories: ["BBQ & Kabab", "Platters"],
+        items: [
+          { id: "chicken_tandoori", name: "Chicken Tandoori Kabab", price: 220, cat: "BBQ & Kabab", desc: "Charcoal roasted leg piece with mint chutney.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAHmicXONDSk_pDmSpvAXqJmqakb6fj926VRH6vR59KkclMGvnZ_qmtNrhnM9EzGpIyiKG3W5H30xmWYPQeqhscIC513DuQ0w5HUqiaSFMdMczr2jCh2FdxZSRGFh0OHiYRArPvvgwOzR3Hbkr-rEvUqOC4HX2ULKbkzJkmvWqC_4vonnrqYXOEwhSKAw9g6kNJkxhbyyw_6wG0Cy1Cy--bsWgCdRIraW8e7awM8sBn", addons: [{name: "Butter Naan", price: 70}] },
+          { id: "beef_seekh", name: "Beef Seek Kabab", price: 280, cat: "BBQ & Kabab", desc: "Minced beef skewers with coriander & spices.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAHmicXONDSk_pDmSpvAXqJmqakb6fj926VRH6vR59KkclMGvnZ_qmtNrhnM9EzGpIyiKG3W5H30xmWYPQeqhscIC513DuQ0w5HUqiaSFMdMczr2jCh2FdxZSRGFh0OHiYRArPvvgwOzR3Hbkr-rEvUqOC4HX2ULKbkzJkmvWqC_4vonnrqYXOEwhSKAw9g6kNJkxhbyyw_6wG0Cy1Cy--bsWgCdRIraW8e7awM8sBn", addons: [{name: "Butter Naan", price: 70}] },
+          { id: "platter_1", name: "Platter 1 (1:2)", price: 915, cat: "Platters", desc: "Achari & Boti Kabab, Tandoori, Naan, Rice & Salad.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAHmicXONDSk_pDmSpvAXqJmqakb6fj926VRH6vR59KkclMGvnZ_qmtNrhnM9EzGpIyiKG3W5H30xmWYPQeqhscIC513DuQ0w5HUqiaSFMdMczr2jCh2FdxZSRGFh0OHiYRArPvvgwOzR3Hbkr-rEvUqOC4HX2ULKbkzJkmvWqC_4vonnrqYXOEwhSKAw9g6kNJkxhbyyw_6wG0Cy1Cy--bsWgCdRIraW8e7awM8sBn", addons: [] }
+        ]
+      },
+      burgerbar: {
+        id: "burgerbar",
+        name: "Burger Bar",
+        badge: "Stall 6 • Smash Joint",
+        tagline: "Smash Burgers, Loaded Fries, Wings",
+        prep: "12-15 min",
+        rating: "★ 4.7 (460+)",
+        banner: "https://lh3.googleusercontent.com/aida-public/AB6AXuBYwOSclaTT9eH0dgjVmtSTtcN7j2f3gOc8CCk1ldd4rg_pbczjQLdrrvhRDMCczZEbf8YQB4EjrqQ_4W5FbrpuSvmHVZecAgVX7zlJkY5NctwXX5GrM35z5rdf-_8ieoOsskBZ9Zqm7ZjZ3s3v0Nr_0YRtnz_IWrVhIR4ahKPWoSFsg3SGsEFC7TDnewhxGLa26w-qXNuPIM4eD10CVv3F_ejyCAyvwcqbP5qC_R4U",
+        categories: ["Burger", "Sides"],
+        items: [
+          { id: "chicken_burger", name: "Chicken Burger (Reg)", price: 199, cat: "Burger", desc: "Grilled patty, lettuce, pickles, burger mayo.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAy6SmV5YZDnUV3uvAp4mXVg9KRmD2NtISlIeOfoidw1lZjabZu61f939BRi67kcbOYqcFD9Pg8SWeegOY-TmMYoyWJpyPkwoBsHNkLD2GVZHVSlVKI_EsHIbFOD0XQvy0Ka0lJpTscUWkF7y1cRHMiXVvYoHYlj9-kTrgxR88fYmPY2CaRQLbTfKpI24q8iP2CHNvrN7vgm5eHzzixZip4q0UWGS_IGuMXGymZAeVy", addons: [{name: "Cheese", price: 35}, {name: "Mayo", price: 35}] },
+          { id: "chicken_crispy", name: "Chicken Crispy Burger", price: 225, cat: "Burger", desc: "Crunchy fried thigh fillet, spicy slaw, chipotle sauce.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAy6SmV5YZDnUV3uvAp4mXVg9KRmD2NtISlIeOfoidw1lZjabZu61f939BRi67kcbOYqcFD9Pg8SWeegOY-TmMYoyWJpyPkwoBsHNkLD2GVZHVSlVKI_EsHIbFOD0XQvy0Ka0lJpTscUWkF7y1cRHMiXVvYoHYlj9-kTrgxR88fYmPY2CaRQLbTfKpI24q8iP2CHNvrN7vgm5eHzzixZip4q0UWGS_IGuMXGymZAeVy", addons: [{name: "Cheese", price: 35}] },
+          { id: "beef_cheese", name: "Beef Cheese Burger", price: 330, cat: "Burger", desc: "Smashed beef patty, double cheddar, caramelized onions.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAy6SmV5YZDnUV3uvAp4mXVg9KRmD2NtISlIeOfoidw1lZjabZu61f939BRi67kcbOYqcFD9Pg8SWeegOY-TmMYoyWJpyPkwoBsHNkLD2GVZHVSlVKI_EsHIbFOD0XQvy0Ka0lJpTscUWkF7y1cRHMiXVvYoHYlj9-kTrgxR88fYmPY2CaRQLbTfKpI24q8iP2CHNvrN7vgm5eHzzixZip4q0UWGS_IGuMXGymZAeVy", addons: [{name: "Double Patty", price: 99}] },
+          { id: "meat_box", name: "BBQ Cheese Meat Box", price: 290, cat: "Sides", desc: "Fries topped with shredded BBQ chicken & mozzarella.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuBYwOSclaTT9eH0dgjVmtSTtcN7j2f3gOc8CCk1ldd4rg_pbczjQLdrrvhRDMCczZEbf8YQB4EjrqQ_4W5FbrpuSvmHVZecAgVX7zlJkY5NctwXX5GrM35z5rdf-_8ieoOsskBZ9Zqm7ZjZ3s3v0Nr_0YRtnz_IWrVhIR4ahKPWoSFsg3SGsEFC7TDnewhxGLa26w-qXNuPIM4eD10CVv3F_ejyCAyvwcqbP5qC_R4U", addons: [] }
+        ]
+      }
+    };
+
+    // Realistic Multi-Stall Pre-populated Cart
+    let cartItems = [
+      { stallId: "fusion", itemId: "tandoori_pizza", name: "Tandori Pizza", price: 580, qty: 1, addons: ["Extra Mozzarella (+৳60)"], itemTotal: 640 },
+      { stallId: "toptown", itemId: "fried_rice", name: "Chicken Fried Rice", price: 260, qty: 1, addons: [], itemTotal: 260 },
+      { stallId: "momo", itemId: "chicken_momo", name: "Chicken Momo (6 pcs)", price: 150, qty: 1, addons: [], itemTotal: 150 },
+      { stallId: "burgerbar", itemId: "chicken_burger", name: "Chicken Burger (Reg)", price: 199, qty: 1, addons: ["Cheese (+৳35)"], itemTotal: 234 }
+    ];
+
+    let activeModalItem = null;
+    let modalQty = 1;
+    let currentStallId = "fusion";
+    let splashTimer = null;
+
+    function startSplashSequence() {
+      const splash = document.getElementById('splash');
+      const progressBar = document.getElementById('splash-progress-bar');
+      if (!splash) return;
+
+      splash.style.display = 'flex';
+      splash.style.opacity = '1';
+      splash.style.transform = 'scale(1)';
+
+      // Trigger bar animation
+      if (progressBar) {
+        progressBar.style.width = '0%';
+        setTimeout(() => {
+          progressBar.style.width = '100%';
+        }, 100);
+      }
+
+      // Auto dismiss after 2.8s
+      clearTimeout(splashTimer);
+      splashTimer = setTimeout(() => {
+        dismissSplash();
+      }, 2800);
+    }
+
+    function dismissSplash() {
+      clearTimeout(splashTimer);
+      const splash = document.getElementById('splash');
+      if (splash) {
+        splash.style.opacity = '0';
+        splash.style.transform = 'scale(1.04)';
+        setTimeout(() => {
+          splash.style.display = 'none';
+        }, 700);
+      }
+    }
+
+    function replaySplash() {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      splash.style.transition = 'none';
+      splash.style.display = 'flex';
+      splash.style.opacity = '1';
+      splash.style.transform = 'scale(1)';
+      
+      // Force repaint
+      void splash.offsetWidth;
+      splash.style.transition = 'all 700ms ease-out';
+      startSplashSequence();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateCartUI();
+      startSplashSequence();
+    });
+
+    function navigateTo(viewId) {
+      document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+      const floatCart = document.getElementById('float-cart-bar');
+
+      if (viewId === 'home') {
+        document.getElementById('view-home').classList.remove('hidden');
+        if (cartItems.length > 0) floatCart.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (viewId === 'stall') {
+        document.getElementById('view-stall').classList.remove('hidden');
+        if (cartItems.length > 0) floatCart.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (viewId === 'cart') {
+        renderCartPage();
+        document.getElementById('view-cart').classList.remove('hidden');
+        floatCart.classList.add('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (viewId === 'success') {
+        document.getElementById('view-success').classList.remove('hidden');
+        floatCart.classList.add('hidden');
+      }
+    }
+
+    function openStall(stallId) {
+      const stall = STALL_DATA[stallId];
+      if (!stall) return;
+      currentStallId = stallId;
+
+      document.getElementById('stall-name').textContent = stall.name;
+      document.getElementById('stall-tagline').textContent = stall.tagline;
+      document.getElementById('stall-badge').textContent = stall.badge;
+      document.getElementById('stall-rating').textContent = stall.rating;
+      document.getElementById('stall-prep').textContent = "⏱ " + stall.prep;
+      document.getElementById('stall-hero-img').src = stall.banner;
+
+      const chipsBox = document.getElementById('stall-category-chips');
+      let html = `<button onclick="filterCat('all', this)" class="stall-chip bg-charcoal text-white text-[11px] font-bold px-3 py-1 rounded-full">All</button>`;
+      stall.categories.forEach(c => {
+        html += `<button onclick="filterCat('${c}', this)" class="stall-chip bg-white border border-zinc-200 text-zinc-700 text-[11px] font-medium px-3 py-1 rounded-full hover:bg-zinc-50">${c}</button>`;
+      });
+      chipsBox.innerHTML = html;
+
+      renderStallDishes(stall.items);
+      navigateTo('stall');
+    }
+
+    function renderStallDishes(items) {
+      const box = document.getElementById('stall-items-container');
+      box.innerHTML = items.map(i => `
+        <div onclick="openItemModal('${currentStallId}', '${i.id}')" class="cursor-pointer bg-white rounded-xl p-3 border border-zinc-200 shadow-2xs hover:border-brand-500/50 flex items-center justify-between gap-3 active:scale-[0.99] transition-all">
+          <div class="flex-1 min-w-0">
+            <span class="text-[9px] uppercase font-bold text-brand-600">${i.cat}</span>
+            <h3 class="text-xs font-bold text-zinc-900 truncate">${i.name}</h3>
+            <p class="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">${i.desc}</p>
+            <div class="mt-2 flex items-center gap-2">
+              <span class="text-xs font-black text-brand-600">৳${i.price}</span>
+              ${i.addons && i.addons.length ? '<span class="text-[9px] text-zinc-400 bg-zinc-100 px-1.5 py-0.2 rounded">Customizable</span>' : ''}
+            </div>
+          </div>
+          <div class="relative w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-zinc-100">
+            <img class="w-full h-full object-cover" src="${i.img}" alt="${i.name}"/>
+            <button aria-label="Add" class="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-xs">
+              <span class="material-symbols-outlined text-[14px]">add</span>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterCat(cat, btn) {
+      document.querySelectorAll('.stall-chip').forEach(b => {
+        b.className = "stall-chip bg-white border border-zinc-200 text-zinc-700 text-[11px] font-medium px-3 py-1 rounded-full hover:bg-zinc-50";
+      });
+      btn.className = "stall-chip bg-charcoal text-white text-[11px] font-bold px-3 py-1 rounded-full";
+      const stall = STALL_DATA[currentStallId];
+      renderStallDishes(cat === 'all' ? stall.items : stall.items.filter(i => i.cat === cat));
+    }
+
+    function openItemModal(stallId, itemId) {
+      const stall = STALL_DATA[stallId];
+      const item = stall.items.find(x => x.id === itemId);
+      if (!item) return;
+
+      activeModalItem = { ...item, stallId, stallName: stall.name };
+      modalQty = 1;
+
+      document.getElementById('modal-dish-img').src = item.img;
+      document.getElementById('modal-dish-title').textContent = item.name;
+      document.getElementById('modal-dish-desc').textContent = item.desc;
+      document.getElementById('modal-stall-tag').textContent = stall.name;
+      document.getElementById('modal-dish-price').textContent = `৳${item.price}`;
+      document.getElementById('modal-dish-notes').value = '';
+      document.getElementById('modal-qty-val').textContent = modalQty;
+
+      const addonsBox = document.getElementById('modal-addons-list');
+      if (item.addons && item.addons.length) {
+        addonsBox.innerHTML = item.addons.map(a => `
+          <label class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200 text-xs cursor-pointer">
+            <div class="flex items-center gap-2">
+              <input type="checkbox" data-name="${a.name}" data-price="${a.price}" class="modal-addon-cb rounded text-brand-500" onchange="calcModalTotal()"/>
+              <span class="font-medium text-zinc-800">${a.name}</span>
+            </div>
+            <span class="font-bold text-brand-600">+৳${a.price}</span>
+          </label>
+        `).join('');
+      } else {
+        addonsBox.innerHTML = `<p class="text-[11px] text-zinc-400 italic">No add-ons available for this item.</p>`;
+      }
+
+      calcModalTotal();
+      document.getElementById('item-modal').classList.remove('hidden');
+    }
+
+    function closeItemModal() {
+      document.getElementById('item-modal').classList.add('hidden');
+      activeModalItem = null;
+    }
+
+    function incrementModalQty() { modalQty++; document.getElementById('modal-qty-val').textContent = modalQty; calcModalTotal(); }
+    function decrementModalQty() { if (modalQty > 1) { modalQty--; document.getElementById('modal-qty-val').textContent = modalQty; calcModalTotal(); } }
+
+    function calcModalTotal() {
+      if (!activeModalItem) return;
+      let single = activeModalItem.price;
+      document.querySelectorAll('.modal-addon-cb:checked').forEach(cb => {
+        single += parseFloat(cb.getAttribute('data-price') || 0);
+      });
+      const total = single * modalQty;
+      document.getElementById('modal-total-btn-price').textContent = `৳${total}`;
+      return total;
+    }
+
+    function addModalItemToCart() {
+      if (!activeModalItem) return;
+      const addons = [];
+      let extra = 0;
+      document.querySelectorAll('.modal-addon-cb:checked').forEach(cb => {
+        addons.push(`${cb.getAttribute('data-name')} (+৳${cb.getAttribute('data-price')})`);
+        extra += parseFloat(cb.getAttribute('data-price') || 0);
+      });
+
+      const singleTotal = activeModalItem.price + extra;
+      cartItems.push({
+        stallId: activeModalItem.stallId,
+        itemId: activeModalItem.id,
+        name: activeModalItem.name,
+        price: activeModalItem.price,
+        qty: modalQty,
+        addons: addons,
+        itemTotal: singleTotal * modalQty
+      });
+
+      closeItemModal();
+      updateCartUI();
+    }
+
+    function updateCartUI() {
+      const totalQty = cartItems.reduce((acc, i) => acc + i.qty, 0);
+      const grandTotal = cartItems.reduce((acc, i) => acc + i.itemTotal, 0);
+
+      document.getElementById('badge-top-cart').textContent = totalQty;
+      document.getElementById('nav-cart-badge').textContent = totalQty;
+      document.getElementById('float-cart-count').textContent = totalQty;
+      document.getElementById('float-cart-price').textContent = `৳${grandTotal.toLocaleString()}`;
+
+      const floatBar = document.getElementById('float-cart-bar');
+      if (cartItems.length > 0 && document.getElementById('view-cart').classList.contains('hidden')) {
+        floatBar.classList.remove('hidden');
+      } else {
+        floatBar.classList.add('hidden');
+      }
+    }
+
+    function renderCartPage() {
+      const container = document.getElementById('cart-grouped-items');
+      if (cartItems.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-zinc-400 text-xs">Your Food Court tray is empty. Tap any stall to start ordering.</div>`;
+        document.getElementById('cart-subtotal').textContent = '৳0';
+        document.getElementById('cart-grandtotal').textContent = '৳0';
+        return;
+      }
+
+      // Group by stall
+      const grouped = {};
+      cartItems.forEach((item, index) => {
+        if (!grouped[item.stallId]) grouped[item.stallId] = [];
+        grouped[item.stallId].push({ ...item, originalIndex: index });
+      });
+
+      let html = '';
+      let grandTotal = 0;
+
+      for (const sId in grouped) {
+        const stallInfo = STALL_DATA[sId] || { name: "Food Stall" };
+        const items = grouped[sId];
+        const stallSubtotal = items.reduce((acc, x) => acc + x.itemTotal, 0);
+        grandTotal += stallSubtotal;
+
+        html += `
+          <div class="bg-white rounded-xl p-3 border border-zinc-200 shadow-2xs">
+            <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+              <span class="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                ${stallInfo.name}
+              </span>
+              <span class="text-[10px] text-zinc-500 font-bold">Stall Subtotal: ৳${stallSubtotal}</span>
+            </div>
+            <div class="divide-y divide-zinc-100 mt-1">
+              ${items.map(item => `
+                <div class="py-2 flex items-center justify-between text-xs">
+                  <div>
+                    <span class="font-bold text-zinc-800">${item.name}</span>
+                    <span class="text-zinc-500 ml-1">×${item.qty}</span>
+                    ${item.addons && item.addons.length ? `<p class="text-[10px] text-zinc-400">${item.addons.join(', ')}</p>` : ''}
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="font-bold text-zinc-900">৳${item.itemTotal}</span>
+                    <button onclick="removeCartItem(${item.originalIndex})" class="text-zinc-400 hover:text-rose-600">
+                      <span class="material-symbols-outlined text-[16px]">delete</span>
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = html;
+      document.getElementById('cart-subtotal').textContent = `৳${grandTotal.toLocaleString()}`;
+      document.getElementById('cart-grandtotal').textContent = `৳${grandTotal.toLocaleString()}`;
+    }
+
+    function removeCartItem(idx) {
+      cartItems.splice(idx, 1);
+      updateCartUI();
+      renderCartPage();
+    }
+
+    function clearCart() {
+      cartItems = [];
+      updateCartUI();
+      renderCartPage();
+    }
+
+    function placeOrderRequest() {
+      if (cartItems.length === 0) {
+        alert("Your tray is empty!");
+        return;
+      }
+      navigateTo('success');
+    }
+  </script>
+</body></html>
