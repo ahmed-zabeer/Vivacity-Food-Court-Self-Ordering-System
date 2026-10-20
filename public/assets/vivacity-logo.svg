@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="flameGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="chiliGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+  </defs>
+  <!-- Background Navy -->
+  <rect width="500" height="500" rx="32" fill="#0f1123"/>
+  
+  <!-- Outer Badge Frame -->
+  <g transform="translate(40, 160)">
+    <!-- Star at bottom -->
+    <polygon points="210,195 213,205 224,205 215,212 218,222 210,216 202,222 205,212 196,205 207,205" fill="#ffffff"/>
+    <line x1="100" y1="210" x2="185" y2="210" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+    <line x1="235" y1="210" x2="320" y2="210" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Top accent lines -->
+    <line x1="75" y1="35" x2="180" y2="35" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="75" cy="35" r="4" fill="#f59e0b"/>
+    <line x1="240" y1="35" x2="345" y2="35" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="345" cy="35" r="4" fill="#f59e0b"/>
+    
+    <!-- Main Frame Border -->
+    <rect x="40" y="55" width="340" height="105" rx="16" fill="#0f1123" stroke="#ffffff" stroke-width="3.5"/>
+    <rect x="48" y="63" width="324" height="89" rx="12" fill="none" stroke="#dc2626" stroke-width="3"/>
+    
+    <!-- Text -->
+    <text x="210" y="122" font-family="'Manrope', Impact, sans-serif" font-weight="900" font-size="28" fill="#ffffff" text-anchor="middle" letter-spacing="2">VIVACITY FOOD COURT</text>
+  </g>
+
+  <!-- Flame & Chili on Top -->
+  <g transform="translate(190, 75)">
+    <!-- Flame background -->
+    <path d="M60 140 C20 120 10 70 35 45 C42 65 55 70 60 40 C75 75 95 65 85 30 C115 65 110 115 60 140 Z" fill="url(#flameGrad)" stroke="#1a1c1b" stroke-width="3"/>
+    <!-- Inner Flame -->
+    <path d="M60 130 C40 115 32 85 45 65 C50 80 58 82 60 62 C70 85 82 80 75 55 C92 78 88 112 60 130 Z" fill="#fbbf24"/>
+    <!-- Chili Pepper -->
+    <path d="M45 75 C45 75 55 95 52 125 C50 145 35 155 25 155 C35 150 40 135 38 120 C35 98 42 75 45 75 Z" fill="url(#chiliGrad)" stroke="#1a1c1b" stroke-width="3"/>
+    <!-- Stem -->
+    <path d="M45 75 C46 68 50 62 55 60 C53 66 50 71 45 75 Z" fill="#15803d"/>
+  </g>
+</svg>
