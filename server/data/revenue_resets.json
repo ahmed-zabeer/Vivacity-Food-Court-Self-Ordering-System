@@ -1,0 +1,818 @@
+[
+  {
+    "id": "rev-reset-day-3231a72c-38e0-4162-8165-10e083cc6ce4",
+    "type": "daily",
+    "date": "2026-10-09",
+    "resetAt": "2026-10-09T16:17:29.317Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-e65a58b5-fdb0-4f0c-b991-d59385c8fef2",
+    "type": "daily",
+    "date": "2026-10-09",
+    "resetAt": "2026-10-09T17:32:44.027Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-562bfc84-5b3d-4387-980c-b79c752ae8c3",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-09T18:23:23.479Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-7b9f5339-e5c5-4975-babe-6cc4b1dc3a4e",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-09T18:25:13.982Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-efe8d5ad-1020-4081-a2a5-53ca7263d3f8",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-09T19:09:21.612Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-d3137824-623a-43b8-8126-599c34f09efc",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-09T19:09:24.691Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-52a684e7-83fc-42aa-b72e-cbf0dc9fe3f8",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-09T19:09:26.758Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-670b05ba-eeeb-40ea-8b0e-5485abe05a83",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-09T19:37:55.373Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-41a5d245-24a2-40fc-90ef-c9b92265dd86",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-09T19:37:55.402Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-438a160e-52e6-4f74-a99c-a68c4dfff4a1",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-09T19:37:55.426Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-9fdcfc38-73af-4c53-b949-f304f408877d",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-09T19:49:17.192Z",
+    "user": "Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-month-0158c8a1-d423-41c0-a198-d3af21072328",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-09T19:49:17.192Z",
+    "user": "Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-year-70264352-cd8e-43d9-9273-a48be58db46d",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-09T19:49:17.192Z",
+    "user": "Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-day-f84be1c7-29a7-448a-bfb3-2ceb792aa9b2",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-09T20:06:02.210Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-53d6ee3d-7fce-4dc2-8edc-e15fbae1d27b",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-09T20:06:02.210Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-c77d2434-e062-4f38-b085-0f7d72e4b8f2",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-09T20:06:02.210Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-59fa2bb1-3341-4cd6-9872-a9bfe922db32",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-10T13:01:24.229Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-3418a1f5-33d3-4031-ac50-8ea2ae5c784b",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-10T13:01:24.330Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-ee8b7425-1bf9-45a1-8b7a-dad4763510ff",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-10T13:01:24.330Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-f7f70d17-cc1f-49e5-b034-847dbabc892d",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-10T13:01:24.330Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-01447d74-d325-4c84-b597-25fccf609acc",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-10T14:01:37.983Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-4df23024-5a97-4ac1-b3fc-49957983afd9",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-10T14:01:37.983Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-1d869690-2a05-4818-bf46-8c9689bb01a0",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-10T14:01:37.983Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-516eb807-0199-44f5-87ae-91e553703642",
+    "type": "daily",
+    "date": "2026-10-10",
+    "resetAt": "2026-10-10T14:01:47.338Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-4e7623ac-fb9b-4917-9ef2-0a15da77a9e2",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-10T14:01:47.338Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-7c0f1117-319c-4975-acac-3d98b5277e96",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-10T14:01:47.338Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-ed5ae810-de99-4cf7-a855-94bc47800e3f",
+    "type": "daily",
+    "date": "2026-10-11",
+    "resetAt": "2026-10-11T17:11:11.587Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-4b9c8095-082b-4440-9984-a97f25005313",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-11T17:11:11.587Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-baf7755c-0237-4e67-a910-086afa33eee2",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-11T17:11:11.587Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-52ca9bb3-c7dc-4ea6-ae45-0cf97163f782",
+    "type": "daily",
+    "date": "2026-10-11",
+    "resetAt": "2026-10-11T17:11:29.623Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-9deb3b55-b593-4872-a109-c48b6436fe3c",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-11T17:11:29.623Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-25d0aa77-73ce-4faa-9570-6910daccb71b",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-11T17:11:29.623Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-e228fc3c-7d78-43f0-a777-95fcf1be199a",
+    "type": "daily",
+    "date": "2026-10-11",
+    "resetAt": "2026-10-11T17:33:32.336Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-day-d245512c-fc02-4d24-bde4-c7c06e14c9af",
+    "type": "daily",
+    "date": "2026-10-12",
+    "resetAt": "2026-10-11T18:33:35.788Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-e9d22e96-76b5-4dcb-bb97-ea57e1c1731a",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-11T18:33:35.788Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-10bdf281-bf03-459c-b549-cea696f21a1b",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-11T18:33:35.788Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-f77bd73e-7076-4d1f-9590-ae1b8b25d98a",
+    "type": "daily",
+    "date": "2026-10-12",
+    "resetAt": "2026-10-11T18:44:47.617Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-day-b51de681-367d-49aa-b2d0-088c8df49934",
+    "type": "daily",
+    "date": "2026-10-14",
+    "resetAt": "2026-10-14T02:33:01.299Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-month-b659176e-6e3c-4c6a-bd29-7e53b0783880",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-14T02:33:01.299Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-year-db740509-d876-4d22-9d54-87ca889ed828",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-14T02:33:01.299Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-day-78cf1056-d3d5-4e71-b08f-a01d7f78447c",
+    "type": "daily",
+    "date": "2026-10-17",
+    "resetAt": "2026-10-17T16:55:09.140Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-808198a2-3264-4012-a30a-1b933530ea56",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-17T16:55:09.156Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-d151fb3a-7c1b-4aba-af98-7239ef96a19a",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-17T16:55:09.186Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-7233d6c2-c04b-4f36-8c14-988a962e970e",
+    "type": "daily",
+    "date": "2026-10-17",
+    "resetAt": "2026-10-17T16:55:13.452Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-64eaef5c-9c45-4539-aed1-e7c37f5c59fe",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-17T16:55:13.452Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-7dab0edc-edaa-4536-8893-f92a98fa046e",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-17T16:55:13.452Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-d9da6442-7e5a-412c-b211-36f13dbabb2b",
+    "type": "daily",
+    "date": "2026-10-18",
+    "resetAt": "2026-10-17T18:09:21.347Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-day-cd8542d4-356e-4d1a-89e1-604943526da2",
+    "type": "daily",
+    "date": "2026-10-18",
+    "resetAt": "2026-10-17T18:16:11.350Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-9bf1d97e-d805-45e2-a78f-1430205941c3",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-17T18:16:11.350Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-40b10ee9-27b8-40c3-a186-fbda59e943a7",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-17T18:16:11.350Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-9a314865-b2cc-4ab8-a30b-4dbfbf3adf02",
+    "type": "daily",
+    "date": "2026-10-18",
+    "resetAt": "2026-10-18T09:23:56.003Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-month-97f7b0b7-19a1-489a-9081-0e88efd7c6db",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-18T09:23:56.003Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-year-92a9b410-5041-4198-8dd0-16afb83d4a3a",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-18T09:23:56.003Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-day-8cedfbea-780d-4647-a6ee-298f6397b062",
+    "type": "daily",
+    "date": "2026-10-18",
+    "resetAt": "2026-10-18T15:58:09.247Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-56e38a86-6485-4f01-b17b-fe1f7c4383ac",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-18T15:58:09.247Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-9ee9dccb-de52-4654-a606-8bb5cdc71389",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-18T15:58:09.247Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-da171b2e-a6b7-4ee0-aeab-177ead72998a",
+    "type": "daily",
+    "date": "2026-10-18",
+    "resetAt": "2026-10-18T16:26:45.084Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-c993a78d-2ffe-46e0-9a9d-123d6a691014",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-18T16:26:45.084Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-1fd183c9-716a-42ea-89e2-fcffdf1924dd",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-18T16:26:45.084Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-69d29674-8b92-4510-bf74-8154c0fc8910",
+    "type": "daily",
+    "date": "2026-10-18",
+    "resetAt": "2026-10-18T16:42:16.006Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-40292b77-f780-42d5-a29c-5751d5705936",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-18T16:42:16.006Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-c5dfa2f1-f7ec-4ff5-9fe4-190ef4bf3639",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-18T16:42:16.006Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-a391f1e3-dc23-463b-b94b-b3c896740e1f",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-18T19:34:06.931Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-66bda684-85e9-4a2c-97ee-69476e08c8df",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-18T19:34:06.931Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-bdaaaa5b-1aff-4225-81f3-a8b875d7c1cf",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-18T19:34:06.931Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-f71c8ce4-e2e0-47b8-8ba6-6fe3c172badb",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-19T07:58:52.998Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-9699f97c-3754-4642-9e10-636182133085",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-19T07:58:53.140Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-ff004269-6914-4536-96a3-92f4a83d89ec",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-19T07:58:53.140Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-63ce77ba-df33-4ea5-a9ad-421136446b05",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-19T07:58:53.140Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-0efce802-feb9-4dc7-93f8-19bca21e9381",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-19T09:24:52.648Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-b85a7784-1549-400f-ab74-8d978b3db4f5",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-19T09:24:52.804Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-daf97905-b373-4eb1-a333-2f84fa9b5970",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-19T09:24:52.804Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-bfd41515-8a21-4b7e-8b5e-51a976260790",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-19T09:24:52.804Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-fa28cdf0-7fd7-44aa-91f2-9a6131e1238a",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-19T09:35:06.879Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-db320223-40cc-434a-be53-813062290682",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-19T09:35:07.038Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-0138e766-1f1a-4dae-b765-b7996f0ccadd",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-19T09:35:07.038Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-e23c1369-b8b3-4220-a60a-7b796a68c733",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-19T09:35:07.038Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-2f1d2e18-a6f4-4fc9-9921-2b845904547e",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-19T09:50:59.323Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-e2c86be9-21df-4baf-83bb-ea518cdc0c8f",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-19T09:50:59.323Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-1433aaba-cc7a-4f31-86bd-9062464df8b2",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-19T09:50:59.323Z",
+    "user": "Counter Cashier (Hasan)",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-4c0dd89d-6ba3-4b73-ad03-e4384e91d9fb",
+    "type": "daily",
+    "date": "2026-10-19",
+    "resetAt": "2026-10-19T16:39:46.196Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-448b312b-a9c2-4601-b28a-4036d881a829",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-19T16:39:46.196Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-2839c419-ac7e-4d4c-9783-32984957478e",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-19T16:39:46.196Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-bf72033e-0c90-469b-8d57-f9a922224c5d",
+    "type": "daily",
+    "date": "2026-10-20",
+    "resetAt": "2026-10-20T07:21:21.193Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-c28a4857-0ff9-4b79-9e1b-087b107c5518",
+    "type": "daily",
+    "date": "2026-10-20",
+    "resetAt": "2026-10-20T07:21:21.322Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-month-411a430d-3044-4d69-87c4-054043bdb7e8",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-20T07:21:21.322Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-year-ee4184c7-9f66-4b68-91db-c87252400b60",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-20T07:21:21.322Z",
+    "user": "Cashier Hasan",
+    "role": "CASHIER"
+  },
+  {
+    "id": "rev-reset-day-af8acab0-4c82-4d7e-a67c-55397330db40",
+    "type": "daily",
+    "date": "2026-10-20",
+    "resetAt": "2026-10-20T08:28:29.878Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-347e6ae2-a1ee-4c3b-9609-9a05310a9edd",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-20T08:28:29.878Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-dd871b8a-420b-49fa-8838-c66e1abf11c6",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-20T08:28:29.878Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-38522961-0a41-4717-8052-ca35f6a7bc92",
+    "type": "daily",
+    "date": "2026-10-20",
+    "resetAt": "2026-10-20T10:36:21.282Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-84b60c2c-d687-4cc4-b8c7-52ef4c4ff04f",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-20T10:36:21.282Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-b059fd47-3a8a-4fd6-864a-6c0f3c220be8",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-20T10:36:21.282Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-3e99d6b4-4500-4b7c-b323-5cf45857348a",
+    "type": "daily",
+    "date": "2026-10-20",
+    "resetAt": "2026-10-20T10:42:42.446Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-7e35f353-c194-4ddc-87f9-cd58f3dfdc6d",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-20T10:42:42.446Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-fe88b253-6a91-434d-8723-3082be5f6d46",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-20T10:42:42.446Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-b4cc3100-e1a8-4073-aaaa-51f528b75547",
+    "type": "daily",
+    "date": "2026-10-20",
+    "resetAt": "2026-10-20T10:46:46.150Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-c9df5816-bce6-4136-ac0b-1cb19a1d3d3f",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-20T10:46:46.150Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-272c2d94-fcaa-413d-8d7e-6c9cb35bb650",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-20T10:46:46.150Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-f5078311-86c7-430a-a7df-614896568fed",
+    "type": "daily",
+    "date": "2026-10-20",
+    "resetAt": "2026-10-20T10:46:51.594Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-cf9c4774-6147-45b4-8533-c0f5985ad2f0",
+    "type": "monthly",
+    "month": "2026-10",
+    "resetAt": "2026-10-20T10:46:51.594Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-9ac3622e-c307-4801-98bf-40f4326635a2",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-10-20T10:46:51.594Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  }
+]
