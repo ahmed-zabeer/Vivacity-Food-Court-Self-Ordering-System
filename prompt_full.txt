@@ -1,0 +1,690 @@
+<USER_REQUEST>
+# FEATURE UPDATE: LIVE FOOD PREPARATION ANIMATION + COUNTER-CONFIRMED SOUND REMINDER
+
+You are working on my existing web application:
+
+**VIVA CITY FOOD COURT**
+
+Implement a complete, interactive food preparation tracking and customer notification feature inside the existing application.
+
+IMPORTANT:
+
+* Do not rebuild the entire application.
+* Do not change the existing brand, menu data, payment system, 55-table QR system, or core ordering architecture.
+* Integrate this feature with the existing customer app, central management dashboard, stall dashboards, and kitchen display system.
+* This must be a functional feature connected to real order states, not just an animation or static UI mockup.
+
+The main goal is to give customers a premium, attractive experience that shows their food being prepared, tells them approximately how long it may take, shows exactly which stall's food is ready, and plays a pleasant sound reminder when the central counter confirms that the food is ready for collection.
+
+---
+
+## 1. CUSTOMER EXPERIENCE IMMEDIATELY AFTER PLACING AN ORDER
+
+When a customer places an order, show a beautiful, animated order-tracking screen instead of a plain success message.
+
+Example:
+
+**Order Received!**
+
+Your food journey has started.
+
+Display:
+
+* Customer order token, such as #0048
+* Table number, such as T17
+* Order time
+* Ordered items
+* Stall names
+* Current order status
+* Estimated preparation time when available
+
+Use an elegant chef-themed animation showing a chef preparing food.
+
+The animation could include a chef cooking, subtle steam, a moving pan, or food preparation motions. Use a lightweight Lottie animation, suitable animation asset, or tasteful CSS animation.
+
+The animation must look modern and premium, not childish.
+
+Show a message such as:
+
+"Your order is being prepared with care."
+
+However, respect the actual order workflow.
+
+Before management acceptance, payment confirmation, and order release, display the correct status, such as:
+
+"Waiting for order confirmation"
+
+or
+
+"Preparing your order request"
+
+Do not falsely claim that the kitchen has started preparing food before the order has actually been released to the relevant stall.
+
+Once the order has been accepted, the required payment has been confirmed, and the kitchen has received the order, update the message to:
+
+**"Our chefs are preparing your food!"**
+
+The preparation animation should then become active.
+
+## 2. SHOW EACH STALL'S STATUS SEPARATELY
+
+A customer may place one order containing food from multiple stalls.
+
+For example:
+
+Order #0048
+Table T17
+
+* Coffee Buzz Fusion Cafe: T Bone Steak
+* Momo Buzz: Chicken Momo
+* Burger Bar: Chicken Cheese Delight
+
+These must remain one master order from the customer's perspective.
+
+However, display the preparation status of each stall separately.
+
+Create an attractive section titled:
+
+**Your Food Preparation Status**
+
+Example:
+
+### Coffee Buzz Fusion Cafe
+
+T Bone Steak × 1
+
+Status: PREPARING
+
+Show:
+
+* Animated chef preparing food
+* Estimated remaining time, such as 8 minutes
+* A preparation progress indicator
+
+### Momo Buzz
+
+Chicken Momo × 2
+
+Status: READY — AWAITING COUNTER CONFIRMATION
+
+Show that the stall has finished preparing the food, but the central counter has not yet confirmed the customer notification.
+
+### Burger Bar
+
+Chicken Cheese Delight × 1
+
+Status: WAITING / PREPARING
+
+Show the chef animation when preparation has started.
+
+The customer must immediately understand:
+
+* Which stall is preparing food
+* Which stall has finished
+* Which stall is still pending
+* Which ready items are awaiting counter confirmation
+* Whether the customer has been notified to collect ready food
+
+Never display the entire master order as READY if even one stall's items are still pending.
+
+## 3. DYNAMIC ESTIMATED PREPARATION TIME
+
+Display an estimated preparation time separately for every stall in a multi-stall order.
+
+Examples:
+
+Coffee Buzz Fusion Cafe
+"Approximately 8 minutes remaining"
+
+Momo Buzz
+"Approximately 2 minutes remaining"
+
+Burger Bar
+"Estimated 10 minutes"
+
+These values are illustrative. Use actual configured preparation times and order-state information where available.
+
+Add a preparation-time setting to the existing menu item or stall configuration so authorized management can configure an estimated preparation time.
+
+For example:
+
+T Bone Steak: 15 minutes
+
+Chicken Momo: 8 minutes
+
+Waffle: 6 minutes
+
+If an order contains multiple items from the same stall, calculate the stall's estimated preparation duration using appropriate configurable business logic. Do not simply add every item's preparation time together unless the existing kitchen workflow explicitly requires sequential preparation.
+
+The estimated time should update when:
+
+* A stall starts preparation
+* A kitchen staff member updates the status
+* The preparation estimate changes
+* The stall marks its food ready
+
+When the remaining time reaches zero but the food is not marked ready, do not automatically claim the food is ready. Display an appropriate message, such as:
+
+"Taking a little longer than expected"
+
+When the estimate is unavailable, show:
+
+"Preparation time will be updated shortly"
+
+Do not display misleading, randomly generated countdowns.
+
+## 4. CENTRAL COUNTER DASHBOARD: READY-FOOD CONFIRMATION
+
+This is the most important part of the feature.
+
+When kitchen staff finish an order at a stall, they press:
+
+**MARK READY**
+
+The corresponding stall dashboard and kitchen display update to READY.
+
+The central management/counter dashboard must receive this update immediately.
+
+Create a prominent section:
+
+**Ready Food — Awaiting Counter Confirmation**
+
+Example:
+
+TOKEN #0048
+
+TABLE T17
+
+Ready stall: Momo Buzz
+
+Items:
+
+* Chicken Momo × 2
+
+Kitchen Status: READY
+
+Customer Notification: NOT SENT
+
+Display two actions:
+
+**CONFIRM & NOTIFY CUSTOMER**
+
+**VIEW ORDER**
+
+The counter staff must be able to identify the correct table and order before notifying the customer.
+
+When counter staff clicks "CONFIRM & NOTIFY CUSTOMER":
+
+1. Validate that the relevant stall items are actually marked ready.
+2. Record the confirmation against the correct order, table, and stall.
+3. Update the customer-facing status to "Ready for Pickup".
+4. Play a pleasant sound reminder on the customer's active web app when the browser permits it.
+5. Display a prominent visual notification on the customer's screen.
+6. Show exactly which stall's food is ready.
+7. Keep other stalls' preparation statuses unchanged.
+8. Record the notification and confirmation timestamps.
+9. Prevent accidental duplicate notifications from repeated clicks or page refreshes.
+
+Do not send a ready-food notification merely because a kitchen staff member clicked READY. The customer-facing sound reminder must be triggered by the authorized counter confirmation.
+
+The counter dashboard must always distinguish between:
+
+* Preparing
+* Kitchen Ready
+* Awaiting Counter Confirmation
+* Customer Notified
+* Collected / Completed
+
+Use clear status badges and an easy-to-understand workflow.
+
+## 5. BEAUTIFUL CUSTOMER SOUND REMINDER
+
+After counter confirmation, play a pleasant, premium notification sound on the customer's device.
+
+The sound should be:
+
+* Clear and recognizable
+* Short and pleasant
+* Suitable for a modern restaurant
+* Not frightening or excessively loud
+* Not similar to an emergency alarm
+
+Prefer a short, elegant two-note chime or a similarly tasteful notification sound.
+
+Use a bundled sound asset or a suitable browser-generated tone. Avoid relying on a broken external audio URL.
+
+When the counter confirms that Momo Buzz's food is ready, show a notification like:
+
+**Your Food Is Ready!**
+
+Momo Buzz has finished preparing your food.
+
+Table: T17
+
+Token: #0048
+
+**Please collect your ready food from the pickup counter.**
+
+Use the actual stall name, table number, order token, and ready items from the database. Never hard-code T17 or #0048.
+
+If Coffee Buzz Fusion Cafe finishes later, the next notification must identify that stall and its ready items accurately.
+
+### Sound Reliability
+
+Modern browsers can restrict automatic audio playback until the customer has interacted with the page.
+
+Prepare the notification system accordingly:
+
+* Initialize audio capability after the customer interacts with the ordering app.
+* Play the sound when a valid counter-confirmed ready event arrives and playback is permitted.
+* Show the visual notification even if sound playback is blocked.
+* Provide a clear sound status or notification preference control where necessary.
+* Do not play the same notification repeatedly after a page refresh.
+* Do not replay an old notification simply because the customer reopened the order page.
+* Avoid playing multiple overlapping sounds for the same confirmation.
+
+The notification should work when the customer is actively viewing the web app. If the app is in the background or closed, use browser notification or web-push capability only where correctly configured and permission has been granted. Never promise that a sound will play when the browser or device prevents it.
+
+## 6. MULTI-STALL ORDER: READY FOOD AND PENDING FOOD
+
+The application must handle partial readiness correctly.
+
+Example master order:
+
+TOKEN #0048
+TABLE T17
+
+Coffee Buzz Fusion Cafe — T Bone Steak
+Status: PREPARING
+Estimated time: 8 minutes
+
+Momo Buzz — Chicken Momo × 2
+Status: READY — CUSTOMER NOTIFIED
+
+Burger Bar — Chicken Cheese Delight
+Status: PREPARING
+Estimated time: 10 minutes
+
+After the counter confirms the Momo Buzz items, the customer receives:
+
+**Momo Buzz is ready!**
+
+Your Chicken Momo is ready for collection.
+
+Coffee Buzz Fusion Cafe is still preparing your T Bone Steak.
+
+Burger Bar is still preparing your Chicken Cheese Delight.
+
+You will receive another notification when other food is ready and confirmed by the counter.
+
+The tracking screen must not remove pending items or mark the master order completed.
+
+When another stall becomes ready, show that stall's status separately and allow the counter to confirm it independently.
+
+If two or more stalls become ready, display the exact ready stalls and items without duplicating notifications.
+
+## 7. COLLECT READY FOOD WITHOUT WAITING FOR THE ENTIRE ORDER
+
+Customers should be able to collect food that is ready, even if other stalls' items are still being prepared.
+
+For example:
+
+Momo Buzz is ready, while Coffee Buzz Fusion Cafe is still preparing food.
+
+The customer may collect the Momo Buzz items after the counter confirms them.
+
+On the tracking screen, display a clear section:
+
+**Ready to Collect**
+
+* Momo Buzz
+* Chicken Momo × 2
+
+Status: Confirmed by Counter
+
+Then another section:
+
+**Still Being Prepared**
+
+* Coffee Buzz Fusion Cafe — T Bone Steak
+* Burger Bar — Chicken Cheese Delight
+
+The customer should not have to wait for all stalls to finish before learning that some food is ready.
+
+However, the overall master order remains in progress until all required items have reached their appropriate completion state.
+
+Track collection at the individual stall or ready-item group level where appropriate. Do not mark all of the master order as delivered or completed just because one stall's food has been collected.
+
+Keep each ready/collection action linked to the correct table, token, order, and stall.
+
+## 8. CUSTOMER NOTIFICATION DESIGN
+
+Design a beautiful customer-facing notification component.
+
+When the counter confirms a stall's ready food, show a prominent animated banner or modal on the active order-tracking screen.
+
+Example:
+
+[Elegant food-ready icon or animation]
+
+**YOUR FOOD IS READY!**
+
+Momo Buzz
+
+Chicken Momo × 2
+
+Table T17 · Token #0048
+
+"Please collect your food from the pickup counter."
+
+Button:
+
+**GOT IT**
+
+The button dismisses the visual notification only. It must not mark the food as collected or complete the order.
+
+Keep a smaller persistent "Ready to Collect" indicator on the order-tracking page until the item collection is recorded.
+
+If the customer dismisses the notification and later opens My Orders, the ready-food status must still be visible.
+
+Use the existing Viva City Food Court design system and brand colors.
+
+Use elegant transitions, subtle glow or highlight effects, and restrained animation.
+
+Avoid huge blocking popups that prevent the customer from viewing the rest of the order.
+
+## 9. KITCHEN AND STALL STATUS WORKFLOW
+
+Integrate the feature with the existing stall dashboards and kitchen display system.
+
+Each stall must have its own independent order status.
+
+Recommended stall-level workflow:
+
+WAITING FOR RELEASE
+↓
+RECEIVED
+↓
+PREPARING
+↓
+READY
+↓
+AWAITING COUNTER CONFIRMATION
+↓
+CUSTOMER NOTIFIED
+↓
+COLLECTED
+
+Use the actual existing workflow where possible, adding only missing states and transitions.
+
+Kitchen staff action:
+
+**START PREPARING**
+
+Activates the preparation animation and allows the customer to see the estimated time.
+
+Kitchen staff action:
+
+**MARK READY**
+
+Marks that stall's relevant items as kitchen-ready and notifies the central dashboard.
+
+Counter staff action:
+
+**CONFIRM & NOTIFY CUSTOMER**
+
+Triggers the customer-facing sound and visual reminder.
+
+Collection action:
+
+**MARK COLLECTED**
+
+Updates the selected ready items or stall sub-order as collected.
+
+Keep the stall's own dashboard restricted to its own orders and items.
+
+A stall must never be able to mark another stall's food ready.
+
+## 10. ANIMATION STATES
+
+Use different, meaningful animation states rather than repeating the same animation everywhere.
+
+### A. Order Submitted
+
+Show a short confirmation animation with an order receipt/check icon.
+
+Message:
+
+"Order received!"
+
+If management approval or payment is still pending, clearly show that the order is waiting for the next step.
+
+### B. Waiting for Kitchen
+
+Show a subtle queued/order-processing animation.
+
+Message:
+
+"Your order is being prepared for the kitchen."
+
+Do not show active cooking as fact until the order is released.
+
+### C. Preparing
+
+Show an attractive chef preparing food animation with subtle movement.
+
+Message:
+
+"Our chef is preparing your food."
+
+Display the configured estimated time.
+
+### D. Kitchen Ready — Awaiting Counter Confirmation
+
+Show the chef animation transitioning into a completed-food state, such as a steaming plate.
+
+Message:
+
+"Your food is ready. Waiting for counter confirmation."
+
+Do not play the customer-ready sound at this stage.
+
+### E. Counter Confirmed — Ready for Pickup
+
+Show a premium success animation, such as a steaming dish with a gentle checkmark or a brief celebratory reveal.
+
+Message:
+
+"Your food is ready to collect!"
+
+Play the pleasant sound when permitted.
+
+Identify the exact stall and ready items.
+
+### F. Collected
+
+Show a small, elegant completion animation.
+
+Message:
+
+"Food collected successfully."
+
+Other pending stalls must remain visible if the master order is not complete.
+
+Support reduced-motion preferences and ensure animations do not block essential order information.
+
+## 11. DATA AND REAL-TIME IMPLEMENTATION
+
+Connect this functionality to the existing database and realtime update system.
+
+Persist the relevant fields for stall sub-orders or ready-item groups, including:
+
+* Preparation status
+* Estimated preparation time
+* Actual preparation start timestamp
+* Kitchen-ready timestamp
+* Counter-confirmation timestamp
+* Customer-notification timestamp
+* Collection timestamp
+* Staff member who performed each authorized action
+* Notification identifier or event ID
+
+Use existing models where practical instead of creating duplicate representations of the same order.
+
+Use the application's current WebSocket, Socket.IO, or realtime infrastructure where available.
+
+When a kitchen staff member marks food ready:
+
+* The central management dashboard must update.
+* The corresponding customer tracking page must update.
+* The stall's own status must remain consistent.
+
+When the counter confirms ready food:
+
+* The customer's status updates immediately.
+* The sound/visual reminder is triggered once.
+* The counter sees that the customer notification was issued.
+* Repeated API calls must not produce duplicate confirmation events or duplicate sound alerts.
+
+If realtime connectivity is temporarily lost, reconcile the current order state when the connection returns.
+
+The database state must be authoritative. Do not implement this feature solely using local frontend state.
+
+## 12. CENTRAL DASHBOARD UI
+
+Add a clearly visible section to the existing management dashboard:
+
+**Ready Food & Customer Notifications**
+
+Display each ready-but-unconfirmed stall group with:
+
+* Order token
+* Table number
+* Stall name
+* Ready items and quantities
+* Kitchen-ready time
+* How long it has been waiting for counter confirmation
+* Current notification status
+
+Primary button:
+
+**CONFIRM & NOTIFY CUSTOMER**
+
+After confirmation, update the card to:
+
+CUSTOMER NOTIFIED
+
+Show the time the notification was sent.
+
+Once collection is confirmed, mark the corresponding ready items or stall group:
+
+COLLECTED
+
+Include filters for:
+
+* Awaiting Counter Confirmation
+* Customer Notified
+* Awaiting Collection
+* Collected
+
+Make the interface optimized for a busy food-court counter so staff can identify the correct table and stall quickly.
+
+Prevent the counter from confirming food that is not marked ready by kitchen staff.
+
+If the entire master order has several stalls, never accidentally notify the wrong table or include the wrong stall's items.
+
+## 13. ESTIMATE CONFIGURATION
+
+Allow authorized management to configure preparation-time estimates through the existing menu/stall management interface.
+
+Use these estimates for customer-facing tracking.
+
+Where possible, display the original estimate and update the remaining-time presentation as the order progresses.
+
+Do not claim an estimated time is guaranteed.
+
+When management or kitchen staff changes an estimate, update the customer tracking interface.
+
+Use sensible fallbacks when estimates are not configured.
+
+Do not add fake business data to production records.
+
+## 14. ACCESSIBILITY AND PERFORMANCE
+
+Make sure:
+
+* The notification text is readable on mobile.
+* Sound is not the only way to communicate readiness.
+* Visual indicators remain available if audio fails.
+* Animations are lightweight.
+* The app remains usable on slower devices and connections.
+* Repeated WebSocket updates do not cause duplicate animations.
+* Notifications do not cover important order details permanently.
+* The sound does not continue playing in a loop.
+* The customer can dismiss the visual alert without changing the actual order status.
+
+## 15. TEST THE COMPLETE WORKFLOW
+
+Run an end-to-end test with a realistic multi-stall order.
+
+Test scenario:
+
+Table T17 places one master order containing:
+
+* Coffee Buzz Fusion Cafe — T Bone Steak × 1
+* Momo Buzz — Chicken Momo × 2
+* Burger Bar — Chicken Cheese Delight × 1
+
+Management accepts the order.
+
+Payment is completed according to the existing payment workflow.
+
+The order is released to the relevant stalls.
+
+Expected behavior:
+
+1. Customer sees an order-received animation.
+2. The status accurately reflects whether the order is queued or released.
+3. When preparation starts, the relevant chef animation appears with its estimated time.
+4. Momo Buzz marks its items READY.
+5. The central counter sees Momo Buzz under "Ready Food — Awaiting Counter Confirmation".
+6. The customer does not yet receive the ready-food sound.
+7. Counter staff clicks "CONFIRM & NOTIFY CUSTOMER" for Momo Buzz.
+8. The customer's device plays one pleasant notification sound, if permitted.
+9. The customer sees that Momo Buzz is ready and is asked to collect those items from the pickup counter.
+10. Coffee Buzz Fusion Cafe and Burger Bar remain visibly in their correct pending/preparing states.
+11. When Coffee Buzz later becomes ready, the counter confirms it and the customer receives a separate, correct notification.
+12. Burger Bar remains pending until its own food is ready.
+13. Collection of one stall's food does not incorrectly complete the entire order.
+14. The system handles refreshes and reconnects without duplicate sound notifications.
+15. All statuses remain correct on the central dashboard, relevant stall dashboards, kitchen display, and customer tracking page.
+
+Also test:
+
+* Customer has sound disabled.
+* Browser blocks audio playback.
+* Customer dismisses the alert.
+* Customer returns to My Orders later.
+* Two stalls become ready close together.
+* Counter staff accidentally clicks the notification button twice.
+* A staff member tries to notify a stall's food before kitchen readiness.
+* The estimated preparation time passes but the food is still not ready.
+
+Fix any bugs discovered.
+
+## FINAL REQUIREMENT
+
+Implement this feature directly in the existing VIVA CITY FOOD COURT web application.
+
+Build the real state transitions, responsive UI, chef animations, preparation estimates, central counter confirmation, pleasant sound notifications, per-stall ready/pending tracking, and collection tracking.
+
+Do not stop at a design mockup or a written plan.
+
+Keep the experience premium, responsive, easy to understand, and reliable during busy food-court operations.
+
+**The key rule: kitchen marks food ready → central counter confirms → customer gets a pleasant sound and visual reminder identifying the exact stall and ready items → other stalls remain pending until their food is ready.**
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-09T23:19:15+06:00.
+</ADDITIONAL_METADATA>
