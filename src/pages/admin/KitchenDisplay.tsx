@@ -4,7 +4,7 @@ import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
 import { Order, Stall } from '../../types';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
-import { ChefHat, Clock, CheckCircle, Printer, Filter, AlertCircle, Flame } from 'lucide-react';
+import { ChefHat, Clock, CheckCircle, Printer, Filter, AlertCircle, Flame, Bell } from 'lucide-react';
 
 export const KitchenDisplay: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -116,7 +116,7 @@ export const KitchenDisplay: React.FC = () => {
                 : 'bg-white text-zinc-600 border border-zinc-200'
             }`}
           >
-            All 6 Kitchens
+            All Kitchens
           </button>
           {stalls.map(s => (
             <button
@@ -164,6 +164,9 @@ export const KitchenDisplay: React.FC = () => {
                     <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                       <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
                         {order.tableId ? `TABLE ${order.tableId}` : 'PARCEL TAKEAWAY'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-400 text-zinc-950">
+                        {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
                       </span>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                         order.serviceType === 'TABLE_SERVICE'
@@ -221,6 +224,16 @@ export const KitchenDisplay: React.FC = () => {
                             </span>
                             <div>
                               <span>{it.name}</span>
+                              {it.variantName && (
+                                <span className="block text-[11px] font-semibold text-zinc-500">
+                                  Size: {it.variantName}
+                                </span>
+                              )}
+                              {((it.addOnNames && it.addOnNames.length > 0) || (it.customizations && it.customizations.length > 0)) && (
+                                <span className="block text-[11px] font-bold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded mt-0.5">
+                                  + Custom: {(it.addOnNames || it.customizations?.map((c: any) => c.name))?.join(', ')}
+                                </span>
+                              )}
                               {it.notes && (
                                 <p className="text-[11px] font-normal text-red-600 italic">
                                   * {it.notes}
@@ -277,9 +290,19 @@ export const KitchenDisplay: React.FC = () => {
                         )}
 
                         {stall.status === 'NOTIFIED' && (
-                          <div className="w-full p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-black text-emerald-800 flex items-center justify-center gap-1.5">
-                            <CheckCircle className="w-4 h-4 text-emerald-600" />
-                            <span>Customer Notified for Pickup ✓</span>
+                          <div className="w-full space-y-2">
+                            <div className="w-full p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-black text-emerald-800 flex items-center justify-center gap-1.5">
+                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                              <span>Customer Notified for Pickup ✓</span>
+                            </div>
+                            <button
+                              onClick={() => handleNotifyGuest(order.id, stall.stallId)}
+                              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-[#e06d24] hover:from-amber-600 hover:to-orange-700 text-white text-xs font-black shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                              title="Diner has not collected yet. Call guest again."
+                            >
+                              <Bell className="w-3.5 h-3.5 animate-bounce" />
+                              <span>CALL GUEST AGAIN</span>
+                            </button>
                           </div>
                         )}
 

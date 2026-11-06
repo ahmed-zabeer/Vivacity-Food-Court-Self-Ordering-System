@@ -45,7 +45,7 @@ const samples = [
   { name: 'Combo 2', price: 1050, cat: 'COMBO PLATTERS' },
   { name: 'Chicken Corn Soup', price: 180, cat: 'SOUP' },
   { name: 'Cream Of Mushroom', price: 220, cat: 'SOUP' },
-  { name: 'Chola Bhatora', price: 180, cat: 'SNACKS' },
+  { name: 'Chola Bhature', price: 180, cat: 'SNACKS' },
   { name: 'Chicken Wrapped Roll', price: 180, cat: 'SNACKS' },
   { name: 'Luchi', price: 50, cat: 'SNACKS' },
   { name: 'Plain Dosa', price: 180, cat: 'DOSA', addOns: 2 },

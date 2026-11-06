@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server/index.js",
+    "dev": "node --max-old-space-size=4096 server/index.js",
     "build": "vite build",
-    "start": "NODE_ENV=production node server/index.js",
+    "start": "NODE_ENV=production node --max-old-space-size=4096 server/index.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,6 +14,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.3.1",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.16.0",
     "qrcode": "^1.5.4",
@@ -35,6 +36,6 @@
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vite": "^5.4.14"
+    "vite": "^6.4.4"
   }
 }

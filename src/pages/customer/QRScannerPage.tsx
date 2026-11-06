@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTableSession } from '../../context/TableSessionContext';
+import { useCart } from '../../context/CartContext';
 import { useLocation } from 'wouter';
 import { Camera, QrCode, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 export const QRScannerPage: React.FC = () => {
-  const { setTableId } = useTableSession();
+  const { tableId, setTableId } = useTableSession();
+  const { clearCart, clearCustomerDetails } = useCart();
   const [, setLocation] = useLocation();
 
   const [manualCode, setManualCode] = useState<string>('');
@@ -55,6 +57,8 @@ export const QRScannerPage: React.FC = () => {
       if (scannerRef.current && scannerRef.current.isScanning) {
         scannerRef.current.stop().catch(() => {});
       }
+      clearCart();
+      clearCustomerDetails();
       setTableId(code);
       setLocation(`/t/${code}`);
     } else {
@@ -73,6 +77,8 @@ export const QRScannerPage: React.FC = () => {
       formatted = `T${clean.padStart(2, '0')}`;
     }
 
+    clearCart();
+    clearCustomerDetails();
     setTableId(formatted);
     setLocation(`/t/${formatted}`);
   };
@@ -146,10 +152,12 @@ export const QRScannerPage: React.FC = () => {
               <button
                 key={t}
                 onClick={() => {
+                  clearCart();
+                  clearCustomerDetails();
                   setTableId(t);
                   setLocation(`/t/${t}`);
                 }}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-zinc-100 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-zinc-100 hover:bg-brand-50 hover:text-brand-700 transition-colors cursor-pointer"
               >
                 {t}
               </button>

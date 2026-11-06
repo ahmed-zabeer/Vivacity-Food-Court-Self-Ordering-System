@@ -2,7 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
-import { Order, Table, RevenueSummary, CounterReadyItem } from '../../types';
+import {
+  Order,
+  Table,
+  RevenueSummary,
+  CounterReadyItem,
+  Expense,
+  DailyFinancialSummary,
+  Stall,
+  InventoryMenuItem
+} from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from 'wouter';
 import {
@@ -26,7 +35,23 @@ import {
   Sparkles,
   QrCode,
   Bell,
-  Printer
+  Printer,
+  Plus,
+  Trash2,
+  Edit2,
+  History,
+  BarChart3,
+  FileText,
+  Receipt,
+  BookOpen,
+  Power,
+  Play,
+  Pause,
+  Sliders,
+  Search,
+  Layers,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
 
@@ -75,21 +100,244 @@ export const AdminDashboard: React.FC = () => {
 
   // Authorized roles check: Chief Administrator (SUPER ADMIN), Food Court Owner, Food Court Manager, Counter Cashier
   const isAuthorizedToReset = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'].includes(currentUser.role);
+  const isAuthorizedForExpenses = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'].includes(currentUser.role);
+
+  // ================= Stall Pause & Central Food Inventory State =================
+  const [stalls, setStalls] = useState<Stall[]>([]);
+  const [dashInventory, setDashInventory] = useState<InventoryMenuItem[]>([]);
+  const [dashInvSearch, setDashInvSearch] = useState('');
+  const [dashInvStall, setDashInvStall] = useState('ALL');
+  const [pauseModalStall, setPauseModalStall] = useState<Stall | null>(null);
+  const [pauseReason, setPauseReason] = useState('');
+  const [pauseDuration, setPauseDuration] = useState<string>('30');
+  const [pauseSubmitting, setPauseSubmitting] = useState(false);
+  const [editingDashStock, setEditingDashStock] = useState<{ [id: string]: string }>({});
+  const [savingDashStock, setSavingDashStock] = useState<{ [id: string]: boolean }>({});
+
+  // ================= Financial Overview & Expenses State =================
+  const getTodayDhakaDate = () => {
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Dhaka',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(new Date());
+    } catch {
+      return new Date().toISOString().slice(0, 10);
+    }
+  };
+
+  const getDhakaDateOffset = (daysAgo: number) => {
+    try {
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Dhaka',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(d);
+    } catch {
+      const d = new Date(Date.now() - daysAgo * 86400000);
+      return d.toISOString().slice(0, 10);
+    }
+  };
+
+  type DateRangePreset = '7d' | '1m' | '2m' | '3m' | 'custom';
+  const [rangePreset, setRangePreset] = useState<DateRangePreset>('7d');
+  const [customStartDate, setCustomStartDate] = useState<string>(() => getDhakaDateOffset(6));
+  const [customEndDate, setCustomEndDate] = useState<string>(getTodayDhakaDate);
+
+  const [selectedFinancialDate, setSelectedFinancialDate] = useState<string>(getTodayDhakaDate);
+  const [financialSummary, setFinancialSummary] = useState<DailyFinancialSummary | null>(null);
+  const [financialGraph, setFinancialGraph] = useState<DailyFinancialSummary[]>([]);
+  const [expensesList, setExpensesList] = useState<Expense[]>([]);
+  const [loadingFinancial, setLoadingFinancial] = useState<boolean>(false);
+
+  // Expense entry modal state
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [expAmount, setExpAmount] = useState<string>('');
+  const [expDate, setExpDate] = useState<string>(getTodayDhakaDate);
+  const [expCategory, setExpCategory] = useState<Expense['category']>('Food Cost');
+  const [expNotes, setExpNotes] = useState<string>('');
+  const [expSubmitting, setExpSubmitting] = useState(false);
+  const [expError, setExpError] = useState<string | null>(null);
+
+  // Correction history review modal
+  const [historyModalExpense, setHistoryModalExpense] = useState<Expense | null>(null);
+
+  const selectedDateRef = React.useRef(selectedFinancialDate);
+  selectedDateRef.current = selectedFinancialDate;
+
+  const rangePresetRef = React.useRef(rangePreset);
+  rangePresetRef.current = rangePreset;
+
+  const customStartRef = React.useRef(customStartDate);
+  customStartRef.current = customStartDate;
+
+  const customEndRef = React.useRef(customEndDate);
+  customEndRef.current = customEndDate;
+
+  const getRangeQueryParams = (preset: DateRangePreset, start: string, end: string) => {
+    if (preset === '7d') return { days: 7 };
+    if (preset === '1m') return { days: 30 };
+    if (preset === '2m') return { days: 60 };
+    if (preset === '3m') return { days: 90 };
+    return { dateFrom: start || getDhakaDateOffset(6), dateTo: end || getTodayDhakaDate() };
+  };
+
+  const getRangeLabel = (preset: DateRangePreset, start: string, end: string) => {
+    if (preset === '7d') return 'Last 7 Days';
+    if (preset === '1m') return 'Last 1 Month (30 Days)';
+    if (preset === '2m') return 'Last 2 Months (60 Days)';
+    if (preset === '3m') return 'Last 3 Months (90 Days)';
+    return `Custom Range (${start} to ${end})`;
+  };
+
+  // Aggregated period totals calculated directly from the graph array
+  const periodTotals = React.useMemo(() => {
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+    let totalOrders = 0;
+    let totalExpenseCount = 0;
+
+    for (const item of financialGraph) {
+      totalRevenue += item.revenue || 0;
+      totalExpenses += item.expenses || 0;
+      totalOrders += item.revenueOrders || 0;
+      totalExpenseCount += item.expenseCount || 0;
+    }
+
+    const netProfit = totalRevenue - totalExpenses;
+    return {
+      revenue: totalRevenue,
+      expenses: totalExpenses,
+      profit: netProfit,
+      orders: totalOrders,
+      expenseCount: totalExpenseCount,
+      days: financialGraph.length
+    };
+  }, [financialGraph]);
+
+  const fetchFinancialData = React.useCallback(async (
+    targetDate?: string,
+    presetOverride?: DateRangePreset,
+    startOverride?: string,
+    endOverride?: string
+  ) => {
+    const dateStr = targetDate || selectedDateRef.current;
+    const preset = presetOverride || rangePresetRef.current;
+    const start = startOverride || customStartRef.current;
+    const end = endOverride || customEndRef.current;
+
+    try {
+      setLoadingFinancial(true);
+      const rangeParams = getRangeQueryParams(preset, start, end);
+      const [sumRes, graphRes, expRes] = await Promise.all([
+        api.getDailyFinancialSummary(dateStr).catch(() => null),
+        api.getFinancialGraph(rangeParams).catch(() => []),
+        api.getExpenses({ date: dateStr }).catch(() => [])
+      ]);
+      if (sumRes) setFinancialSummary(sumRes);
+      if (graphRes) setFinancialGraph(graphRes);
+      if (expRes) setExpensesList(expRes);
+    } catch (e) {
+      console.error('Error fetching financial data:', e);
+    } finally {
+      setLoadingFinancial(false);
+    }
+  }, []);
+
+  const handleOpenAddExpense = () => {
+    setEditingExpense(null);
+    setExpAmount('');
+    setExpDate(selectedFinancialDate);
+    setExpCategory('Food Cost');
+    setExpNotes('');
+    setExpError(null);
+    setExpenseModalOpen(true);
+  };
+
+  const handleOpenEditExpense = (expense: Expense) => {
+    setEditingExpense(expense);
+    setExpAmount(expense.amount.toString());
+    setExpDate(expense.date);
+    setExpCategory(expense.category);
+    setExpNotes(expense.notes || '');
+    setExpError(null);
+    setExpenseModalOpen(true);
+  };
+
+  const handleSaveExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setExpError(null);
+    const numAmount = Number(expAmount);
+    if (!expAmount || isNaN(numAmount) || numAmount <= 0) {
+      setExpError('Please enter a valid positive expense amount.');
+      return;
+    }
+    if (!expDate) {
+      setExpError('Please choose a valid date.');
+      return;
+    }
+
+    setExpSubmitting(true);
+    try {
+      const userPayload = { name: currentUser.name, role: currentUser.role };
+      if (editingExpense) {
+        await api.updateExpense(editingExpense.id, {
+          amount: numAmount,
+          date: expDate,
+          category: expCategory,
+          notes: expNotes
+        }, userPayload);
+      } else {
+        await api.addExpense({
+          amount: numAmount,
+          date: expDate,
+          category: expCategory,
+          notes: expNotes
+        }, userPayload);
+      }
+      setExpenseModalOpen(false);
+      await fetchFinancialData(selectedFinancialDate);
+    } catch (err: any) {
+      setExpError(err.message || 'Failed to save expense');
+    } finally {
+      setExpSubmitting(false);
+    }
+  };
+
+  const handleDeleteExpense = async (expense: Expense) => {
+    if (!window.confirm(`Delete expense of ৳${expense.amount} (${expense.category})?`)) return;
+    try {
+      await api.deleteExpense(expense.id, { name: currentUser.name, role: currentUser.role });
+      await fetchFinancialData(selectedFinancialDate);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete expense');
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
-      const [analyticsRes, revenueRes, ordersRes, tablesRes, readyRes] = await Promise.all([
+      const [analyticsRes, revenueRes, ordersRes, tablesRes, readyRes, stallsRes, invRes] = await Promise.all([
         api.getAnalytics(),
         api.getRevenueSummary(),
         api.getOrders(),
         api.getTables(),
-        api.getCounterReadyConfirmations().catch(() => [])
+        api.getCounterReadyConfirmations().catch(() => []),
+        api.getStalls().catch(() => []),
+        api.getInventory().catch(() => [])
       ]);
       setAnalytics(analyticsRes);
       setRevenue(revenueRes);
       setRecentOrders(ordersRes.slice(0, 8));
       setTables(tablesRes);
       setReadyItems(readyRes || []);
+      setStalls(stallsRes || []);
+      setDashInventory(invRes || []);
 
       // Check for unalerted pending orders and play alert sound
       ordersRes.forEach((o: Order) => {
@@ -159,6 +407,7 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchFinancialData();
 
     // Real-time SSE listeners
     const unsubOrderCreated = realtime.on('order_created', (newOrder: Order) => {
@@ -168,14 +417,22 @@ export const AdminDashboard: React.FC = () => {
         sound.playNewOrderChime();
       }
       fetchDashboardData();
+      fetchFinancialData();
     });
 
-    const unsubOrderUpdated = realtime.on('order_updated', () => {
+    const unsubOrderUpdated = () => {
       fetchDashboardData();
-    });
+      fetchFinancialData();
+    };
+    const unsubOrderUpdatedRealtime = realtime.on('order_updated', unsubOrderUpdated);
 
     const unsubRevenueUpdated = realtime.on('revenue_updated', (updatedSummary: RevenueSummary) => {
       setRevenue(updatedSummary);
+      fetchFinancialData();
+    });
+
+    const unsubFinancialUpdated = realtime.on('financial_updated', () => {
+      fetchFinancialData();
     });
 
     const unsubAnalyticsUpdated = realtime.on('analytics_updated', (updatedAnalytics: any) => {
@@ -191,15 +448,31 @@ export const AdminDashboard: React.FC = () => {
       api.getCounterReadyConfirmations().then(items => setReadyItems(items || [])).catch(() => {});
     });
 
+    const unsubStallUpdated = realtime.on('stall_updated', () => {
+      api.getStalls().then(s => setStalls(s || [])).catch(() => {});
+    });
+
+    const unsubInventoryUpdated = realtime.on('inventory_updated', () => {
+      api.getInventory().then(inv => setDashInventory(inv || [])).catch(() => {});
+    });
+
     return () => {
       unsubOrderCreated();
-      unsubOrderUpdated();
+      unsubOrderUpdatedRealtime();
       unsubRevenueUpdated();
+      unsubFinancialUpdated();
       unsubAnalyticsUpdated();
       unsubKitchenReady();
       unsubReadyConfirmed();
+      unsubStallUpdated();
+      unsubInventoryUpdated();
     };
-  }, []);
+  }, [fetchFinancialData]);
+
+  // Synchronize financial data when inspected date or range selection changes
+  useEffect(() => {
+    fetchFinancialData(selectedFinancialDate, rangePreset, customStartDate, customEndDate);
+  }, [selectedFinancialDate, rangePreset, customStartDate, customEndDate, fetchFinancialData]);
 
   const handleConfirmAndNotify = async (orderId: string, stallId: string) => {
     try {
@@ -220,6 +493,81 @@ export const AdminDashboard: React.FC = () => {
       fetchDashboardData();
     } catch (err: any) {
       alert(err.message || 'Failed to mark food collected');
+    }
+  };
+
+  // Stall Pause / Resume Handlers
+  const handleOpenPauseModal = (stall: Stall) => {
+    setPauseModalStall(stall);
+    setPauseReason(stall.pauseReason || '');
+    setPauseDuration('30');
+  };
+
+  const handleConfirmPauseStall = async () => {
+    if (!pauseModalStall) return;
+    setPauseSubmitting(true);
+    try {
+      const dur = pauseDuration === 'manual' ? null : parseInt(pauseDuration, 10);
+      await api.pauseStall(
+        pauseModalStall.id,
+        pauseReason.trim(),
+        dur,
+        { name: currentUser.name, role: currentUser.role }
+      );
+      setPauseModalStall(null);
+      const updatedStalls = await api.getStalls().catch(() => []);
+      setStalls(updatedStalls);
+    } catch (err: any) {
+      alert(err.message || 'Failed to pause stall');
+    } finally {
+      setPauseSubmitting(false);
+    }
+  };
+
+  const handleResumeStall = async (stall: Stall) => {
+    if (!window.confirm(`Resume operations for "${stall.name}"? Customers will immediately be able to order again.`)) return;
+    try {
+      await api.resumeStall(stall.id, { name: currentUser.name, role: currentUser.role });
+      const updatedStalls = await api.getStalls().catch(() => []);
+      setStalls(updatedStalls);
+    } catch (err: any) {
+      alert(err.message || 'Failed to resume stall');
+    }
+  };
+
+  // Dashboard quick stock update
+  const handleSaveDashStock = async (item: InventoryMenuItem) => {
+    const rawVal = editingDashStock[item.id];
+    if (rawVal === undefined || rawVal === '') return;
+    const qty = parseInt(rawVal, 10);
+    if (isNaN(qty) || qty < 0) return;
+    setSavingDashStock(prev => ({ ...prev, [item.id]: true }));
+    try {
+      await api.setItemStock(item.id, qty, {
+        name: currentUser.name,
+        role: currentUser.role,
+        stallId: currentUser.stallId || null
+      });
+      const updated = await api.getInventory().catch(() => []);
+      setDashInventory(updated);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update stock');
+    } finally {
+      setSavingDashStock(prev => ({ ...prev, [item.id]: false }));
+    }
+  };
+
+  const handleToggleDashAvailability = async (item: InventoryMenuItem) => {
+    const nextAvail = item.inv?.manuallyDisabled;
+    try {
+      await api.setItemManualAvailability(item.id, !!nextAvail, {
+        name: currentUser.name,
+        role: currentUser.role
+      });
+      const updated = await api.getInventory().catch(() => []);
+      setDashInventory(updated);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update availability');
     }
   };
 
@@ -319,6 +667,26 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Quick Hub Navigation Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Accounting Page Button */}
+          <button
+            onClick={() => setLocation('/admin/accounting')}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 ring-2 ring-emerald-500/20"
+            title="Open Dedicated Accounting & Financial Statements"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Accounting</span>
+          </button>
+
+          {/* Central Food Inventory Button */}
+          <button
+            onClick={() => setLocation('/admin/inventory')}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 ring-2 ring-blue-500/20"
+            title="Open Central Food Inventory for All Stalls"
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Food Inventory</span>
+          </button>
+
           <button
             onClick={() => setLocation('/admin/orders')}
             className="relative px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
@@ -626,6 +994,312 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </section>
 
+      {/* ========================================================================= */}
+      {/* 2. STALL CONTROLS & TEMPORARY AVAILABILITY                                */}
+      {/* ========================================================================= */}
+      <section className="bg-white rounded-3xl p-5 md:p-6 border border-zinc-200/90 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-black">
+              <Power className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-zinc-900 tracking-tight">
+                  Stall Control &amp; Temporary Availability
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 text-[10px] font-bold">
+                  {stalls.length > 0 ? `${stalls.length} Stalls` : '7 Stalls'}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500">
+                Pause any stall during peak rush or prep. Paused stalls display &ldquo;Temporarily Unavailable&rdquo; and reject new orders while other stalls remain open.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {stalls.map((s) => {
+            const isPaused = !!s.isPaused;
+            return (
+              <div
+                key={s.id}
+                className={`p-4 rounded-2xl border transition-all ${
+                  isPaused
+                    ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-200'
+                    : 'bg-zinc-50/60 border-zinc-200/80 hover:border-zinc-300'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-zinc-400 uppercase">{s.id}</span>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          isPaused
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${isPaused ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                        {isPaused ? 'Paused' : 'Active'}
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-black text-zinc-900 mt-1">{s.name}</h3>
+                  </div>
+                  {isAuthorizedToReset && (
+                    isPaused ? (
+                      <button
+                        type="button"
+                        onClick={() => handleResumeStall(s)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 shadow-xs transition-all active:scale-95 cursor-pointer"
+                        title="Resume stall operations"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Resume</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPauseModal(s)}
+                        className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-black flex items-center gap-1 shadow-xs transition-all active:scale-95 cursor-pointer"
+                        title="Temporarily pause stall"
+                      >
+                        <Pause className="w-3.5 h-3.5" />
+                        <span>Pause</span>
+                      </button>
+                    )
+                  )}
+                </div>
+
+                {isPaused ? (
+                  <div className="bg-amber-100/70 rounded-xl p-2.5 text-xs text-amber-900 space-y-1">
+                    <p className="font-semibold text-[11px] flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>{s.pauseReason || 'Temporarily Unavailable'}</span>
+                    </p>
+                    {s.pauseUntil && (
+                      <p className="text-[10px] text-amber-700 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        <span>Auto-resumes: {new Date(s.pauseUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Accepting orders &amp; cooking normally</span>
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 3. CENTRAL COUNTER FOOD INVENTORY & QUICK PORTION CONTROLS               */}
+      {/* ========================================================================= */}
+      <section className="bg-white rounded-3xl p-5 md:p-6 border border-zinc-200/90 shadow-sm space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-zinc-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-black">
+              <Package className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-zinc-900 tracking-tight">
+                  Central Counter Food Inventory
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
+                  Portion Guard Active
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500">
+                Chefs set prepared portions. System reserves stock atomically and automatically marks items &ldquo;Stock Out&rdquo; when exhausted.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setLocation('/admin/inventory')}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+            >
+              <Package className="w-4 h-4" />
+              <span>Full Inventory Manager →</span>
+            </button>
+            <button
+              onClick={() => setLocation('/admin/accounting')}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Accounting Suite →</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Filter & Search Bar */}
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Search menu items by name..."
+              value={dashInvSearch}
+              onChange={(e) => setDashInvSearch(e.target.value)}
+              className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-zinc-200 text-xs font-medium text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            />
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select
+              value={dashInvStall}
+              onChange={(e) => setDashInvStall(e.target.value)}
+              className="w-full sm:w-auto px-3.5 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            >
+              <option value="ALL">All Stalls ({stalls.length})</option>
+              {stalls.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Inventory Items Table / Grid */}
+        <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-zinc-50 border-b border-zinc-200 text-[10px] uppercase font-black text-zinc-500 tracking-wider">
+              <tr>
+                <th className="py-3 px-4">Item &amp; Stall</th>
+                <th className="py-3 px-3 text-center">Prepared</th>
+                <th className="py-3 px-3 text-center">Sold</th>
+                <th className="py-3 px-3 text-center">Reserved</th>
+                <th className="py-3 px-3 text-center">Available</th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-4 text-right">Quick Stock Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 font-medium">
+              {dashInventory
+                .filter((item) => {
+                  if (dashInvStall !== 'ALL' && item.stallId !== dashInvStall) return false;
+                  if (dashInvSearch && !item.name.toLowerCase().includes(dashInvSearch.toLowerCase())) return false;
+                  return true;
+                })
+                .slice(0, 10)
+                .map((item) => {
+                  const inv: any = item.inv || {};
+                  const isStockOut = inv.stockOut || inv.available === 0 || inv.manuallyDisabled;
+                  const isLowStock = !isStockOut && inv.available !== null && inv.available <= 10;
+                  const currentEdit = editingDashStock[item.id] !== undefined
+                    ? editingDashStock[item.id]
+                    : (inv.preparedQty !== null && inv.preparedQty !== undefined ? String(inv.preparedQty) : '');
+
+                  return (
+                    <tr key={item.id} className="hover:bg-zinc-50/80 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-zinc-900">{item.name}</div>
+                        <div className="text-[10px] text-zinc-400 font-mono">
+                          {item.stallName || item.stallId} • ৳{item.price}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-center font-bold text-zinc-700">
+                        {inv.preparedQty !== null && inv.preparedQty !== undefined ? inv.preparedQty : '∞'}
+                      </td>
+                      <td className="py-3 px-3 text-center font-bold text-emerald-600">
+                        {inv.soldQty || 0}
+                      </td>
+                      <td className="py-3 px-3 text-center font-bold text-amber-600">
+                        {inv.reservedQty || 0}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span
+                          className={`font-black text-sm ${
+                            isStockOut
+                              ? 'text-red-600'
+                              : isLowStock
+                              ? 'text-amber-600'
+                              : 'text-zinc-900'
+                          }`}
+                        >
+                          {inv.available !== null && inv.available !== undefined ? inv.available : '∞'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {inv.manuallyDisabled ? (
+                          <span className="px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-700 text-[10px] font-bold">
+                            Disabled
+                          </span>
+                        ) : isStockOut ? (
+                          <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold">
+                            Stock Out
+                          </span>
+                        ) : isLowStock ? (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+                            Low Stock
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                            In Stock
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Qty"
+                            value={currentEdit}
+                            onChange={(e) =>
+                              setEditingDashStock((prev) => ({ ...prev, [item.id]: e.target.value }))
+                            }
+                            className="w-16 px-2 py-1 rounded-lg border border-zinc-200 text-center font-bold text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveDashStock(item)}
+                            disabled={savingDashStock[item.id]}
+                            className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                          >
+                            Set
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDashAvailability(item)}
+                            className={`p-1 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                              item.inv?.manuallyDisabled
+                                ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                                : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'
+                            }`}
+                            title={item.inv?.manuallyDisabled ? 'Enable item' : 'Disable item'}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between text-xs text-zinc-500 pt-2">
+          <span>Showing items from Central Inventory.</span>
+          <button
+            onClick={() => setLocation('/admin/inventory')}
+            className="text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer"
+          >
+            <span>View All ({dashInventory.length}) Items</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </section>
+
+
       {/* Operational KPI Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {opsKpis.map((kpi, idx) => {
@@ -732,6 +1406,13 @@ export const AdminDashboard: React.FC = () => {
                         {item.status === 'READY' ? 'Stall Cooking Finished' : `Notified (#${item.notificationCount || 1})`}
                       </span>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                        (item.orderType === 'PARCEL')
+                          ? 'bg-purple-100 text-purple-900 border-purple-300'
+                          : 'bg-blue-100 text-blue-900 border-blue-300'
+                      }`}>
+                        {item.orderType === 'PARCEL' ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
                         item.serviceType === 'TABLE_SERVICE'
                           ? 'bg-amber-100 text-amber-900 border-amber-300'
                           : 'bg-emerald-100 text-emerald-900 border-emerald-300'
@@ -751,9 +1432,17 @@ export const AdminDashboard: React.FC = () => {
                   <div className="text-xs text-zinc-700 space-y-1">
                     {item.items.map((it, i) => (
                       <div key={i} className="flex justify-between font-semibold">
-                        <span>
-                          <strong className="text-brand-600">{it.quantity}×</strong> {it.name}
-                        </span>
+                        <div>
+                          <span>
+                            <strong className="text-brand-600">{it.quantity}×</strong> {it.name}
+                          </span>
+                          {it.variantName && (
+                            <span className="text-[10px] text-zinc-400 block">({it.variantName})</span>
+                          )}
+                          {it.addOnNames && it.addOnNames.length > 0 && (
+                            <span className="text-[10px] text-brand-600 block">+ {it.addOnNames.join(', ')}</span>
+                          )}
+                        </div>
                         <span className="text-zinc-500">৳{it.price * it.quantity}</span>
                       </div>
                     ))}
@@ -789,14 +1478,24 @@ export const AdminDashboard: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => handleMarkCollected(item.orderId, item.stallId)}
-                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      title={item.serviceType === 'TABLE_SERVICE' ? 'Confirm order handed to runner / delivered' : 'Guest collected food from pickup counter'}
-                    >
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      <span>{item.serviceType === 'TABLE_SERVICE' ? 'Mark Delivered' : 'Mark Collected'}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleConfirmAndNotify(item.orderId, item.stallId)}
+                        className="py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-[#e06d24] hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
+                        title="Diner has not collected yet. Call guest again."
+                      >
+                        <Bell className="w-3.5 h-3.5 animate-bounce" />
+                        <span>Call Again</span>
+                      </button>
+                      <button
+                        onClick={() => handleMarkCollected(item.orderId, item.stallId)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        title={item.serviceType === 'TABLE_SERVICE' ? 'Confirm order handed to runner / delivered' : 'Guest collected food from pickup counter'}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>{item.serviceType === 'TABLE_SERVICE' ? 'Mark Delivered' : 'Mark Collected'}</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -853,6 +1552,13 @@ export const AdminDashboard: React.FC = () => {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-black text-zinc-900">
                           {order.tableId ? `Table ${order.tableId}` : 'Takeaway / Parcel'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                          (order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL')
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                           order.status === 'NEW'
@@ -1118,6 +1824,319 @@ export const AdminDashboard: React.FC = () => {
           order={printKOTOrder}
           onClose={() => setPrintKOTOrder(null)}
         />
+      )}
+
+      {/* ================= STALL PAUSE MODAL ================= */}
+      {pauseModalStall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-4 bg-zinc-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                  <Pause className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider">
+                    Pause Stall: {pauseModalStall.name}
+                  </h3>
+                  <span className="text-[10px] text-zinc-400">
+                    ID: {pauseModalStall.id} • Temporarily halt customer ordering
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPauseModalStall(null)}
+                className="text-zinc-400 hover:text-white p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-zinc-600 leading-relaxed">
+                When paused, customers will see <strong>&ldquo;Temporarily Unavailable&rdquo;</strong> for <strong>{pauseModalStall.name}</strong> and cannot place new orders for this stall. Other food court stalls remain unaffected.
+              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-800 mb-1.5">
+                  Pause Duration
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: '15 Minutes', val: '15' },
+                    { label: '30 Minutes', val: '30' },
+                    { label: '1 Hour', val: '60' },
+                    { label: 'Until Resumed', val: 'manual' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => setPauseDuration(opt.val)}
+                      className={`p-2.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${
+                        pauseDuration === opt.val
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-700 hover:bg-zinc-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-800 mb-1">
+                  Reason for Pause (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Kitchen deep clean, Peak order prep, Chef break..."
+                  value={pauseReason}
+                  onChange={(e) => setPauseReason(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-zinc-800 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setPauseModalStall(null)}
+                  className="px-4 py-2 rounded-xl border border-zinc-200 text-zinc-700 font-bold hover:bg-zinc-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPauseStall}
+                  disabled={pauseSubmitting}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  {pauseSubmitting ? 'Pausing...' : 'Confirm Pause'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= EXPENSE ADD / EDIT MODAL ================= */}
+      {expenseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-4 bg-zinc-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider">
+                    {editingExpense ? 'Correct Expense Record' : 'Record Operating Expense'}
+                  </h3>
+                  <span className="text-[10px] text-zinc-400">
+                    {editingExpense ? 'Updates entry while preserving audit history' : 'Adds to daily cost calculation'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExpenseModalOpen(false)}
+                className="text-zinc-400 hover:text-white p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExpense} className="p-5 space-y-4 text-xs">
+              {expError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                  <span>{expError}</span>
+                </div>
+              )}
+
+              {/* Amount */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-800 mb-1">
+                  Expense Amount (BDT ৳) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-sm">৳</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="e.g. 3500"
+                    value={expAmount}
+                    onChange={(e) => setExpAmount(e.target.value)}
+                    required
+                    className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-zinc-200 font-bold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                  />
+                </div>
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-800 mb-1">
+                  Expense Date (Asia/Dhaka) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={expDate}
+                  onChange={(e) => setExpDate(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 font-bold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                />
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-800 mb-1">
+                  Cost Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={expCategory}
+                  onChange={(e) => setExpCategory(e.target.value as any)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 font-bold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 bg-white"
+                >
+                  <option value="Food Cost">Food Cost (Raw Ingredients &amp; Supplies)</option>
+                  <option value="Labor">Labor &amp; Staff Wages</option>
+                  <option value="Utilities">Utilities (Gas, Electric, Water)</option>
+                  <option value="Rent">Rent &amp; Facility Lease</option>
+                  <option value="Maintenance">Maintenance &amp; Equipment Repairs</option>
+                  <option value="Miscellaneous">Miscellaneous / General</option>
+                </select>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-800 mb-1">
+                  Notes / Description (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Weekly chicken bulk delivery, kitchen exhaust servicing..."
+                  value={expNotes}
+                  onChange={(e) => setExpNotes(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 text-zinc-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setExpenseModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-zinc-200 text-zinc-700 font-bold hover:bg-zinc-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={expSubmitting}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  {expSubmitting ? 'Saving...' : editingExpense ? 'Save Correction' : 'Add Expense'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= EXPENSE CORRECTION HISTORY MODAL ================= */}
+      {historyModalExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-lg bg-white rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+            <div className="p-4 bg-zinc-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                  <History className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider">
+                    Expense Revision Audit History
+                  </h3>
+                  <span className="text-[10px] text-zinc-400">
+                    ID: {historyModalExpense.id} • Current: ৳{historyModalExpense.amount} ({historyModalExpense.category})
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryModalExpense(null)}
+                className="text-zinc-400 hover:text-white p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-3 text-xs">
+              <p className="text-[11px] text-zinc-500">
+                Full immutable audit trail of every entry and correction recorded by authorized managers:
+              </p>
+
+              <div className="space-y-2.5">
+                {(historyModalExpense.history || [
+                  {
+                    amount: historyModalExpense.amount,
+                    date: historyModalExpense.date,
+                    category: historyModalExpense.category,
+                    notes: historyModalExpense.notes,
+                    modifiedBy: historyModalExpense.createdBy,
+                    modifiedAt: historyModalExpense.createdAt,
+                    action: 'CREATED'
+                  }
+                ]).map((rev, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-2xl bg-zinc-50 border border-zinc-200/80 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                          rev.action === 'CREATED'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}>
+                          {rev.action === 'CREATED' ? 'Initial Record' : `Correction #${idx}`}
+                        </span>
+                        <span className="font-black text-zinc-900">
+                          ৳ {rev.amount.toLocaleString('en-IN')}
+                        </span>
+                        <span className="text-zinc-400">•</span>
+                        <span className="font-bold text-zinc-700">{rev.category}</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-400 font-mono">
+                        Date: {rev.date}
+                      </span>
+                    </div>
+
+                    {rev.notes && (
+                      <p className="text-[11px] text-zinc-600 bg-white p-2 rounded-xl border border-zinc-100">
+                        "{rev.notes}"
+                      </p>
+                    )}
+
+                    <div className="text-[10px] text-zinc-400 flex items-center justify-between pt-1">
+                      <span>Logged by: <strong>{rev.modifiedBy}</strong></span>
+                      <span>{new Date(rev.modifiedAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 bg-zinc-50 border-t border-zinc-100 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setHistoryModalExpense(null)}
+                className="px-4 py-2 bg-zinc-900 text-white rounded-xl text-xs font-bold hover:bg-black cursor-pointer"
+              >
+                Close History
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

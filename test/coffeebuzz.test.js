@@ -14,8 +14,8 @@ console.log('✅ Categories count:', stall.categories.length);
 const cbItems = menuItemsData.filter(i => i.stallId === 'fusion-cafe');
 console.log('✅ Total Coffee Buzz items:', cbItems.length);
 
-if (cbItems.length !== 150) {
-  throw new Error(`Expected 150 items, but found ${cbItems.length}`);
+if (cbItems.length !== 101) {
+  throw new Error(`Expected 101 items, but found ${cbItems.length}`);
 }
 
 // 3. Check for duplicates
@@ -61,14 +61,7 @@ const samples = [
   { name: 'Thai Soup (Thick)', price: 200, cat: 'SOUP', variants: 2 },
   { name: 'Grilled Chicken Salad', price: 360, cat: 'SALAD' },
   { name: 'BBQ Chicken', price: 360, cat: 'IMPROVED PLATTER' },
-  { name: 'Cheese Chicken', price: 380, cat: 'IMPROVED PLATTER' },
-  { name: 'Cold Milk Tea Regular', price: 160, cat: 'BOBA DRINK' },
-  { name: 'Fresh Lemonade', price: 100, cat: 'ICE CRUSHED' },
-  { name: 'Dragon Seduction', price: 190, cat: 'HEALTHY DRINKS' },
-  { name: 'Fusion Chocolate Shake', price: 180, cat: 'SHAKE' },
-  { name: 'Dry Fruit Fantasy', price: 220, cat: 'SPECIAL DRINKS' },
-  { name: 'Fusion Regular Cold Coffee', price: 150, cat: 'COFFEE' },
-  { name: 'Fusion Hot Coffee (Espresso)', price: 160, cat: 'COFFEE' }
+  { name: 'Cheese Chicken', price: 380, cat: 'IMPROVED PLATTER' }
 ];
 
 for (const s of samples) {
@@ -78,6 +71,24 @@ for (const s of samples) {
   if (s.variants && (!item.variants || item.variants.length !== s.variants)) {
     throw new Error(`Variant count mismatch for ${s.name}`);
   }
+}
+
+// Verify that all transferred drinks are present in drinks-beverage
+const drinkSamples = [
+  { name: 'Cold Milk Tea Regular', price: 160, cat: 'BOBA MILK TEA' },
+  { name: 'Fresh Lemonade', price: 100, cat: 'ICE CRUSHED' },
+  { name: 'Dragon Seduction', price: 190, cat: 'HEALTHY DRINKS' },
+  { name: 'Fusion Chocolate Shake', price: 180, cat: 'SHAKE' },
+  { name: 'Dry Fruit Fantasy', price: 220, cat: 'SPECIAL DRINKS' },
+  { name: 'Fusion Regular Cold Coffee', price: 150, cat: 'COFFEE' },
+  { name: 'Fusion Hot Coffee (Espresso)', price: 160, cat: 'COFFEE' }
+];
+
+const dbItems = menuItemsData.filter(i => i.stallId === 'drinks-beverage');
+for (const s of drinkSamples) {
+  const item = dbItems.find(i => i.name === s.name && i.category === s.cat);
+  if (!item) throw new Error(`Missing transferred drink: ${s.name} in category ${s.cat}`);
+  if (item.price !== s.price) throw new Error(`Price mismatch for ${s.name}: expected ${s.price}, got ${item.price}`);
 }
 
 console.log('\n✅ All sample checks passed with 100% price and variant accuracy!');

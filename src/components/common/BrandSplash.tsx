@@ -6,7 +6,10 @@ interface BrandSplashProps {
   forceShow?: boolean;
 }
 
-export const BrandSplash: React.FC<BrandSplashProps> = ({ onFinish, forceShow = false }) => {
+export const BrandSplash: React.FC<BrandSplashProps> = ({
+  onFinish,
+  forceShow = false,
+}) => {
   const { tableId } = useTableSession();
   const [visible, setVisible] = useState(true);
   const [fading, setFading] = useState(false);
@@ -35,7 +38,7 @@ export const BrandSplash: React.FC<BrandSplashProps> = ({ onFinish, forceShow = 
     const step = (interval / DISPLAY_DURATION_MS) * 100;
 
     const progressInterval = setInterval(() => {
-      setProgress(p => {
+      setProgress((p) => {
         const next = p + step;
         if (next >= 100) {
           clearInterval(progressInterval);
@@ -148,73 +151,59 @@ export const BrandSplash: React.FC<BrandSplashProps> = ({ onFinish, forceShow = 
               transition-all backdrop-blur-md cursor-pointer shrink-0"
           >
             <span>Skip</span>
-            <span className="font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+            <span className="font-bold group-hover:translate-x-0.5 transition-transform">
+              →
+            </span>
           </button>
         </header>
 
         {/* ── Centrepiece ── */}
         <main className="relative z-10 flex flex-col items-center text-center my-auto px-2 sm:px-4 max-w-xl md:max-w-2xl w-full">
+          <div className="flex flex-col items-center text-center w-full gap-2">
+            {/* Vivacity Food Court Logo — Noticeably larger, properly centered & responsive */}
+            <div className="vc-logo-fade relative flex items-center justify-center">
+              <div className="absolute -inset-4 sm:-inset-6 rounded-full bg-gradient-to-r from-orange-600/30 via-red-600/35 to-amber-500/20 blur-2xl opacity-75 pointer-events-none" />
 
-          {/* Vivacity Chili+Fire Icon — Responsive sizing for mobile vs desktop */}
-          <div className="vc-logo-fade mb-3 sm:mb-4 md:mb-5 relative flex items-center justify-center">
-            <div className="absolute -inset-4 sm:-inset-6 rounded-full bg-gradient-to-r from-orange-600/30 via-red-600/35 to-amber-500/20 blur-2xl opacity-75 pointer-events-none" />
-            <img
-              src="/assets/vivacity-chili-icon.png"
-              alt="Vivacity Food Court"
-              className="relative h-28 sm:h-32 md:h-32 lg:h-36 w-auto max-w-[150px] sm:max-w-[170px] object-contain drop-shadow-2xl"
-            />
-          </div>
-
-          {/* Grand title: Vivacity Food Court — Responsive, reduced on desktop/PC for a refined, balanced look */}
-          <div className="vc-title-reveal relative w-full max-w-full px-2">
-            <h1
-              className="text-4xl xs:text-5xl sm:text-5xl md:text-5xl lg:text-6xl
-                font-black uppercase tracking-tight text-white leading-[1.04] drop-shadow-sm break-words"
-            >
-              Vivacity
-              <span className="block bg-gradient-to-r from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">
-                Food Court
-              </span>
-            </h1>
-            {/* shimmer sweep */}
-            <div
-              className="vc-sheen pointer-events-none absolute inset-0 w-36 h-full
-                bg-gradient-to-r from-transparent via-white/20 to-transparent"
-            />
-          </div>
-
-          {/* powered by [NEW OFFICIAL KIWEE LOGO] — Compact, cohesive, centered */}
-          <div className="vc-sub-reveal mt-2 sm:mt-3 md:mt-3.5 inline-flex items-center justify-center gap-2 sm:gap-2.5 flex-nowrap">
-            <span className="text-xs sm:text-sm font-medium text-zinc-400 tracking-wider lowercase select-none">
-              Powered by
-            </span>
-            <div className="inline-flex items-center shrink-0">
               <img
-                src="/assets/kiwee-logo-transparent.png"
-                alt="Kiwee Tech"
-                className="h-7 sm:h-8 md:h-8 w-auto object-contain filter brightness-0 invert opacity-95 shrink-0"
+                src="/assets/vivacity-logo1.png"
+                alt="Vivacity Food Court"
+                className="relative w-64 sm:w-80 md:w-96 lg:w-[26rem] max-w-[85vw] h-auto object-contain drop-shadow-2xl"
               />
             </div>
-          </div>
 
-          {/* Tagline: Premium Food Court Experience */}
-          <div className="vc-tagline-reveal mt-3 sm:mt-3.5 md:mt-4 flex items-center justify-center gap-2 sm:gap-3 px-2 w-full">
-            <div className="h-px flex-1 max-w-[36px] sm:max-w-[60px] md:max-w-[80px] bg-gradient-to-r from-transparent to-amber-500/60" />
-            <div
-              className="flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full
-                bg-white/5 border border-amber-500/25 backdrop-blur-sm shrink-0 shadow-xs"
-            >
-              <span className="text-[10px] sm:text-xs font-bold tracking-[0.22em] sm:tracking-[0.26em] uppercase text-amber-400/95">
-                Premium Food Court Experience
+            {/* powered by [NEW OFFICIAL KIWEE LOGO] — Compact, cohesive, centered */}
+            <div className="vc-sub-reveal inline-flex items-center justify-center gap-2 sm:gap-2.5 flex-nowrap">
+              <span className="text-xs sm:text-sm font-medium text-zinc-400 tracking-wider lowercase select-none">
+                powered by
               </span>
+              <div className="inline-flex items-center shrink-0">
+                <img
+                  src="/assets/kiwee-logo-transparent.png"
+                  alt="Kiwee Tech"
+                  className="h-6 sm:h-7 md:h-7 w-auto object-contain filter brightness-0 invert opacity-95 shrink-0"
+                />
+              </div>
             </div>
-            <div className="h-px flex-1 max-w-[36px] sm:max-w-[60px] md:max-w-[80px] bg-gradient-to-l from-transparent to-amber-500/60" />
-          </div>
 
-          {/* Subtitle */}
-          <p className="vc-sub-reveal text-xs sm:text-sm text-zinc-400 max-w-md mt-2 sm:mt-2.5 tracking-wide leading-relaxed px-3 font-medium">
-            Smart Table Ordering by Yourself
-          </p>
+            {/* Tagline: Premium Food Court Experience */}
+            <div className="vc-tagline-reveal flex items-center justify-center gap-2 sm:gap-3 px-2 w-full">
+              <div className="h-px flex-1 max-w-[36px] sm:max-w-[60px] md:max-w-[80px] bg-gradient-to-r from-transparent to-amber-500/60" />
+              <div
+                className="flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full
+                  bg-white/5 border border-amber-500/25 backdrop-blur-sm shrink-0 shadow-xs"
+              >
+                <span className="text-[10px] sm:text-xs font-bold tracking-[0.22em] sm:tracking-[0.26em] uppercase text-amber-400/95">
+                  Premium Food Court Experience
+                </span>
+              </div>
+              <div className="h-px flex-1 max-w-[36px] sm:max-w-[60px] md:max-w-[80px] bg-gradient-to-l from-transparent to-amber-500/60" />
+            </div>
+
+            {/* Subtitle */}
+            <p className="vc-sub-reveal text-xs sm:text-sm text-zinc-400 max-w-md tracking-wide leading-relaxed px-3 font-medium">
+              Smart Table Ordering by Yourself
+            </p>
+          </div>
         </main>
 
         {/* ── Footer: table pill + progress ── */}
@@ -228,8 +217,8 @@ export const BrandSplash: React.FC<BrandSplashProps> = ({ onFinish, forceShow = 
               Connected to{' '}
               <strong className="text-amber-400 font-extrabold tracking-normal">
                 Table {tableId || 'T17'}
-              </strong>
-              {' '}• Dine-In Session
+              </strong>{' '}
+              • Dine-In Session
             </span>
           </div>
 

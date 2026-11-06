@@ -3,7 +3,7 @@ import { useCart } from '../../context/CartContext';
 import { useTableSession } from '../../context/TableSessionContext';
 import { api } from '../../services/api';
 import { sound } from '../../services/sound';
-import { PaymentMethod, Order, ServiceType } from '../../types';
+import { PaymentMethod, Order, ServiceType, CustomerOrderType } from '../../types';
 import { useLocation } from 'wouter';
 import {
   CreditCard,
@@ -21,18 +21,25 @@ import {
   Phone,
   MapPin,
   UtensilsCrossed,
-  Store
+  Store,
+  Package
 } from 'lucide-react';
 
 export const CheckoutPage: React.FC = () => {
   const {
-    items, subtotal, discount, couponCode, clearCart,
+    items, subtotal, discount, couponCode, clearCart, clearCustomerDetails,
     customerName, setCustomerName,
     customerPhone, setCustomerPhone,
-    customerAddress, setCustomerAddress
+    customerAddress, setCustomerAddress,
+    orderType, setOrderType,
+    hasUnavailableItems, unavailableCartItems,
+    sessionId
   } = useCart();
   const { tableId, isTakeaway } = useTableSession();
   const [, setLocation] = useLocation();
+
+  // Order Type validation error state (Dine-in / Takeaway selection is required)
+  const [orderTypeError, setOrderTypeError] = useState<string | null>(null);
 
   // Service Type: SELF_SERVICE (৳0) or TABLE_SERVICE (5% waiter charge) - starts unselected (null), preserved across reloads if selected
   const [serviceType, setServiceType] = useState<ServiceType | null>(() => {
@@ -114,8 +121,14 @@ export const CheckoutPage: React.FC = () => {
     let valid = true;
     setNameError(null);
     setPhoneError(null);
+    setOrderTypeError(null);
     setServiceTypeError(null);
     setPaymentMethodError(null);
+
+    if (!orderType) {
+      setOrderTypeError('Please select Dine-in or Takeaway to continue.');
+      valid = false;
+    }
 
     if (!serviceType) {
       setServiceTypeError('Please select Self-Service or Table Service to continue.');
@@ -148,11 +161,23 @@ export const CheckoutPage: React.FC = () => {
   // Submit Master Order
   const handlePlaceOrder = async () => {
     setErrorMessage(null);
+    setOrderTypeError(null);
     setServiceTypeError(null);
     setPaymentMethodError(null);
 
+    if (hasUnavailableItems) {
+      setErrorMessage('Some items in your tray are currently out of stock. Please return to your tray and remove them before ordering.');
+      return;
+    }
+
     if (!validateFields()) {
-      if (!serviceType) {
+      if (!orderType) {
+        setErrorMessage('Please select Dine-in or Takeaway to continue.');
+        const section = document.getElementById('order-type-section');
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } else if (!serviceType) {
         setErrorMessage('Please select Self-Service or Table Service to continue.');
         const section = document.getElementById('service-type-section');
         if (section) {
@@ -183,7 +208,8 @@ export const CheckoutPage: React.FC = () => {
 
       const newOrder = await api.createOrder({
         tableId: isTakeaway ? null : (tableId || 'T17'),
-        type: isTakeaway ? 'PARCEL' : 'DINE_IN',
+        type: orderType === 'TAKEAWAY' ? 'PARCEL' : 'DINE_IN',
+        customerOrderType: orderType!,
         rawItems,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim().replace(/[\s\-]/g, ''),
@@ -191,7 +217,8 @@ export const CheckoutPage: React.FC = () => {
         serviceType: serviceType!,
         customerNotes,
         paymentMethod: paymentMethod!,
-        couponCode
+        couponCode,
+        cartSessionId: sessionId
       });
 
       setPendingOrder(newOrder);
@@ -211,6 +238,7 @@ export const CheckoutPage: React.FC = () => {
       if (paymentMethod === 'CASH') {
         // Cash order created in PAYMENT DUE state
         clearCart();
+        clearCustomerDetails();
         sessionStorage.removeItem('vivacity_selected_service_type');
         sessionStorage.removeItem('vivacity_customer_notes');
         setLocation(`/orders/${newOrder.id}`);
@@ -242,6 +270,7 @@ export const CheckoutPage: React.FC = () => {
       sound.playPaymentSuccess();
 
       clearCart();
+      clearCustomerDetails();
       sessionStorage.removeItem('vivacity_selected_service_type');
       sessionStorage.removeItem('vivacity_customer_notes');
       setShowPaymentModal(false);
@@ -280,6 +309,153 @@ export const CheckoutPage: React.FC = () => {
         <span className="w-8 h-8 rounded-full bg-brand-500 text-white font-black flex items-center justify-center text-xs">
           ✓
         </span>
+      </div>
+
+      {/* Out of Stock Warning Banner */}
+      {hasUnavailableItems && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-3xl p-4 space-y-2.5 text-xs text-red-900 shadow-sm animate-pulse">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-black text-sm text-red-900">
+                Item(s) in Tray are Out of Stock!
+              </h3>
+              <p className="text-[11px] text-red-700 mt-0.5 leading-relaxed">
+                {unavailableCartItems.length === 1
+                  ? `"${unavailableCartItems[0].name}" is currently out of stock.`
+                  : `${unavailableCartItems.length} dishes in your tray are currently out of stock.`
+                }{' '}
+                Please return to your food tray to remove unavailable items before placing your order.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLocation('/cart')}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-[11px] shrink-0 transition-colors cursor-pointer"
+            >
+              Back to Tray
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ORDER TYPE SELECTION (Dine-in / Takeaway) ================= */}
+      <div
+        id="order-type-section"
+        className={`bg-white rounded-3xl p-4 border transition-all space-y-3 ${
+          orderTypeError
+            ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50/20'
+            : 'border-zinc-200/90 shadow-2xs'
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900">
+              Order Type
+            </h3>
+            <span className="text-red-600 font-black">*</span>
+          </div>
+          <span className={`text-[10px] font-bold ${orderType ? 'text-zinc-500 font-extrabold' : 'text-amber-600'}`}>
+            {orderType ? (orderType === 'DINE_IN' ? '✓ Dine-in Selected' : '✓ Takeaway Selected') : 'Selection required'}
+          </span>
+        </div>
+
+        {orderTypeError && (
+          <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-semibold flex items-center gap-1.5 animate-shake">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+            <span>{orderTypeError}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* Option 1: Dine-in */}
+          <button
+            type="button"
+            onClick={() => {
+              setOrderType('DINE_IN');
+              setOrderTypeError(null);
+              if (errorMessage === 'Please select Dine-in or Takeaway to continue.') {
+                setErrorMessage(null);
+              }
+            }}
+            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+              orderType === 'DINE_IN'
+                ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/30 shadow-xs'
+                : 'border-zinc-200 hover:border-zinc-300 bg-white'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-colors ${
+                    orderType === 'DINE_IN' ? 'bg-brand-500 text-white' : 'bg-zinc-100 text-zinc-600'
+                  }`}>
+                    <UtensilsCrossed className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-black text-zinc-900">Dine-in</span>
+                </div>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                  Eat Here
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-600 leading-snug">
+                Enjoy your dishes right here inside Vivacity Food Court seating area.
+              </p>
+            </div>
+            <div className="mt-2.5 pt-2 border-t border-zinc-100 flex items-center justify-between text-[10px] font-bold text-zinc-600">
+              <span>Hall / Table dining</span>
+              <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                orderType === 'DINE_IN' ? 'border-brand-500 bg-brand-500' : 'border-zinc-300 bg-white'
+              }`}>
+                {orderType === 'DINE_IN' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+              </span>
+            </div>
+          </button>
+
+          {/* Option 2: Takeaway */}
+          <button
+            type="button"
+            onClick={() => {
+              setOrderType('TAKEAWAY');
+              setOrderTypeError(null);
+              if (errorMessage === 'Please select Dine-in or Takeaway to continue.') {
+                setErrorMessage(null);
+              }
+            }}
+            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+              orderType === 'TAKEAWAY'
+                ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/30 shadow-xs'
+                : 'border-zinc-200 hover:border-zinc-300 bg-white'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-colors ${
+                    orderType === 'TAKEAWAY' ? 'bg-brand-500 text-white' : 'bg-zinc-100 text-zinc-600'
+                  }`}>
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-black text-zinc-900">Takeaway</span>
+                </div>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                  Parcel
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-600 leading-snug">
+                Dishes packaged hot in takeaway containers for carryout or home.
+              </p>
+            </div>
+            <div className="mt-2.5 pt-2 border-t border-zinc-100 flex items-center justify-between text-[10px] font-bold text-zinc-600">
+              <span>Carryout parcel box</span>
+              <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                orderType === 'TAKEAWAY' ? 'border-brand-500 bg-brand-500' : 'border-zinc-300 bg-white'
+              }`}>
+                {orderType === 'TAKEAWAY' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+              </span>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* ================= 1. SERVICE TYPE SELECTION ================= */}
@@ -715,19 +891,34 @@ export const CheckoutPage: React.FC = () => {
       )}
 
       {/* Submit Button */}
-      <div>
+      <div className="space-y-2">
         <button
           type="button"
-          disabled={isSubmitting}
+          disabled={isSubmitting || hasUnavailableItems}
           onClick={handlePlaceOrder}
-          className="w-full py-4 px-6 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-extrabold text-sm shadow-[0_8px_25px_rgba(224,109,36,0.35)] flex items-center justify-between transition-all active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+          className={`w-full py-4 px-6 rounded-2xl font-extrabold text-sm flex items-center justify-between transition-all ${
+            hasUnavailableItems
+              ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed shadow-none'
+              : 'bg-brand-500 hover:bg-brand-600 text-white shadow-[0_8px_25px_rgba(224,109,36,0.35)] active:scale-[0.99] disabled:opacity-50 cursor-pointer'
+          }`}
         >
-          <span>{isSubmitting ? 'Submitting to Food Court...' : 'Submit Master Order'}</span>
+          <span>
+            {hasUnavailableItems
+              ? '⚠️ Tray Contains Out-of-Stock Items'
+              : isSubmitting
+              ? 'Submitting to Food Court...'
+              : 'Submit Master Order'}
+          </span>
           <div className="flex items-center gap-1.5">
             <span className="text-base font-black">৳ {grandTotal}</span>
             <ArrowRight className="w-4 h-4" />
           </div>
         </button>
+        {hasUnavailableItems && (
+          <p className="text-center text-[11px] font-bold text-red-600">
+            Cannot submit order: Please remove out-of-stock items first.
+          </p>
+        )}
       </div>
 
       {/* Security Footer Notice */}

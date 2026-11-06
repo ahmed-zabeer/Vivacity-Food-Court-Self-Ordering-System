@@ -2,6 +2,23 @@
 class EventBroadcaster {
   constructor() {
     this.clients = new Set();
+    this.startHeartbeat();
+  }
+
+  startHeartbeat() {
+    if (this._heartbeatInterval) return;
+    this._heartbeatInterval = setInterval(() => {
+      for (const client of this.clients) {
+        try {
+          client.write(`: keepalive ${Date.now()}\n\n`);
+        } catch (err) {
+          this.clients.delete(client);
+        }
+      }
+    }, 15000);
+    if (this._heartbeatInterval.unref) {
+      this._heartbeatInterval.unref();
+    }
   }
 
   addClient(res) {

@@ -18,23 +18,24 @@ for (let i = 1; i <= 55; i++) {
 }
 console.log("✅ Passed: All 55 tables (T01 - T55) verified with unique QR targets.\n");
 
-// 2. Verify all 6 stalls exist
-console.log("Test 2: Verifying all 6 Stalls...");
+// 2. Verify all 7 stalls exist
+console.log("Test 2: Verifying all 7 Stalls...");
 const expectedStalls = [
   "fusion-cafe",
   "top-town",
   "momo-buzz",
   "waffle-city",
   "live-station",
-  "burger-bar"
+  "burger-bar",
+  "drinks-beverage"
 ];
-assert.strictEqual(stallsData.length, 6, "There must be exactly 6 stalls");
+assert.strictEqual(stallsData.length, 7, "There must be exactly 7 stalls");
 for (const stallId of expectedStalls) {
   const stall = stallsData.find(s => s.id === stallId);
   assert.ok(stall, `Stall ${stallId} must exist`);
   assert.ok(stall.categories.length > 0, `Stall ${stallId} must have categories`);
 }
-console.log("✅ Passed: All 6 food court stalls verified.\n");
+console.log("✅ Passed: All 7 food court stalls verified.\n");
 
 // 3. Verify menu items completeness
 console.log("Test 3: Verifying Menu Items and Pricing...");
@@ -66,6 +67,11 @@ const tableT17 = db.getTable("T17");
 assert.ok(tableT17, "Table T17 must be resolved");
 
 console.log("  Step B: Add items from Coffee Buzz, Momo Buzz, and Burger Bar to Master Cart");
+// Ensure items have stock for testing
+db.resetItemStock(tbone.id);
+db.resetItemStock(momo.id);
+db.resetItemStock(burger.id);
+
 const rawItems = [
   { menuItemId: tbone.id, quantity: 1, notes: "Medium well" },
   { menuItemId: momo.id, quantity: 2, notes: "Spicy sauce" },

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Route, Switch, useRoute } from 'wouter';
+import { Route, Switch, useRoute, useLocation } from 'wouter';
 import { TableSessionProvider, useTableSession } from './context/TableSessionContext';
-import { CartProvider } from './context/CartContext';
+import { CartProvider, useCart } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Header } from './components/common/Header';
 import { BottomNav } from './components/common/BottomNav';
@@ -11,6 +11,7 @@ import { GlobalFooter } from './components/common/GlobalFooter';
 import { FoodReadyModal } from './components/customer/FoodReadyModal';
 import { StallReadyConfirmedEvent } from './types';
 import { realtime } from './services/events';
+import { AlertTriangle } from 'lucide-react';
 
 // Customer Pages
 import { HomePage } from './pages/customer/HomePage';
@@ -35,17 +36,27 @@ import { RunnerDashboard } from './pages/admin/RunnerDashboard';
 import { StallDashboard } from './pages/admin/StallDashboard';
 import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
 import { AuditLogViewer } from './pages/admin/AuditLogViewer';
+import { AccountingPage } from './pages/admin/AccountingPage';
+import { InventoryManager } from './pages/admin/InventoryManager';
 
 // Route handler for table scans /t/:tableId
 const TableRouteHandler: React.FC = () => {
   const [, params] = useRoute<{ tableId: string }>('/t/:tableId');
   const { setTableId } = useTableSession();
+  const { clearCart, clearCustomerDetails } = useCart();
+  const [, setLocation] = useLocation();
 
   React.useEffect(() => {
     if (params && params.tableId) {
-      setTableId(params.tableId.toUpperCase());
+      const scannedTable = params.tableId.toUpperCase();
+      // Scanning any table QR code (T01–T55) starts a fresh session with an empty cart
+      clearCart();
+      clearCustomerDetails();
+      setTableId(scannedTable);
+      // Cleanly transition to home page so that subsequent page refreshes during checkout preserve the active cart
+      setLocation('/', { replace: true });
     }
-  }, [params]);
+  }, [params?.tableId, setTableId, clearCart, clearCustomerDetails, setLocation]);
 
   return <HomePage />;
 };
@@ -55,14 +66,22 @@ const MainContent: React.FC = () => {
   const { tableId } = useTableSession();
   const [introKey, setIntroKey] = useState(0);
   const [splashFinished, setSplashFinished] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{ connected: boolean; attempts: number }>({ connected: true, attempts: 0 });
+  const [dismissConnectionWarning, setDismissConnectionWarning] = useState(false);
 
   // Global food ready reminder queue (FIFO) for independent multi-stall alarms
   const [reminderQueue, setReminderQueue] = useState<StallReadyConfirmedEvent[]>([]);
   const activeReadyReminder = reminderQueue[0] || null;
   const seenEventIds = React.useRef<Set<string>>(new Set());
 
-  // Listen for real-time stall_ready_confirmed events across the entire application
+  // Listen for real-time stall_ready_confirmed and connection status events
   React.useEffect(() => {
+    const unsubConn = realtime.on('connection_status', (status: any) => {
+      setConnectionStatus(status);
+      if (status && status.connected) {
+        setDismissConnectionWarning(false);
+      }
+    });
     if (typeof window !== 'undefined') {
       try {
         const stored = sessionStorage.getItem('vivacity_played_notifications');
@@ -92,14 +111,14 @@ const MainContent: React.FC = () => {
       if (!evt || !evt.notificationEventId) return;
       if (seenEventIds.current.has(evt.notificationEventId)) return;
 
-      // 1. Filter out staff on admin / kitchen / stall dashboard pages or logged-in staff users
+      // 1. Filter out staff on management, kitchen, and stall dashboard screens
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-      if (
+      const isStaffScreen =
         pathname.startsWith('/admin') ||
         pathname.startsWith('/kitchen') ||
-        pathname.includes('/dashboard') ||
-        (currentUser && currentUser.role !== 'CUSTOMER')
-      ) {
+        pathname.includes('/dashboard');
+
+      if (isStaffScreen) {
         return;
       }
 
@@ -107,7 +126,7 @@ const MainContent: React.FC = () => {
       let isForThisGuest = false;
       try {
         const storedOrders = JSON.parse(localStorage.getItem('vivacity_customer_orders') || '[]');
-        if (Array.isArray(storedOrders) && storedOrders.includes(evt.orderId)) {
+        if (Array.isArray(storedOrders) && (storedOrders.includes(evt.orderId) || storedOrders.includes(evt.token))) {
           isForThisGuest = true;
         }
       } catch {}
@@ -116,7 +135,15 @@ const MainContent: React.FC = () => {
         isForThisGuest = true;
       }
 
-      if (!isForThisGuest && pathname === `/orders/${evt.orderId}`) {
+      try {
+        const localTable = localStorage.getItem('vivacity_table_id');
+        if (!isForThisGuest && localTable && evt.tableId && localTable.toUpperCase() === evt.tableId.toUpperCase()) {
+          isForThisGuest = true;
+        }
+      } catch {}
+
+      const cleanPath = pathname.replace(/\/+$/, '');
+      if (!isForThisGuest && (cleanPath === `/orders/${evt.orderId}` || cleanPath === `/orders/${evt.token}`)) {
         isForThisGuest = true;
       }
 
@@ -172,12 +199,18 @@ const MainContent: React.FC = () => {
       });
     });
 
-    return () => unsub();
+    return () => {
+      unsub();
+      unsubConn();
+    };
   }, []);
 
   const handleDismissReminder = () => {
     setReminderQueue(prev => prev.slice(1));
   };
+
+  const isLocalHostClient = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const showDisconnectedWarning = !isLocalHostClient && !connectionStatus.connected && connectionStatus.attempts >= 2 && !dismissConnectionWarning;
 
   return (
     <div className="min-h-screen flex flex-col bg-surface text-charcoal font-sans selection:bg-brand-500 selection:text-white w-full overflow-x-hidden">
@@ -187,6 +220,25 @@ const MainContent: React.FC = () => {
         forceShow={introKey > 0}
         onFinish={() => setSplashFinished(true)}
       />
+
+      {/* Reconnecting / AP Isolation Warning Banner */}
+      {showDisconnectedWarning && (
+        <div className="bg-amber-500 text-zinc-950 px-4 py-2.5 text-xs font-bold flex items-center justify-between gap-3 shadow-md z-50 sticky top-0 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-zinc-950" />
+            <span>
+              <strong>Connecting to Laptop Server...</strong> If your phone cannot load, the restaurant Wi-Fi may have <em>Client/AP Isolation</em> enabled. 
+              <strong> Alternative:</strong> Turn on your phone's <strong>Personal Hotspot</strong> and connect your laptop to it.
+            </span>
+          </div>
+          <button
+            onClick={() => setDismissConnectionWarning(true)}
+            className="text-xs px-2 py-0.5 rounded-lg bg-black/10 hover:bg-black/20 font-black cursor-pointer shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Persistent Header & Menu Bar */}
       <Header onReplayIntro={() => {
@@ -212,6 +264,8 @@ const MainContent: React.FC = () => {
 
           {/* Admin & Operations Routes */}
           <Route path="/admin" component={AdminDashboard} />
+          <Route path="/admin/accounting" component={AccountingPage} />
+          <Route path="/admin/inventory" component={InventoryManager} />
           <Route path="/admin/orders" component={OrdersManager} />
           <Route path="/admin/tables" component={TableManager} />
           <Route path="/admin/qr-codes" component={QRCodesManager} />

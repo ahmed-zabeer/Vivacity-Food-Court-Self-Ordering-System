@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
-import { Order, StallReadyConfirmedEvent } from '../../types';
+import { Order, StallReadyConfirmedEvent, MenuItem, OrderItem, OrderReview } from '../../types';
 import { useRoute, useLocation } from 'wouter';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 import { FoodPreparationAnimation } from '../../components/customer/FoodPreparationAnimation';
+import { OrderReviewModal } from '../../components/customer/OrderReviewModal';
 import {
   Clock,
   CheckCircle2,
@@ -18,6 +19,12 @@ import {
   Package,
   Bike,
   CircleCheck,
+  Utensils,
+  Trash2,
+  Search,
+  X,
+  Star,
+  Sparkles
 } from 'lucide-react';
 
 // --- Stall Card Component ---
@@ -152,11 +159,59 @@ export const OrderTrackingPage: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [existingReview, setExistingReview] = useState<OrderReview | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
+  const [hasAutoPromptedReview, setHasAutoPromptedReview] = useState<boolean>(false);
+
+  // Replacement Food Selection Modal State
+  const [replacingItem, setReplacingItem] = useState<OrderItem | null>(null);
+  const [availableMenuItems, setAvailableMenuItems] = useState<MenuItem[]>([]);
+  const [replaceSearch, setReplaceSearch] = useState<string>('');
+  const [replacingLoading, setReplacingLoading] = useState<boolean>(false);
+
+  const openReplaceModal = async (item: OrderItem) => {
+    setReplacingItem(item);
+    setReplaceSearch('');
+    try {
+      const list = await api.getMenuItems();
+      setAvailableMenuItems(list.filter(m => m.isAvailable !== false));
+    } catch (e) {
+      console.error('Failed to load menu items for replacement', e);
+    }
+  };
+
+  const handleSelectReplacement = async (newMenuItem: MenuItem) => {
+    if (!order || !replacingItem) return;
+    setReplacingLoading(true);
+    try {
+      const updated = await api.customerReplaceUnavailableItem(
+        order.id,
+        replacingItem.id,
+        newMenuItem.id,
+        replacingItem.quantity || 1
+      );
+      setOrder(updated);
+      setReplacingItem(null);
+    } catch (e: any) {
+      alert(e.message || 'Failed to replace item');
+    } finally {
+      setReplacingLoading(false);
+    }
+  };
 
 
 
   useEffect(() => {
     if (!orderId) return;
+
+    // Track this order on this customer's device
+    try {
+      const stored = JSON.parse(localStorage.getItem('vivacity_customer_orders') || '[]');
+      if (Array.isArray(stored) && !stored.includes(orderId)) {
+        stored.push(orderId);
+        localStorage.setItem('vivacity_customer_orders', JSON.stringify(stored));
+      }
+    } catch {}
 
     api.getOrder(orderId)
       .then(res => setOrder(res))
@@ -174,6 +229,25 @@ export const OrderTrackingPage: React.FC = () => {
       unsubOrder();
     };
   }, [orderId]);
+
+  // Check for existing review or trigger review prompt when delivered
+  useEffect(() => {
+    if (!order || !['DELIVERED', 'COMPLETED'].includes(order.status)) return;
+
+    api.getOrderReview(order.id)
+      .then(rev => {
+        if (rev) {
+          setExistingReview(rev);
+        } else if (!hasAutoPromptedReview) {
+          setHasAutoPromptedReview(true);
+          const timer = setTimeout(() => {
+            setShowReviewModal(true);
+          }, 1200);
+          return () => clearTimeout(timer);
+        }
+      })
+      .catch(() => {});
+  }, [order?.status, order?.id, hasAutoPromptedReview]);
 
   if (loading) {
     return (
@@ -214,36 +288,52 @@ export const OrderTrackingPage: React.FC = () => {
     {
       key: 'RECEIVED',
       label: 'Order Placed',
+      description: 'Master order submitted to Hasan at Central Counter',
       done: true,
-      active: order.status === 'NEW' || order.status === 'UNDER REVIEW'
+      active: order.status === 'NEW'
     },
     {
       key: 'ACCEPTED',
       label: 'Counter Accepted',
+      description: order.status === 'ACTION REQUIRED'
+        ? 'Food Check: Unavailable dish — action required'
+        : order.status === 'UNDER REVIEW'
+        ? 'Counter Food Check: Hasan rechecking items…'
+        : order.status === 'NEW'
+        ? 'Counter Food Check: Hasan checking dish availability'
+        : 'All items confirmed available by Hasan ✓',
       done: !['NEW', 'UNDER REVIEW', 'ACTION REQUIRED'].includes(order.status),
-      active: order.status === 'ACCEPTED'
+      active: ['NEW', 'UNDER REVIEW', 'ACTION REQUIRED', 'ACCEPTED'].includes(order.status)
     },
     {
       key: 'PAYMENT',
       label: 'Paid & Released',
+      description: order.paymentStatus === 'PAID'
+        ? 'Payment confirmed & released to kitchens ✓'
+        : 'Cash payment pending at Central Counter before release',
       done: order.paymentStatus === 'PAID',
-      active: order.paymentStatus === 'PAYMENT DUE'
+      active: order.paymentStatus === 'PAYMENT DUE' && !['NEW', 'UNDER REVIEW', 'ACTION REQUIRED'].includes(order.status)
     },
     {
       key: 'KITCHEN',
       label: 'Kitchen Cooking',
+      description: 'Chefs preparing your food across stall kitchens',
       done: ['READY', 'OUT FOR DELIVERY', 'DELIVERED', 'COMPLETED'].includes(order.status),
       active: order.status === 'PREPARING'
     },
     {
       key: 'DELIVERY',
       label: 'Ready to Collect',
+      description: order.serviceType === 'TABLE_SERVICE'
+        ? 'Food ready — service staff delivering to your table'
+        : 'Food ready — collect from stall counters',
       done: ['DELIVERED', 'COMPLETED'].includes(order.status),
       active: hasAnyReady || order.status === 'READY' || order.status === 'OUT FOR DELIVERY'
     },
     {
       key: 'COMPLETED',
       label: 'Delivered',
+      description: order.serviceType === 'TABLE_SERVICE' ? 'Delivered to table ✓' : 'Collected from counter ✓',
       done: ['DELIVERED', 'COMPLETED'].includes(order.status),
       active: order.status === 'DELIVERED' || order.status === 'COMPLETED'
     }
@@ -264,12 +354,18 @@ export const OrderTrackingPage: React.FC = () => {
       return { icon: ChefHat, text: 'Our chefs are preparing your food with care!', color: 'text-brand-600' };
     }
     if (order.status === 'PREPARING') {
-      return { icon: ChefHat, text: 'Your order has been released to the kitchens.', color: 'text-brand-600' };
+      return { icon: ChefHat, text: 'Paid & Released: Your order is cooking across stall kitchens.', color: 'text-brand-600' };
+    }
+    if (order.status === 'ACTION REQUIRED' || order.items.some(i => i.isUnavailable)) {
+      return { icon: AlertTriangle, text: 'This food is not available. Please choose another item.', color: 'text-red-600' };
+    }
+    if (order.status === 'UNDER REVIEW') {
+      return { icon: Clock, text: 'Counter Food Check: Hasan is rechecking your updated order…', color: 'text-brand-600' };
     }
     if (order.paymentStatus === 'PAYMENT DUE') {
-      return { icon: Clock, text: 'Waiting for cash payment confirmation at the counter.', color: 'text-amber-700' };
+      return { icon: Clock, text: 'Counter Accepted: Waiting for cash payment confirmation at the counter.', color: 'text-amber-700' };
     }
-    return { icon: Clock, text: 'Waiting for order confirmation…', color: 'text-zinc-500' };
+    return { icon: Clock, text: 'Order Placed: Waiting for Hasan counter food check…', color: 'text-zinc-500' };
   };
 
   const masterMsg = getMasterMessage();
@@ -320,29 +416,67 @@ export const OrderTrackingPage: React.FC = () => {
         </div>
 
         {/* Unavailable Item Alert Banner */}
-        {order.status === 'ACTION REQUIRED' && (
-          <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl space-y-2 text-xs text-red-800">
-            <div className="flex items-center gap-2 font-black">
-              <AlertTriangle className="w-4 h-4 text-red-600" />
-              <span>Action Required: Some items are currently unavailable</span>
+        {order.items.some(i => i.isUnavailable) && (
+          <div className="p-4 bg-red-50 border-2 border-red-300 rounded-3xl space-y-3 text-xs text-red-900 shadow-sm animate-pulse">
+            <div className="flex items-center gap-2 font-black text-sm text-red-900">
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+              <span>This food is not available. Please choose another item.</span>
             </div>
-            {order.items.filter(i => i.isUnavailable).map(item => (
-              <div key={item.id} className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-red-100">
-                <div>
-                  <span className="font-bold text-zinc-900">{item.name}</span>
-                  <p className="text-[10px] text-red-600">{item.unavailableReason || 'Sold out in kitchen'}</p>
+            <p className="text-[11px] text-red-700 leading-relaxed font-medium">
+              Hasan at Central Counter checked your order and found the following food item(s) are currently out of stock. You can remove the item or choose an available replacement before your order is accepted.
+            </p>
+            <div className="space-y-2">
+              {order.items.filter(i => i.isUnavailable).map(item => (
+                <div key={item.id} className="p-3 bg-white rounded-2xl border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-zinc-900 text-xs sm:text-sm">{item.name}</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-600 text-white">
+                        Not Available
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      Quantity: {item.quantity}x • ৳{item.price * item.quantity}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openReplaceModal(item)}
+                      className="px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Utensils className="w-3.5 h-3.5" />
+                      <span>Choose Another Food</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const updated = await api.customerRemoveUnavailableItem(order.id, item.id);
+                        setOrder(updated);
+                      }}
+                      className="px-3 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove</span>
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={async () => {
-                    const updated = await api.customerRemoveUnavailableItem(order.id, item.id);
-                    setOrder(updated);
-                  }}
-                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors"
-                >
-                  Remove & Proceed
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Counter Food Check: Recheck Notice */}
+        {order.status === 'UNDER REVIEW' && !order.items.some(i => i.isUnavailable) && (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-center gap-2.5 shadow-2xs">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0 animate-spin" />
+            <div className="flex-1">
+              <strong className="block font-black">Counter Food Check: Awaiting Acceptance</strong>
+              <span className="text-[11px] text-amber-800">
+                Your updated order is being rechecked by Hasan at Central Counter. Once all dishes are confirmed available, your order will be accepted.
+              </span>
+            </div>
           </div>
         )}
 
@@ -386,6 +520,13 @@ export const OrderTrackingPage: React.FC = () => {
                 <div className={`text-xs font-bold ${step.active ? 'text-brand-600 font-black' : step.done ? 'text-zinc-900' : 'text-zinc-400'}`}>
                   {step.label}
                 </div>
+                {step.description && (
+                  <p className={`text-[11px] mt-0.5 leading-snug ${
+                    step.active ? 'text-brand-700 font-semibold' : step.done ? 'text-zinc-500 font-normal' : 'text-zinc-400'
+                  }`}>
+                    {step.description}
+                  </p>
+                )}
               </div>
             </div>
           ))}
@@ -469,14 +610,78 @@ export const OrderTrackingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Order Delivered/Completed Banner */}
+        {/* Order Delivered/Completed Banner & Customer Review Section */}
         {['DELIVERED', 'COMPLETED'].includes(order.status) && (
-          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-1">
-            <CircleCheck className="w-8 h-8 text-emerald-500 mx-auto" />
-            <p className="text-sm font-black text-emerald-700">All food delivered! Enjoy your meal! 🎉</p>
+          <div className="space-y-3">
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-1">
+              <CircleCheck className="w-8 h-8 text-emerald-500 mx-auto" />
+              <p className="text-sm font-black text-emerald-700">All food delivered! Enjoy your meal! 🎉</p>
+            </div>
+
+            {/* Customer Review Card */}
+            {existingReview ? (
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl p-4 text-center space-y-2 shadow-2xs">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-black text-amber-800">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span>You Rated This Order</span>
+                </div>
+                <div className="flex justify-center items-center gap-1">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <Star
+                      key={s}
+                      className={`w-5 h-5 ${
+                        s <= existingReview.rating
+                          ? 'fill-amber-400 text-amber-400'
+                          : 'text-zinc-200 fill-zinc-100'
+                      }`}
+                    />
+                  ))}
+                </div>
+                {existingReview.feedback && (
+                  <p className="text-xs text-zinc-600 italic bg-white/70 py-1.5 px-3 rounded-xl border border-amber-100/60 max-w-sm mx-auto">
+                    "{existingReview.feedback}"
+                  </p>
+                )}
+                <p className="text-[10px] text-zinc-400">
+                  Reviewed on {new Date(existingReview.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white border-2 border-dashed border-amber-300 rounded-2xl p-4 text-center space-y-2 shadow-xs">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-black text-zinc-900">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  <span>Rate Your Order Experience</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 max-w-xs mx-auto">
+                  Help the food court stalls improve their recipes and service.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowReviewModal(true)}
+                  className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Star className="w-4 h-4 fill-white text-white" />
+                  <span>Leave a Review</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && order && (
+        <OrderReviewModal
+          orderId={order.id}
+          token={order.token}
+          onClose={() => setShowReviewModal(false)}
+          onSkip={() => setShowReviewModal(false)}
+          onSuccess={async () => {
+            const rev = await api.getOrderReview(order.id);
+            if (rev) setExistingReview(rev);
+          }}
+        />
+      )}
 
 
 

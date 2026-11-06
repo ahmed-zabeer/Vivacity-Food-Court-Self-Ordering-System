@@ -35,7 +35,7 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
 
   const navLinks = [
     { label: 'Menu', href: '/', icon: UtensilsCrossed },
-    { label: '6 Stalls', href: '/stalls', icon: Store },
+    { label: 'All Stalls', href: '/stalls', icon: Store },
     { label: 'My Orders', href: '/orders', icon: Receipt },
   ];
 
@@ -62,19 +62,20 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
           className="flex items-center gap-2 sm:gap-2.5 cursor-pointer group shrink-0 min-w-0"
           onClick={() => navigateTo('/')}
         >
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden bg-[#0f1123] p-1 ring-1 ring-zinc-300 shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform">
+          <div className="w-10 h-10 sm:w-10 sm:h-10 rounded-xl overflow-hidden  flex items-center justify-center group-hover:scale-105 -translate-x-3 ">
             <img
               src="/assets/vivacity-logo.png"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = '/assets/vivacity-logo.svg';
+                (e.target as HTMLImageElement).src =
+                  '/assets/vivacity-logo.svg';
               }}
               alt="Vivacity Food Court"
               className="w-full h-full object-contain"
             />
           </div>
-          <div className="flex flex-col min-w-0">
+          <div className="-ml-2 flex flex-col min-w-0 justify-center">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] xs:text-xs sm:text-sm font-extrabold text-zinc-900 tracking-tight leading-none whitespace-nowrap">
+              <span className="text-[14px] xs:text-xs sm:text-sm font-extrabold text-zinc-900 tracking-tight leading-none whitespace-nowrap mt-3 -ml-2 ">
                 Vivacity Food Court
               </span>
               {tableId && !isTakeaway ? (
@@ -88,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
               )}
             </div>
             <p className="text-[10px] text-zinc-400 leading-none mt-1 hidden sm:block">
-              6 Kitchens • 55 Tables Hub
+              7 Kitchens • 55 Tables Hub
             </p>
           </div>
         </div>
@@ -108,7 +109,9 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
                     : 'text-zinc-600 hover:text-zinc-900 hover:bg-white/60'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-brand-600' : 'text-zinc-500'}`} />
+                <Icon
+                  className={`w-3.5 h-3.5 ${isActive ? 'text-brand-600' : 'text-zinc-500'}`}
+                />
                 <span>{item.label}</span>
               </button>
             );
@@ -116,7 +119,7 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
         </nav>
 
         {/* Right Action Tools */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Replay Intro Button */}
           {onReplayIntro && (
             <button
@@ -133,11 +136,13 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
           <div className="relative">
             <button
               onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-              className="flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1.5 rounded-full text-[11px] font-bold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 border border-zinc-300/80 active:scale-95 transition-all cursor-pointer"
+              className="flex items-center gap-1 p-1 sm:px-2.5 sm:py-1.5 rounded-full text-[11px] font-bold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 border border-zinc-300/80 active:scale-95 transition-all cursor-pointer"
               title="Switch user role"
             >
               <UserCheck className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-              <span className="hidden sm:inline max-w-[70px] sm:max-w-[90px] truncate">{currentUser.role.split(' ')[0]}</span>
+              <span className="hidden sm:inline max-w-[70px] sm:max-w-[90px] truncate">
+                {currentUser.role.split(' ')[0]}
+              </span>
               <ChevronDown className="w-3 h-3 text-zinc-400 shrink-0" />
             </button>
 
@@ -145,7 +150,9 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
               <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-zinc-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="px-3 py-1.5 border-b border-zinc-100 text-[10px] font-black text-zinc-400 uppercase tracking-wider flex items-center justify-between">
                   <span>Switch Role</span>
-                  <span className="text-[9px] text-brand-600 font-bold">Demo Mode</span>
+                  <span className="text-[9px] text-brand-600 font-bold">
+                    Demo Mode
+                  </span>
                 </div>
                 <div className="max-h-72 overflow-y-auto py-1">
                   {availableUsers.map((u) => (
@@ -154,7 +161,11 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
                       onClick={() => {
                         switchRole(u.role, u.stallId);
                         setRoleMenuOpen(false);
-                        if (u.role === 'SUPER ADMIN' || u.role === 'MANAGER' || u.role === 'CASHIER') {
+                        if (
+                          u.role === 'SUPER ADMIN' ||
+                          u.role === 'MANAGER' ||
+                          u.role === 'CASHIER'
+                        ) {
                           setLocation('/admin');
                         } else if (u.role === 'KITCHEN STAFF') {
                           setLocation('/kitchen');
@@ -167,12 +178,18 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
                         }
                       }}
                       className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-brand-50 transition-colors ${
-                        currentUser.id === u.id ? 'bg-brand-50/70 font-bold text-brand-700' : 'text-zinc-700'
+                        currentUser.id === u.id
+                          ? 'bg-brand-50/70 font-bold text-brand-700'
+                          : 'text-zinc-700'
                       }`}
                     >
                       <div>
-                        <div className="font-semibold text-zinc-900">{u.name}</div>
-                        <div className="text-[10px] text-zinc-500">{u.role}</div>
+                        <div className="font-semibold text-zinc-900">
+                          {u.name}
+                        </div>
+                        <div className="text-[10px] text-zinc-500">
+                          {u.role}
+                        </div>
                       </div>
                       {currentUser.id === u.id && (
                         <span className="w-2 h-2 rounded-full bg-brand-500" />
@@ -187,7 +204,7 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
           {/* Cart / Food Tray Icon */}
           <button
             onClick={() => navigateTo('/cart')}
-            className="relative p-2 rounded-full text-zinc-800 hover:bg-zinc-100 active:scale-95 transition-all cursor-pointer"
+            className="relative p-1 rounded-full text-zinc-800 hover:bg-zinc-100 active:scale-95 transition-all cursor-pointer"
             title="View Food Tray"
           >
             <ShoppingBag className="w-5 h-5 text-zinc-800" />
@@ -201,10 +218,14 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
           {/* Mobile Menu Hamburger Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-full text-zinc-700 hover:bg-zinc-100 active:scale-95 transition-all"
+            className="md:hidden  rounded-full text-zinc-700 hover:bg-zinc-100 active:scale-95 transition-all"
             aria-label="Toggle menu"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileMenuOpen ? (
+              <X className="w-5 h-5" />
+            ) : (
+              <Menu className="w-5 h-5" />
+            )}
           </button>
         </div>
       </div>
@@ -234,7 +255,12 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
           </div>
 
           <div className="pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] text-zinc-500">
-            <span>Session: <strong className="text-zinc-900">{tableId ? `Table ${tableId}` : 'Takeaway'}</strong></span>
+            <span>
+              Session:{' '}
+              <strong className="text-zinc-900">
+                {tableId ? `Table ${tableId}` : 'Takeaway'}
+              </strong>
+            </span>
             {onReplayIntro && (
               <button
                 onClick={() => {

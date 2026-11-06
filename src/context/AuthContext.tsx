@@ -18,6 +18,7 @@ const defaultUsers: User[] = [
   { id: "usr-7", name: "Waffle City Manager", email: "wafflecity@vivacity.local", role: "STALL MANAGER", stallId: "waffle-city" },
   { id: "usr-8", name: "Live Station Manager", email: "livestation@vivacity.local", role: "STALL MANAGER", stallId: "live-station" },
   { id: "usr-9", name: "Burger Bar Manager", email: "burgerbar@vivacity.local", role: "STALL MANAGER", stallId: "burger-bar" },
+  { id: "usr-12", name: "Drinks & Beverage Manager", email: "drinks@vivacity.local", role: "STALL MANAGER", stallId: "drinks-beverage" },
   { id: "usr-10", name: "Head Chef (Kitchen KDS)", email: "kitchen@vivacity.local", role: "KITCHEN STAFF", stallId: null },
   { id: "usr-11", name: "Floor Runner (Kabir)", email: "runner@vivacity.local", role: "RUNNER / WAITER", stallId: null },
 ];

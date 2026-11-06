@@ -135,8 +135,8 @@ export const SwipeToStop: React.FC<SwipeToStopProps> = ({
     } catch {}
     pointerIdRef.current = null;
 
-    // Threshold: swipe is successful only if dragged at least 50% across the track
-    if (dragXRef.current >= maxDragRef.current * 0.50) {
+    // Threshold: swipe is successful only if dragged at least 45% across the track
+    if (dragXRef.current >= maxDragRef.current * 0.45) {
       completeSwipe();
     } else {
       snapBack();

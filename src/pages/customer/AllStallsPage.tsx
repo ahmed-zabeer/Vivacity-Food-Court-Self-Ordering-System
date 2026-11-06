@@ -34,32 +34,50 @@ export const AllStallsPage: React.FC = () => {
             className="cursor-pointer bg-white rounded-3xl overflow-hidden border border-zinc-200/90 shadow-2xs hover:border-brand-500/50 hover:shadow-md transition-all group flex flex-col justify-between"
           >
             <div>
-              <div className="relative h-44 w-full bg-zinc-100 overflow-hidden">
+              <div className="relative h-44 w-full bg-zinc-900 overflow-hidden">
+                {/* Attractive food background with smooth blur */}
                 <img
                   src={stall.coverImage}
                   alt={stall.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                  className="w-full h-full object-cover object-center blur-[3px] scale-105 group-hover:scale-110 transition-transform duration-700"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                <span className="absolute top-3 left-3 bg-brand-500 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-wider">
+                {/* Subtle dark overlay */}
+                <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />
+
+                {/* Centered prominent stall logo or clean text title */}
+                <div className="absolute inset-0 flex items-center justify-center p-4 z-10 pointer-events-none">
+                  {stall.logo ? (
+                    <img
+                      src={stall.logo}
+                      alt={`${stall.name} Logo`}
+                      className="max-h-24 max-w-[80%] w-auto object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center px-4 max-w-[85%] select-none">
+                      <span className="text-base sm:text-xl font-black tracking-wider text-white uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)] leading-tight">
+                        {stall.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <span className="absolute top-3 left-3 z-20 bg-brand-500 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-wider">
                   {stall.badge}
                 </span>
-                <span className="absolute top-3 right-3 bg-white/95 text-zinc-900 text-xs font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                <span className="absolute top-3 right-3 z-20 bg-white/95 text-zinc-900 text-xs font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                   <span>{stall.rating}</span>
                 </span>
-                <div className="absolute bottom-3 left-3 right-3 text-white">
-                  <h3 className="text-lg font-black leading-tight">
-                    {stall.name}
-                  </h3>
-                  <p className="text-xs text-zinc-200 line-clamp-1 mt-0.5">
-                    {stall.description}
-                  </p>
-                </div>
               </div>
 
               <div className="p-4">
-                <div className="flex flex-wrap gap-1 mb-2">
+                <h3 className="text-base font-black text-zinc-900 leading-tight">
+                  {stall.name}
+                </h3>
+                <p className="text-xs text-zinc-500 font-semibold line-clamp-1 mt-0.5 uppercase tracking-wide">
+                  {stall.description}
+                </p>
+                <div className="flex flex-wrap gap-1 mt-2.5">
                   {stall.categories.slice(0, 4).map((c) => (
                     <span key={c} className="text-[10px] font-bold bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-md">
                       {c}

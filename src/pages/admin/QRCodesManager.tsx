@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { realtime } from '../../services/events';
 import { Table } from '../../types';
 import { QRBadgeModal } from '../../components/common/QRBadgeModal';
-import { QrCode, Printer, Download, Copy, Check, Search, Filter } from 'lucide-react';
+import { QrCode, Printer, Download, Copy, Check, Search, Filter, Wifi, RefreshCw, AlertTriangle, Smartphone, Laptop, Info } from 'lucide-react';
 
 export const QRCodesManager: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
@@ -10,18 +11,57 @@ export const QRCodesManager: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [search, setSearch] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [networkInfo, setNetworkInfo] = useState<{
+    lanIps: Array<{ interface: string; address: string; mac: string }>;
+    primaryIp: string;
+    port: number;
+    isReachableOnLan: boolean;
+    localhostUrl: string;
+    recommendedBaseUrl: string;
+    activeQrBaseUrl: string;
+  } | null>(null);
+  const [copiedBaseUrl, setCopiedBaseUrl] = useState(false);
+  const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+
+  const fetchNetwork = () => {
+    api.getNetworkInfo().then(info => setNetworkInfo(info)).catch(() => {});
+  };
 
   useEffect(() => {
     api.getTables()
       .then(res => setTables(res))
       .finally(() => setLoading(false));
+
+    fetchNetwork();
+
+    const unsubNetwork = realtime.on('network_updated', (updated) => {
+      setNetworkInfo(updated);
+    });
+
+    return () => {
+      unsubNetwork();
+    };
   }, []);
 
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const lanBaseUrl = (networkInfo && networkInfo.isReachableOnLan)
+    ? (networkInfo.activeQrBaseUrl || networkInfo.recommendedBaseUrl)
+    : null;
+  const effectiveBaseUrl = lanBaseUrl || (!isLocalhost && typeof window !== 'undefined' ? window.location.origin : (networkInfo?.recommendedBaseUrl || ''));
+
   const handleCopy = (tableId: string) => {
-    const url = `${window.location.origin}/t/${tableId}`;
+    const base = effectiveBaseUrl || (networkInfo?.recommendedBaseUrl || window.location.origin);
+    const url = `${base}/t/${tableId}`;
     navigator.clipboard.writeText(url);
     setCopiedId(tableId);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCopyBaseUrl = () => {
+    const base = effectiveBaseUrl || (networkInfo?.recommendedBaseUrl || window.location.origin);
+    navigator.clipboard.writeText(base);
+    setCopiedBaseUrl(true);
+    setTimeout(() => setCopiedBaseUrl(false), 2000);
   };
 
   const handlePrintA4Sheet = () => {
@@ -42,7 +82,7 @@ export const QRCodesManager: React.FC = () => {
             55 Table QR Code Management
           </h1>
           <p className="text-xs text-zinc-500">
-            Generate, preview, download, and print table tent badges for all 55 dining stations
+            Generate, preview, download, and print table tent badges for all 55 dining stations (T01 – T55)
           </p>
         </div>
 
@@ -55,6 +95,97 @@ export const QRCodesManager: React.FC = () => {
             <span>Print All 55 A4 Sheet</span>
           </button>
         </div>
+      </div>
+
+      {/* Real-time Wi-Fi Network & Reachability Banner */}
+      <div className="p-4 rounded-3xl bg-zinc-900 text-white shadow-sm space-y-3 no-print">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+              networkInfo?.isReachableOnLan ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+            }`}>
+              <Wifi className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${networkInfo?.isReachableOnLan ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                  {networkInfo?.isReachableOnLan ? 'Active Local Wi-Fi Network Detected' : 'Local Host Mode (No Wi-Fi LAN)'}
+                </span>
+              </div>
+              <div className="text-sm font-black tracking-tight text-white flex items-center gap-2 flex-wrap">
+                <span>Phone Scan URL:</span>
+                <span className="text-amber-400 font-mono select-all">{effectiveBaseUrl || 'http://localhost:3000'}</span>
+              </div>
+              <p className="text-[11px] text-zinc-400">
+                All 55 table QR badges encode this exact URL so any smartphone on this Wi-Fi can scan and order directly.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            <button
+              onClick={handleCopyBaseUrl}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Copy phone URL"
+            >
+              {copiedBaseUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedBaseUrl ? 'Copied' : 'Copy Phone URL'}</span>
+            </button>
+
+            <button
+              onClick={fetchNetwork}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Re-scan Wi-Fi network"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh IP</span>
+            </button>
+
+            <button
+              onClick={() => setShowTroubleshooting(!showTroubleshooting)}
+              className="px-3 py-1.5 rounded-xl bg-brand-500/20 hover:bg-brand-500/30 text-xs font-bold text-brand-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>Wi-Fi Help</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Expandable Restaurant Wi-Fi / AP Isolation Help Card */}
+        {showTroubleshooting && (
+          <div className="pt-3 border-t border-white/10 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs animate-in fade-in">
+            <div className="p-3 rounded-2xl bg-white/5 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                <Laptop className="w-4 h-4" />
+                <span>1. Connect Both Devices</span>
+              </div>
+              <p className="text-[11px] text-zinc-300">
+                Ensure your laptop and smartphone are connected to the <strong>exact same Wi-Fi SSID</strong>.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-white/5 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-rose-300">
+                <AlertTriangle className="w-4 h-4" />
+                <span>2. Restaurant AP Isolation</span>
+              </div>
+              <p className="text-[11px] text-zinc-300">
+                Some restaurant Wi-Fi routers block device-to-device communication. If your phone cannot open the link, this is router-enforced client isolation.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-white/5 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-300">
+                <Smartphone className="w-4 h-4" />
+                <span>3. Recommended Alternative</span>
+              </div>
+              <p className="text-[11px] text-zinc-300">
+                Turn on your phone's <strong>Personal Hotspot</strong>, connect your laptop to the hotspot, click <strong>Refresh IP</strong>, and scan the QR code.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Search Input */}
@@ -74,9 +205,7 @@ export const QRCodesManager: React.FC = () => {
       {/* Grid of 55 Table QR Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {filtered.map((table) => {
-          const tableUrl = typeof window !== 'undefined'
-            ? `${window.location.origin}/t/${table.id}`
-            : `https://vivacity.food/t/${table.id}`;
+          const tableUrl = `${effectiveBaseUrl}/t/${table.id}`;
 
           return (
             <div
@@ -114,7 +243,7 @@ export const QRCodesManager: React.FC = () => {
 
               {/* URL & Action Tools */}
               <div className="space-y-2 pt-2 border-t border-zinc-100 text-xs">
-                <div className="text-[10px] text-zinc-400 font-mono truncate">
+                <div className="text-[10px] text-zinc-400 font-mono truncate" title={tableUrl}>
                   {tableUrl}
                 </div>
 
@@ -147,6 +276,7 @@ export const QRCodesManager: React.FC = () => {
           tableId={selectedQRTable.id}
           tableName={selectedQRTable.name}
           zone={selectedQRTable.zone}
+          baseUrl={effectiveBaseUrl}
           onClose={() => setSelectedQRTable(null)}
         />
       )}

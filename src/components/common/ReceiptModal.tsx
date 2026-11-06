@@ -1,6 +1,15 @@
 import React from 'react';
 import { Order } from '../../types';
 import { X, Printer, CheckCircle2, Clock } from 'lucide-react';
+import {
+  FOOD_COURT_INFO,
+  KIWEE_LOGO,
+  THERMAL_PRINT_CSS,
+  formatReceiptDate,
+  formatReceiptTime,
+  money,
+  orderTypeLabel,
+} from '../../config/receipt';
 
 interface ReceiptModalProps {
   order: Order | null;
@@ -10,19 +19,32 @@ interface ReceiptModalProps {
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) => {
   if (!order) return null;
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const isPaid = order.paymentStatus === 'PAID';
+  const invoiceNo = order.invoiceNo || order.token;
+  const guestCount = Number(order.guestCount || 0);
+  const paidAmount = isPaid ? order.grandTotal : 0;
+  const returnedAmount = isPaid ? Number((order as any).returnedAmount || 0) : 0;
+  const stallNames = Array.from(new Set(order.stalls.map((s) => s.stallName))).join(' • ');
+  const tableLabel = order.tableId ? `Table ${order.tableId}` : 'Takeaway';
+  const serviceLabel =
+    order.serviceType === 'TABLE_SERVICE' ? 'Table Service' : 'Self-Service';
+
+  const handlePrint = () => window.print();
+
+  const Dash = () => <div className="border-t border-dashed border-black my-1" />;
+  const DoubleDash = () => (
+    <div className="border-t-2 border-dashed border-black my-1.5" />
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-      <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs">
+      <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Modal Top Actions */}
-        <div className="p-4 bg-zinc-900 text-white flex items-center justify-between no-print">
+        <div className="p-3.5 sm:p-4 bg-zinc-900 text-white flex items-center justify-between no-print">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-300">
-              Official Digital Receipt
+              Guest Receipt
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -42,162 +64,248 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
           </div>
         </div>
 
-        {/* Printable Receipt Paper */}
-        <div className="p-6 overflow-y-auto space-y-4 font-mono text-xs text-zinc-800 bg-[#faf9f6]">
-          {/* Header */}
-          <div className="text-center pb-4 border-b border-dashed border-zinc-300 space-y-1.5">
-            <h1 className="text-xl sm:text-2xl font-black tracking-wider uppercase font-sans text-zinc-950">
-              VIVACITY FOOD COURT
-            </h1>
-
-            {/* Compact Branding Line: Powered by [NEW OFFICIAL KIWEE LOGO] */}
-            <div className="inline-flex items-center justify-center gap-1.5 py-0.5 flex-nowrap font-sans">
-              <span className="text-[11px] font-normal text-zinc-500 whitespace-nowrap">
-                Powered by
-              </span>
-              <img
-                src="/assets/kiwee-logo-transparent.png"
-                alt="Kiwee Tech"
-                className="h-4 sm:h-4.5 w-auto object-contain brightness-0 opacity-90 shrink-0"
-              />
-            </div>
-
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-sans">
-              Premium Multi-Stall Food Court
-            </p>
-            <div className="mt-2 text-xs font-bold text-zinc-700">
-              {order.tableId ? `TABLE ${order.tableId}` : 'PARCEL TAKEAWAY'} • TOKEN #{order.token}
-            </div>
-            {order.customerName && (
-              <div className="text-[11px] font-sans font-semibold text-zinc-800">
-                Guest: {order.customerName} {order.customerPhone && `(${order.customerPhone})`}
+        {/* Digital receipt paper — mirrors the 80mm thermal print */}
+        <div className="overflow-y-auto bg-[#e9e6df] p-3 sm:p-5">
+          <div className="thermal-print-root mx-auto w-full max-w-[340px] bg-white text-black font-mono text-[11px] leading-[1.45] px-3.5 py-4 shadow-[0_2px_18px_rgba(0,0,0,0.18)]">
+            {/* Header */}
+            <div className="text-center">
+              <div className="text-[15px] font-black tracking-[0.06em] leading-tight">
+                {FOOD_COURT_INFO.name}
               </div>
-            )}
-            <div className="text-[11px] text-zinc-900 font-extrabold uppercase tracking-wider font-sans bg-zinc-100 py-1 px-2 rounded-md inline-block mt-1 border border-zinc-200">
-              Service Type: {order.serviceType === 'TABLE_SERVICE' ? 'TABLE SERVICE' : 'SELF-SERVICE'}
-            </div>
-            <div className="text-[10px] text-zinc-400">
-              {new Date(order.createdAt).toLocaleString()}
-            </div>
-          </div>
-
-          {/* Items breakdown grouped by stall */}
-          <div className="space-y-3 py-2 border-b border-dashed border-zinc-300">
-            {order.stalls.map((stall) => (
-              <div key={stall.stallId} className="space-y-1">
-                <div className="text-[10px] font-bold text-brand-700 uppercase tracking-wider bg-brand-50/50 px-1 py-0.5 rounded">
-                  {stall.stallName}
+              {stallNames && (
+                <div className="text-[12px] font-bold tracking-wide mt-0.5">
+                  {stallNames}
                 </div>
-                {stall.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-start text-xs py-0.5">
-                    <span className="flex-1">
-                      {item.quantity}x {item.name}
-                      {item.notes && <span className="block text-[10px] text-zinc-400 italic font-sans">{item.notes}</span>}
-                    </span>
-                    <span className="font-semibold ml-2">৳ {item.price * item.quantity}</span>
+              )}
+              <div className="text-[9px] mt-1 leading-snug">{FOOD_COURT_INFO.addressLine1}</div>
+              <div className="text-[9px] leading-snug">{FOOD_COURT_INFO.addressLine2}</div>
+              <div className="text-[9px] leading-snug">Phone# {FOOD_COURT_INFO.phone}</div>
+              <div className="text-[9px] leading-snug">BIN:{FOOD_COURT_INFO.bin}</div>
+              <div className="text-[9px] leading-snug">Mushak-{FOOD_COURT_INFO.mushak}</div>
+            </div>
+
+            <Dash />
+            <Dash />
+
+            {/* Bill heading */}
+            <div className="text-center text-[13px] font-black tracking-wide">
+              {isPaid ? 'Paid Bill' : 'Payment Pending'}
+            </div>
+            {!isPaid && (
+              <div className="text-center text-[8.5px] font-bold">
+                Awaiting Central Counter confirmation
+              </div>
+            )}
+
+            <div className="mt-1 space-y-0.5">
+              <div className="flex items-start justify-between gap-2">
+                <span>Date:{formatReceiptDate(order.createdAt)}</span>
+                <span>Time:{formatReceiptTime(order.createdAt)}</span>
+              </div>
+              <div className="flex items-start justify-between gap-2">
+                <span className="truncate">Invoice No:{invoiceNo}</span>
+                <span className="shrink-0">Number Of Guests:{guestCount}</span>
+              </div>
+              <div className="text-[16px] font-black tracking-wide leading-tight pt-0.5">
+                Token No:{order.token}
+              </div>
+              <div className="flex items-start justify-between gap-2 pt-0.5">
+                <span>{tableLabel}</span>
+                <span className="text-right">{serviceLabel}</span>
+              </div>
+              <div className="text-[9.5px] break-words">
+                Order Type: {orderTypeLabel(order)}
+              </div>
+              {(order.customerName || order.customerPhone) && (
+                <div className="text-[9.5px] break-words">
+                  Guest: {order.customerName || 'Guest'}
+                  {order.customerPhone ? ` • ${order.customerPhone}` : ''}
+                </div>
+              )}
+            </div>
+
+            <Dash />
+
+            {/* Column headings */}
+            <div className="flex items-end gap-1 text-[9.5px] font-bold">
+              <span className="w-5 shrink-0">Qty</span>
+              <span className="flex-1 min-w-0">Item Name</span>
+              <span className="w-12 text-right shrink-0">Price</span>
+              <span className="w-12 text-right shrink-0">T.Price</span>
+            </div>
+            <Dash />
+
+            {/* Items grouped by stall */}
+            <div className="space-y-1">
+              {order.stalls.map((stall) => (
+                <div key={stall.stallId} className="space-y-0.5">
+                  {order.stalls.length > 1 && (
+                    <div className="text-[9px] font-bold uppercase tracking-wide">
+                      {stall.stallName}
+                    </div>
+                  )}
+                  {stall.items.map((item, idx) => {
+                    const unit = Number(item.price || 0);
+                    const lineTotal = unit * Number(item.quantity || 0);
+                    const extras = [
+                      item.variantName ? `Size: ${item.variantName}` : null,
+                      item.addOnNames && item.addOnNames.length > 0
+                        ? `+ ${item.addOnNames.join(', ')}`
+                        : null,
+                    ].filter(Boolean) as string[];
+                    return (
+                      <div key={`${stall.stallId}-${idx}`} className="text-[10.5px]">
+                        <div className="flex items-start gap-1">
+                          <span className="w-5 shrink-0">-{item.quantity}</span>
+                          <span className="flex-1 min-w-0 break-words">{item.name}</span>
+                          <span className="w-12 text-right shrink-0">{money(unit)}</span>
+                          <span className="w-12 text-right shrink-0">{money(lineTotal)}</span>
+                        </div>
+                        {extras.length > 0 && (
+                          <div className="pl-5 text-[8.5px] leading-snug break-words">
+                            {extras.join(' • ')}
+                          </div>
+                        )}
+                        {item.notes && (
+                          <div className="pl-5 text-[8.5px] leading-snug break-words">
+                            Note: {item.notes}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+
+            <Dash />
+
+            {/* Totals */}
+            <div className="flex justify-between gap-2 font-bold">
+              <span>Ticket Total:</span>
+              <span>{money(order.subtotal)}</span>
+            </div>
+            <Dash />
+
+            <div className="text-[10px] font-bold">Included:</div>
+            {(order.discount > 0 ||
+              order.serviceCharge > 0 ||
+              order.tax > 0) && (
+              <div className="space-y-0.5 text-[9.5px]">
+                {order.discount > 0 && (
+                  <div className="flex justify-between gap-2">
+                    <span>Discount:</span>
+                    <span>-{money(order.discount)}</span>
                   </div>
-                ))}
+                )}
+                {order.serviceCharge > 0 && (
+                  <div className="flex justify-between gap-2">
+                    <span>Service Charge:</span>
+                    <span>{money(order.serviceCharge)}</span>
+                  </div>
+                )}
+                {order.tax > 0 && (
+                  <div className="flex justify-between gap-2">
+                    <span>VAT / Tax:</span>
+                    <span>{money(order.tax)}</span>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
+            )}
+            <Dash />
 
-          {/* Pricing Totals */}
-          <div className="space-y-1.5 py-2 border-b border-dashed border-zinc-300 text-xs">
-            <div className="flex justify-between text-zinc-600">
-              <span>Food Subtotal:</span>
-              <span>৳ {order.subtotal}</span>
+            <div className="flex justify-between gap-2 font-black text-[11.5px]">
+              <span>Gross Total:</span>
+              <span>{money(order.grandTotal)}</span>
             </div>
-            {order.discount > 0 && (
-              <div className="flex justify-between text-emerald-600">
-                <span>Discount / Coupon:</span>
-                <span>-৳ {order.discount}</span>
-              </div>
-            )}
-            {order.serviceCharge > 0 && (
-              <div className="flex justify-between text-brand-700 font-bold">
-                <span>Waiter Service Charge (5%):</span>
-                <span>৳ {order.serviceCharge}</span>
-              </div>
-            )}
-            {order.tax > 0 && (
-              <div className="flex justify-between text-zinc-600">
-                <span>VAT / Tax:</span>
-                <span>৳ {order.tax}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-sm font-black text-zinc-900 pt-1 border-t border-zinc-200">
-              <span>GRAND TOTAL:</span>
-              <span>৳ {order.grandTotal}</span>
-            </div>
-          </div>
 
-          {/* Payment & Security Metadata */}
-          <div className="pt-2 text-center text-[10px] text-zinc-500 space-y-1">
-            <div className="flex items-center justify-center gap-1.5 font-bold text-zinc-700">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>PAYMENT: {order.paymentMethod.toUpperCase()} ({order.paymentStatus})</span>
+            <DoubleDash />
+
+            {/* Payments */}
+            <div className="text-[10.5px] font-bold">Payments:</div>
+            <div className="space-y-0.5 text-[10px]">
+              <div className="flex justify-between gap-2">
+                <span>-{order.paymentMethod}:</span>
+                <span>{money(paidAmount)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span>-TOTAL PAYMENT:</span>
+                <span>{money(paidAmount)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span>-RETURNED AMOUNT:</span>
+                <span>{money(returnedAmount)}</span>
+              </div>
+              {!isPaid && (
+                <div className="flex justify-between gap-2 pt-0.5 font-bold">
+                  <span>-AMOUNT DUE:</span>
+                  <span>{money(order.grandTotal)}</span>
+                </div>
+              )}
             </div>
-            <p>Order ID: {order.id.slice(0, 16)}...</p>
-            <p className="font-sans text-[11px] text-zinc-400 pt-2">
-              Thank you for dining at Vivacity Food Court!
-            </p>
+
+            <DoubleDash />
+
+            {/* Notes */}
+            <div className="text-[10px] font-bold">Notes:</div>
+            {order.customerNotes && (
+              <div className="text-[9.5px] leading-snug break-words">{order.customerNotes}</div>
+            )}
+
+            {/* Footer */}
+            <div className="text-center mt-2 space-y-1">
+              <div className="text-[10px] font-bold tracking-wide">THANK YOU, COME AGAIN</div>
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-[9px] font-bold tracking-wide">Powered by</span>
+                <img
+                  src={KIWEE_LOGO}
+                  alt="Kiwee Tech"
+                  className="h-6 w-auto object-contain"
+                />
+              </div>
+              <div className="text-[10px] font-bold tracking-wide">{FOOD_COURT_INFO.phone}</div>
+              <div className="text-[8.5px] leading-snug">
+                Facebook Page:
+                <br />
+                <a
+                  href={FOOD_COURT_INFO.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline break-all"
+                >
+                  {FOOD_COURT_INFO.facebook}
+                </a>
+              </div>
+              <div className="text-[8px] flex items-center justify-center gap-1 pt-0.5">
+                {isPaid ? (
+                  <>
+                    <CheckCircle2 className="w-2.5 h-2.5" />
+                    <span>PAID • {order.paymentMethod}</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-2.5 h-2.5" />
+                    <span>PAYMENT PENDING</span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Print Button Footer */}
-        <div className="p-4 bg-zinc-100 border-t border-zinc-200 flex justify-end gap-2 no-print">
+        <div className="p-3.5 sm:p-4 bg-zinc-100 border-t border-zinc-200 flex justify-end gap-2 no-print">
           <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 bg-zinc-900 hover:bg-black text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            <span>Print Receipt</span>
+            <span>Print Receipt (80mm)</span>
           </button>
         </div>
       </div>
 
-      {/* Print Stylesheet to guarantee paper format, logo visibility, and layout fidelity */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .no-print {
-            display: none !important;
-          }
-          .fixed {
-            position: static !important;
-            background: none !important;
-            padding: 0 !important;
-          }
-          .max-w-md {
-            max-width: 100% !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-          }
-          .overflow-y-auto {
-            overflow: visible !important;
-            max-height: none !important;
-          }
-          /* Make receipt paper visible */
-          .fixed inset-0, [role="dialog"], .bg-black\\/60 {
-            display: block !important;
-          }
-          div:has(> .font-mono), .font-mono, .font-mono * {
-            visibility: visible !important;
-          }
-          .font-mono {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            padding: 10px !important;
-            background: white !important;
-            color: black !important;
-          }
-        }
-      `}</style>
+      <style>{THERMAL_PRINT_CSS}</style>
     </div>
   );
 };
-

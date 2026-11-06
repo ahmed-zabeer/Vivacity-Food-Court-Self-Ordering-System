@@ -27,7 +27,7 @@ export const ParcelOrderPage: React.FC = () => {
             Takeaway &amp; Parcel Orders
           </h1>
           <p className="text-xs text-emerald-100 mt-1 leading-relaxed">
-            Order across all 6 stalls without occupying a table. Receive a parcel token (e.g. P001) and pick up your packed meal at the central counter!
+            Order across all food court stalls without occupying a table. Receive a parcel token (e.g. P001) and pick up your packed meal at the central counter!
           </p>
         </div>
 

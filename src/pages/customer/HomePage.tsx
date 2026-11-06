@@ -19,8 +19,12 @@ export const HomePage: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const heroStall = stalls.find(s => s.isFeatured) || stalls[0];
-  const otherStalls = stalls.filter(s => s.id !== heroStall?.id);
+  const STALL_ORDER = ['fusion-cafe', 'top-town', 'momo-buzz', 'waffle-city', 'live-station', 'burger-bar', 'drinks-beverage'];
+  const sortedStalls = [...stalls].sort((a, b) => {
+    const idxA = STALL_ORDER.indexOf(a.id);
+    const idxB = STALL_ORDER.indexOf(b.id);
+    return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+  });
   const activeOrder = activeOrders[0];
 
   return (
@@ -92,74 +96,7 @@ export const HomePage: React.FC = () => {
         </div>
       )}
 
-      {/* FEATURED HERO STALL: Coffee Buzz Fusion Cafe */}
-      {heroStall && (
-        <section>
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base">👑</span>
-              <h2 className="text-xs font-black text-zinc-900 uppercase tracking-widest">
-                Featured Partner
-              </h2>
-            </div>
-            <span className="text-[11px] font-extrabold text-brand-600 uppercase">
-              {heroStall.badge}
-            </span>
-          </div>
-
-          <div
-            onClick={() => setLocation(`/stall/${heroStall.slug}`)}
-            className="group cursor-pointer bg-white rounded-3xl overflow-hidden border border-zinc-200/90 shadow-sm hover:border-brand-500/50 hover:shadow-md transition-all active:scale-[0.99]"
-          >
-            <div className="relative w-full h-52 sm:h-64 bg-zinc-100 overflow-hidden">
-              <img
-                src={heroStall.coverImage}
-                alt={heroStall.name}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-              
-              <div className="absolute bottom-4 left-4 right-4 text-white flex items-end justify-between">
-                <div>
-                  <span className="bg-brand-500 text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full tracking-wider mb-1.5 inline-block shadow-sm">
-                    Premier Fusion Steakhouse
-                  </span>
-                  <h3 className="text-xl sm:text-2xl font-black text-white leading-tight">
-                    {heroStall.name}
-                  </h3>
-                  <p className="text-xs text-zinc-200 mt-1 max-w-sm">
-                    Steak • Pizza • Seafood • Boba • Platters
-                  </p>
-                </div>
-                <div className="bg-white/95 backdrop-blur-xs text-zinc-900 font-black text-xs px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm shrink-0">
-                  <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span>{heroStall.rating}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-3.5 sm:p-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 text-xs bg-white">
-              <div className="flex items-center gap-2.5 text-zinc-500 text-xs">
-                <span className="flex items-center gap-1 font-semibold">
-                  <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                  {heroStall.prepTime}
-                </span>
-                <span>•</span>
-                <span className="text-zinc-700 font-bold truncate">🔥 Top Rated Sizzlers</span>
-              </div>
-              <button
-                type="button"
-                className="bg-brand-500 text-white px-4 py-2 rounded-full font-bold text-xs shadow-2xs hover:bg-brand-600 transition-colors flex items-center gap-1.5 group-hover:translate-x-0.5 duration-200 shrink-0 cursor-pointer"
-              >
-                <span>Explore Menu</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* 2-COLUMN GRID: ALL REMAINING FOOD COURT STALLS */}
+      {/* ALL FOOD COURT STALLS IN UNIFIED COMPACT CARD GRID */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -169,32 +106,58 @@ export const HomePage: React.FC = () => {
             <p className="text-[11px] text-zinc-500">Order across multiple stalls into one tray</p>
           </div>
           <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-            All 6 Kitchens Open
+            All {sortedStalls.length > 0 ? sortedStalls.length : 7} Kitchens Open
           </span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4">
-          {otherStalls.map((stall) => (
+          {sortedStalls.map((stall) => (
             <div
               key={stall.id}
               onClick={() => setLocation(`/stall/${stall.slug}`)}
               className="cursor-pointer bg-white rounded-3xl overflow-hidden border border-zinc-200/80 shadow-2xs hover:border-brand-500/40 hover:shadow-sm transition-all flex flex-col justify-between active:scale-[0.98] group"
             >
               <div>
-                <div className="relative h-32 sm:h-36 w-full bg-zinc-100 overflow-hidden">
+                <div className="relative h-32 sm:h-36 w-full bg-zinc-900 overflow-hidden">
+                  {/* Attractive food-related background image with smooth blur */}
                   <img
                     src={stall.coverImage}
                     alt={stall.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover object-center blur-[3px] scale-105 group-hover:scale-110 transition-transform duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  <span className="absolute bottom-2 left-2 text-[10px] font-bold text-white bg-black/60 backdrop-blur-xs px-2 py-0.5 rounded-md">
+                  {/* Subtle dark overlay */}
+                  <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />
+
+                  {/* Centered prominent stall logo or clean text title */}
+                  <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-4 z-10 pointer-events-none">
+                    {stall.logo ? (
+                      <img
+                        src={stall.logo}
+                        alt={`${stall.name} Logo`}
+                        className="max-h-16 sm:max-h-20 max-w-[82%] w-auto object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-center px-3 max-w-[90%] select-none">
+                        <span className="text-sm sm:text-base md:text-lg font-black tracking-wider text-white uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)] leading-tight">
+                          {stall.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Badges */}
+                  <span className="absolute bottom-2 left-2 z-20 text-[10px] font-bold text-white bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded-md">
                     {stall.prepTime}
                   </span>
-                  <span className="absolute top-2 right-2 bg-white/90 backdrop-blur-xs text-zinc-900 text-[10px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-2xs">
+                  <span className="absolute top-2 right-2 z-20 bg-white/95 backdrop-blur-xs text-zinc-900 text-[10px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-2xs">
                     <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
                     <span>{stall.rating}</span>
                   </span>
+                  {stall.isPaused && (
+                    <span className="absolute top-2 left-2 z-20 bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-xs">
+                      Paused
+                    </span>
+                  )}
                 </div>
 
                 <div className="p-3">
@@ -204,7 +167,7 @@ export const HomePage: React.FC = () => {
                   <h3 className="text-xs sm:text-sm font-extrabold text-zinc-900 truncate">
                     {stall.name}
                   </h3>
-                  <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                  <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5 uppercase tracking-wide font-medium">
                     {stall.description}
                   </p>
                 </div>
@@ -213,7 +176,7 @@ export const HomePage: React.FC = () => {
               <div className="p-3 pt-0">
                 <button
                   type="button"
-                  className="w-full py-1.5 rounded-xl bg-zinc-50 group-hover:bg-brand-50 text-zinc-700 group-hover:text-brand-700 text-[11px] font-bold border border-zinc-200 group-hover:border-brand-300 transition-colors"
+                  className="w-full py-1.5 rounded-xl bg-zinc-50 group-hover:bg-brand-50 text-zinc-700 group-hover:text-brand-700 text-[11px] font-bold border border-zinc-200 group-hover:border-brand-300 transition-colors cursor-pointer"
                 >
                   View Menu
                 </button>

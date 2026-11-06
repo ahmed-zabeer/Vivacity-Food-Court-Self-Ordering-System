@@ -56,7 +56,7 @@ export const BottomNav: React.FC = () => {
             }`}
           >
             <Store className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px]">6 Stalls</span>
+            <span className="text-[10px]">All Stalls</span>
           </button>
 
           <button

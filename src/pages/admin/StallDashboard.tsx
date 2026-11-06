@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
-import { Order, Stall } from '../../types';
+import { Order, Stall, MenuItem } from '../../types';
 import { useRoute, useLocation } from 'wouter';
 import { Store, Clock, CheckCircle2, XCircle, ChefHat, Filter, Flame, Bell, Printer } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -28,18 +28,21 @@ export const StallDashboard: React.FC = () => {
 
   const [stall, setStall] = useState<Stall | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [stallItems, setStallItems] = useState<MenuItem[]>([]);
   const [filterTab, setFilterTab] = useState<string>('PREPARING');
   const [loading, setLoading] = useState(true);
   const [kotOrder, setKOTOrder] = useState<Order | null>(null);
 
   const fetchStallData = async () => {
     try {
-      const [stallRes, ordersRes] = await Promise.all([
+      const [stallRes, ordersRes, menuRes] = await Promise.all([
         api.getStall(effectiveSlug),
-        api.getOrders({ stallId: effectiveSlug, role: currentUser?.role, userStallId: currentUser?.stallId })
+        api.getOrders({ stallId: effectiveSlug, role: currentUser?.role, userStallId: currentUser?.stallId }),
+        api.getMenuItems({ stallId: effectiveSlug })
       ]);
       setStall(stallRes);
       setOrders(ordersRes);
+      setStallItems(menuRes);
     } catch (e) {
       console.error(e);
     } finally {
@@ -54,7 +57,14 @@ export const StallDashboard: React.FC = () => {
       fetchStallData();
     });
 
-    return () => unsub();
+    const unsubMenu = realtime.on('menu_item_updated', (updatedItem: MenuItem) => {
+      setStallItems(prev => prev.map(m => m.id === updatedItem.id ? updatedItem : m));
+    });
+
+    return () => {
+      unsub();
+      unsubMenu();
+    };
   }, [effectiveSlug]);
 
   const handleUpdateStatus = async (orderId: string, status: string) => {
@@ -160,9 +170,22 @@ export const StallDashboard: React.FC = () => {
             <h1 className="text-xl sm:text-2xl font-black text-zinc-900 tracking-tight">
               {stall.name}
             </h1>
-            <p className="text-xs text-zinc-400">
-              Station {stall.badge} • Strict isolated items queue
-            </p>
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              <span className="text-xs text-zinc-400">
+                Station {stall.badge} • Strict isolated items queue
+              </span>
+              {stallItems.length > 0 && (
+                stallItems.filter(i => !i.isAvailable).length === 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                    All Dishes In Stock ✓
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-100 text-red-800 animate-pulse">
+                    {stallItems.filter(i => !i.isAvailable).length} Dishes Sold Out (Central Counter)
+                  </span>
+                )
+              )}
+            </div>
           </div>
         </div>
 
@@ -175,7 +198,8 @@ export const StallDashboard: React.FC = () => {
               { id: 'momo-buzz', label: 'Momo Buzz' },
               { id: 'waffle-city', label: 'Waffle City' },
               { id: 'live-station', label: 'Live Station' },
-              { id: 'burger-bar', label: 'Burger Bar' }
+              { id: 'burger-bar', label: 'Burger Bar' },
+              { id: 'drinks-beverage', label: 'Drinks & Beverage' }
             ].map(s => (
               <button
                 key={s.id}
@@ -255,6 +279,13 @@ export const StallDashboard: React.FC = () => {
                             {order.tableId ? `Table ${order.tableId}` : 'Takeaway'}
                           </span>
                           <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                            (order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL')
+                              ? 'bg-purple-100 text-purple-900 border-purple-300'
+                              : 'bg-blue-100 text-blue-900 border-blue-300'
+                          }`}>
+                            {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
                             order.serviceType === 'TABLE_SERVICE'
                               ? 'bg-amber-100 text-amber-900 border-amber-300'
                               : 'bg-emerald-100 text-emerald-900 border-emerald-300'
@@ -291,12 +322,24 @@ export const StallDashboard: React.FC = () => {
                     {/* Isolated items for this stall */}
                     <div className="text-xs text-zinc-800 space-y-1 bg-white/80 p-2.5 rounded-xl border border-zinc-100">
                       {sub.items.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between items-center font-bold">
-                          <span className="truncate">
-                            <span className="text-brand-600 font-black mr-1">[{item.quantity}×]</span>
-                            {item.name}
-                          </span>
-                          <span className="text-zinc-400 text-[11px]">৳{item.price * item.quantity}</span>
+                        <div key={i} className="flex justify-between items-start font-bold">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <span className="truncate block">
+                              <span className="text-brand-600 font-black mr-1">[{item.quantity}×]</span>
+                              {item.name}
+                            </span>
+                            {item.variantName && (
+                              <span className="text-[10px] text-zinc-500 font-medium block">
+                                Portion: {item.variantName}
+                              </span>
+                            )}
+                            {((item.addOnNames && item.addOnNames.length > 0) || (item.customizations && item.customizations.length > 0)) && (
+                              <span className="text-[10px] text-brand-700 font-semibold block">
+                                + {(item.addOnNames || item.customizations?.map((c: any) => c.name))?.join(', ')}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-zinc-400 text-[11px] shrink-0">৳{item.price * item.quantity}</span>
                         </div>
                       ))}
                     </div>
@@ -426,6 +469,13 @@ export const StallDashboard: React.FC = () => {
                           {order.tableId ? `Table ${order.tableId}` : 'Takeaway'}
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                          (order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL')
+                            ? 'bg-purple-100 text-purple-900 border-purple-300'
+                            : 'bg-blue-100 text-blue-900 border-blue-300'
+                        }`}>
+                          {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
                           order.serviceType === 'TABLE_SERVICE'
                             ? 'bg-amber-50 text-amber-800 border-amber-300'
                             : 'bg-emerald-50 text-emerald-800 border-emerald-300'
@@ -454,16 +504,35 @@ export const StallDashboard: React.FC = () => {
 
                   {/* Isolated Items List (ONLY THIS STALL'S ITEMS) */}
                   <div className="space-y-2 py-3 text-xs">
-                    {sub.items.map((item: any, idx: number) => (
-                      <div key={idx} className="flex justify-between items-start font-bold">
-                        <div>
-                          <span className="text-sm font-black text-brand-600 mr-2">[{item.quantity}x]</span>
-                          <span className="text-zinc-900">{item.name}</span>
-                          {item.notes && <p className="text-[11px] text-amber-700 font-normal italic">* {item.notes}</p>}
+                    {sub.items.map((item: any, idx: number) => {
+                      const matchedItem = stallItems.find(m => m.name.toLowerCase() === item.name.toLowerCase() || m.id === item.menuItemId);
+                      const isOutOfStock = matchedItem ? matchedItem.isAvailable === false : false;
+                      return (
+                        <div key={idx} className="flex justify-between items-start font-bold">
+                          <div>
+                            <span className="text-sm font-black text-brand-600 mr-2">[{item.quantity}x]</span>
+                            <span className={isOutOfStock ? 'text-red-700' : 'text-zinc-900'}>{item.name}</span>
+                            {isOutOfStock && (
+                              <span className="ml-1.5 px-1.5 py-0.2 rounded bg-red-600 text-white text-[9px] uppercase font-black">
+                                Stock Out
+                              </span>
+                            )}
+                            {item.variantName && (
+                              <span className="text-[11px] text-zinc-500 font-semibold block">
+                                Portion: {item.variantName}
+                              </span>
+                            )}
+                            {((item.addOnNames && item.addOnNames.length > 0) || (item.customizations && item.customizations.length > 0)) && (
+                              <span className="text-[11px] text-brand-700 font-bold block">
+                                + Add-ons: {(item.addOnNames || item.customizations?.map((c: any) => c.name))?.join(', ')}
+                              </span>
+                            )}
+                            {item.notes && <p className="text-[11px] text-amber-700 font-normal italic">* {item.notes}</p>}
+                          </div>
+                          <span className="text-zinc-400">৳{item.price * item.quantity}</span>
                         </div>
-                        <span className="text-zinc-400">৳{item.price * item.quantity}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 

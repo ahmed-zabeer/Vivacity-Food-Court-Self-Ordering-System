@@ -56,8 +56,14 @@ export interface Stall {
   prepTime: string;
   coverImage: string;
   avatar: string;
+  logo?: string | null;
   description: string;
   categories: string[];
+  isPaused?: boolean;
+  pausedAt?: string | null;
+  pauseReason?: string;
+  pauseUntil?: string | null;
+  pausedBy?: string | null;
 }
 
 export interface MenuVariant {
@@ -91,7 +97,13 @@ export interface MenuItem {
   minWeight?: number;
   stepWeight?: number;
   addOns?: MenuAddOn[];
+  burgerPatties?: MenuAddOn[];
+  burgerAddons?: MenuAddOn[];
   isAddOn?: boolean;
+  isPopular?: boolean;
+  isSpecial?: boolean;
+  available?: number | null;
+  inv?: any;
 }
 
 export interface CartItem {
@@ -122,6 +134,9 @@ export interface OrderItem {
   quantity: number;
   variantName?: string | null;
   weight?: number | null;
+  selectedAddOns?: string[];
+  addOnNames?: string[];
+  customizations?: Array<{ id: string; name: string; price: number }>;
   notes?: string;
   isUnavailable: boolean;
   unavailableReason?: string;
@@ -148,11 +163,17 @@ export interface StallSubOrder {
   collectedAt?: string | null;
   confirmedBy?: string | null;
   notificationEventId?: string | null;
+  orderType?: 'DINE_IN' | 'TAKEAWAY';
+  orderTypeDescription?: string;
   items: {
     id: string;
     name: string;
     quantity: number;
     price: number;
+    variantName?: string | null;
+    selectedAddOns?: string[];
+    addOnNames?: string[];
+    customizations?: Array<{ id: string; name: string; price: number }>;
     notes?: string;
   }[];
 }
@@ -166,12 +187,18 @@ export interface StallReadyConfirmedEvent {
   serviceType: ServiceType;
   customerName?: string;
   customerPhone?: string | null;
+  orderType?: 'DINE_IN' | 'TAKEAWAY';
+  orderTypeDescription?: string;
   items: {
     id: string;
     name: string;
     quantity: number;
     price?: number;
     notes?: string;
+    variantName?: string | null;
+    selectedAddOns?: string[];
+    addOnNames?: string[];
+    customizations?: Array<{ id: string; name: string; price: number }>;
   }[];
   notificationEventId: string;
   notifiedAt: string;
@@ -191,12 +218,17 @@ export interface CounterReadyItem {
   createdAt: string;
   stallId: string;
   stallName: string;
+  orderTypeDescription?: string;
   items: {
     id: string;
     name: string;
     quantity: number;
     price: number;
     notes?: string;
+    variantName?: string | null;
+    selectedAddOns?: string[];
+    addOnNames?: string[];
+    customizations?: Array<{ id: string; name: string; price: number }>;
   }[];
   status: 'READY' | 'NOTIFIED' | 'COLLECTED';
   prepStartedAt?: string | null;
@@ -225,13 +257,51 @@ export interface OrderHistoryStep {
 
 export type ServiceType = 'SELF_SERVICE' | 'TABLE_SERVICE';
 
+export type CustomerOrderType = 'DINE_IN' | 'TAKEAWAY';
+
+export interface ExpenseRevision {
+  amount: number;
+  date: string;
+  category: 'Food Cost' | 'Labor' | 'Utilities' | 'Rent' | 'Maintenance' | 'Miscellaneous';
+  notes?: string;
+  modifiedBy: string;
+  modifiedAt: string;
+  action: 'CREATED' | 'CORRECTION';
+}
+
+export interface Expense {
+  id: string;
+  amount: number;
+  date: string; // YYYY-MM-DD in Asia/Dhaka
+  category: 'Food Cost' | 'Labor' | 'Utilities' | 'Rent' | 'Maintenance' | 'Miscellaneous';
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+  history?: ExpenseRevision[];
+}
+
+export interface DailyFinancialSummary {
+  date: string; // YYYY-MM-DD
+  revenue: number;
+  expenses: number;
+  profit: number;
+  revenueOrders: number;
+  expenseCount: number;
+}
+
 export interface Order {
   id: string;
   token: string;
+  invoiceNo?: string;
+  guestCount?: number;
   tableId: string | null;
   parcelToken?: string | null;
   sessionId?: string | null;
   type: 'DINE_IN' | 'PARCEL';
+  customerOrderType?: CustomerOrderType; // explicit Dine-in / Takeaway selection by customer
+  orderTypeDescription?: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
@@ -329,5 +399,113 @@ export interface RevenueSummary {
   timezone: string;
   currency: string;
   lastUpdated: string;
+}
+
+export interface InventoryInfo {
+  preparedQty: number | null;
+  soldQty: number;
+  reservedQty: number;
+  available: number | null;
+  stockOut: boolean;
+  manuallyDisabled: boolean;
+  lastUpdatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface InventoryMenuItem extends MenuItem {
+  stallName: string;
+  inv: InventoryInfo;
+}
+
+export interface OrderReview {
+  id: string;
+  orderId: string;
+  token: string;
+  tableId: string | null;
+  rating: number;
+  feedback: string;
+  createdAt: string;
+  orderTotal?: number;
+}
+
+export interface Purchase {
+  id: string;
+  supplier: string;
+  description: string;
+  category: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  status: 'PAID' | 'UNPAID';
+  paidAt?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface LedgerEntry {
+  id: string;
+  date: string;
+  refNo: string;
+  type: 'Revenue' | 'Expense' | 'Purchase';
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  relatedId?: string;
+}
+
+export interface IncomeStatement {
+  revenue: number;
+  expensesTotal: number;
+  purchasesTotal: number;
+  totalCosts: number;
+  netProfit: number;
+  expenseByCategory: Record<string, number>;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+export interface TrialBalanceAccount {
+  name: string;
+  debit: number;
+  credit: number;
+}
+
+export interface TrialBalance {
+  accounts: TrialBalanceAccount[];
+  totalDebits: number;
+  totalCredits: number;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+export interface BalanceSheetItem {
+  name: string;
+  amount: number;
+}
+
+export interface BalanceSheet {
+  assets: BalanceSheetItem[];
+  totalAssets: number;
+  liabilities: BalanceSheetItem[];
+  totalLiabilities: number;
+  equity: BalanceSheetItem[];
+  totalEquity: number;
+  asOf: string;
+}
+
+export interface DueReceivable {
+  orderId: string;
+  token: string;
+  tableId: string | null;
+  customerName: string;
+  customerPhone: string;
+  orderType: string;
+  serviceType?: string;
+  grandTotal: number;
+  paymentStatus: string;
+  paymentMethod: string;
+  createdAt: string;
 }
 

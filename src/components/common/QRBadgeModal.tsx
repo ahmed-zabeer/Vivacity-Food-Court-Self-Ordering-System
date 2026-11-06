@@ -12,9 +12,14 @@ interface QRBadgeModalProps {
 }
 
 export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, tableName, zone, baseUrl, onClose }) => {
+  const isLocalHostClient = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
   const [resolvedBaseUrl, setResolvedBaseUrl] = useState<string>(() => {
-    if (baseUrl) return baseUrl.replace(/\/+$/, '');
-    if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+    if (baseUrl && !baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
+      return baseUrl.replace(/\/+$/, '');
+    }
+    if (!isLocalHostClient && typeof window !== 'undefined') {
       return window.location.origin;
     }
     return '';
@@ -23,23 +28,38 @@ export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, tableName, 
   const [copied, setCopied] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!resolvedBaseUrl) {
+    let isMounted = true;
+    if (!resolvedBaseUrl || resolvedBaseUrl.includes('localhost') || resolvedBaseUrl.includes('127.0.0.1')) {
       api.getNetworkInfo()
         .then(info => {
-          const url = info.activeQrBaseUrl || info.recommendedBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
-          setResolvedBaseUrl(url.replace(/\/+$/, ''));
+          if (!isMounted) return;
+          const url = (info.activeQrBaseUrl && !info.activeQrBaseUrl.includes('localhost') && !info.activeQrBaseUrl.includes('127.0.0.1'))
+            ? info.activeQrBaseUrl
+            : (info.recommendedBaseUrl && !info.recommendedBaseUrl.includes('localhost') && !info.recommendedBaseUrl.includes('127.0.0.1'))
+              ? info.recommendedBaseUrl
+              : (typeof window !== 'undefined' ? window.location.origin : '');
+          if (url) {
+            setResolvedBaseUrl(url.replace(/\/+$/, ''));
+          }
         })
         .catch(() => {
-          if (typeof window !== 'undefined') setResolvedBaseUrl(window.location.origin);
+          if (isMounted && typeof window !== 'undefined') {
+            setResolvedBaseUrl(window.location.origin);
+          }
         });
     }
-  }, [resolvedBaseUrl]);
+    return () => { isMounted = false; };
+  }, [baseUrl, resolvedBaseUrl]);
 
-  const activeOrigin = resolvedBaseUrl || (typeof window !== 'undefined' ? window.location.origin : 'http://192.168.0.197:3000');
-  const tableUrl = `${activeOrigin}/t/${tableId}`;
+  // When on localhost, do NOT prematurely default to localhost:3000 to avoid generating broken QR codes for phones
+  const activeOrigin = resolvedBaseUrl || (!isLocalHostClient && typeof window !== 'undefined' ? window.location.origin : '');
+  const tableUrl = activeOrigin ? `${activeOrigin}/t/${tableId}` : '';
 
   useEffect(() => {
-    if (!tableUrl) return;
+    if (!tableUrl) {
+      setQrDataUrl('');
+      return;
+    }
     QRCode.toDataURL(tableUrl, {
       width: 400,
       margin: 2,
@@ -123,6 +143,15 @@ export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, tableName, 
             <p className="text-[10px] text-zinc-400 max-w-xs pt-1">
               Point your camera at this QR code to access all 6 culinary kitchens and order directly to Table {tableId}.
             </p>
+            {tableUrl ? (
+              <p className="text-[10px] font-mono text-zinc-500 break-all select-all pt-1 font-semibold">
+                {tableUrl}
+              </p>
+            ) : (
+              <p className="text-[10px] text-amber-600 font-medium pt-1">
+                Resolving Wi-Fi LAN address...
+              </p>
+            )}
           </div>
         </div>
 

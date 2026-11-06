@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
-import { Order, OrderStatus } from '../../types';
+import { Order, OrderStatus, MenuItem } from '../../types';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
 import { useAuth } from '../../context/AuthContext';
@@ -20,7 +20,10 @@ import {
   Store,
   ChefHat,
   Bell,
-  RotateCcw
+  RotateCcw,
+  Power,
+  Check,
+  X
 } from 'lucide-react';
 
 export const OrdersManager: React.FC = () => {
@@ -81,11 +84,53 @@ export const OrdersManager: React.FC = () => {
   const [resetting, setResetting] = useState<boolean>(false);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
 
+  // Central Counter (Hasan) Menu Items Stock Control
+  const [allMenuItems, setAllMenuItems] = useState<MenuItem[]>([]);
+  const [menuItemsMap, setMenuItemsMap] = useState<Record<string, MenuItem>>({});
+  const [showStockControl, setShowStockControl] = useState<boolean>(false);
+  const [stockSearch, setStockSearch] = useState<string>('');
+  const [stockFilter, setStockFilter] = useState<'ALL' | 'OUT_OF_STOCK' | 'IN_STOCK'>('ALL');
+  const [stockUpdatingId, setStockUpdatingId] = useState<string | null>(null);
+
   // Manual Order Creation Modal
   const [showManualModal, setShowManualModal] = useState<boolean>(false);
   const [manualTable, setManualTable] = useState<string>('T17');
   const [manualType, setManualType] = useState<'DINE_IN' | 'PARCEL'>('DINE_IN');
   const [manualPayment, setManualPayment] = useState<string>('CASH');
+
+  const fetchMenuItems = async () => {
+    try {
+      const list = await api.getMenuItems();
+      setAllMenuItems(list);
+      const map: Record<string, MenuItem> = {};
+      list.forEach(m => { map[m.id] = m; });
+      setMenuItemsMap(map);
+    } catch (e) {
+      console.error('Failed to load menu items in Central Counter', e);
+    }
+  };
+
+  const handleToggleGlobalStock = async (menuItemId: string, newAvailability: boolean, itemName?: string) => {
+    setStockUpdatingId(menuItemId);
+    try {
+      // Optimistic update
+      setMenuItemsMap(prev => {
+        const existing = prev[menuItemId];
+        if (!existing) return prev;
+        return { ...prev, [menuItemId]: { ...existing, isAvailable: newAvailability } };
+      });
+      setAllMenuItems(prev => prev.map(m => m.id === menuItemId ? { ...m, isAvailable: newAvailability } : m));
+
+      await api.updateItemAvailability(menuItemId, newAvailability);
+      setStatusFeedback(`Stock for "${itemName || 'Item'}" set to ${newAvailability ? 'AVAILABLE (ON)' : 'OUT OF STOCK (OFF)'} ✓`);
+      setTimeout(() => setStatusFeedback(null), 4000);
+    } catch (e: any) {
+      alert(e.message || 'Failed to update stock status');
+      fetchMenuItems();
+    } finally {
+      setStockUpdatingId(null);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -113,6 +158,7 @@ export const OrdersManager: React.FC = () => {
 
   useEffect(() => {
     fetchOrders();
+    fetchMenuItems();
 
     const unsubCreated = realtime.on('order_created', (newOrder: Order) => {
       if (newOrder && (newOrder.status === 'NEW' || newOrder.status === 'UNDER REVIEW' || newOrder.paymentStatus === 'PAYMENT DUE')) {
@@ -127,9 +173,15 @@ export const OrdersManager: React.FC = () => {
       fetchOrders();
     });
 
+    const unsubMenu = realtime.on('menu_item_updated', (updatedItem: MenuItem) => {
+      setAllMenuItems(prev => prev.map(m => m.id === updatedItem.id ? updatedItem : m));
+      setMenuItemsMap(prev => ({ ...prev, [updatedItem.id]: updatedItem }));
+    });
+
     return () => {
       unsubCreated();
       unsubUpdated();
+      unsubMenu();
     };
   }, []);
 
@@ -285,6 +337,18 @@ export const OrdersManager: React.FC = () => {
     return true;
   });
 
+  const outOfStockDishes = allMenuItems.filter(m => m.isAvailable === false);
+
+  const filteredStockDishes = allMenuItems.filter(m => {
+    if (stockFilter === 'OUT_OF_STOCK' && m.isAvailable !== false) return false;
+    if (stockFilter === 'IN_STOCK' && m.isAvailable === false) return false;
+    if (stockSearch.trim()) {
+      const q = stockSearch.toLowerCase().trim();
+      return m.name.toLowerCase().includes(q) || (m.category && m.category.toLowerCase().includes(q)) || (m.stallId && m.stallId.toLowerCase().includes(q));
+    }
+    return true;
+  });
+
   return (
     <div className="max-w-7xl mx-auto w-full p-4 md:p-6 pb-4 sm:pb-6 space-y-5">
       {/* Top Header: CENTRAL PAYMENT & ORDER RELEASE */}
@@ -299,6 +363,23 @@ export const OrdersManager: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Central Counter Stock Control Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowStockControl(prev => !prev)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+              showStockControl
+                ? 'bg-zinc-900 text-white ring-2 ring-zinc-700'
+                : outOfStockDishes.length > 0
+                ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
+                : 'bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800'
+            }`}
+            title="Manage all menu dish availability and stock"
+          >
+            <Store className="w-3.5 h-3.5" />
+            <span>Stock Control ({outOfStockDishes.length} Out)</span>
+          </button>
+
           {isAuthorizedToReset && (
             <button
               onClick={() => setShowResetConfirm(true)}
@@ -319,6 +400,128 @@ export const OrdersManager: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Central Counter Stock Availability Control Drawer / Panel */}
+      {showStockControl && (
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border border-zinc-200 shadow-md space-y-4 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-100">
+            <div>
+              <h2 className="text-base font-black text-zinc-900 flex items-center gap-2">
+                <Store className="w-4 h-4 text-brand-600" />
+                <span>Central Counter Food Stock Control (Hasan)</span>
+              </h2>
+              <p className="text-xs text-zinc-500">
+                Switch dishes ON (Available) or OFF (Stock Out). Updates sync live to customer menus and stall dashboards.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                outOfStockDishes.length > 0 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {outOfStockDishes.length} Dishes Out of Stock
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowStockControl(false)}
+                className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-600 flex items-center justify-center text-xs font-black cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Search & Filter */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search food item (e.g. Steak, Burger, Momo)..."
+                value={stockSearch}
+                onChange={(e) => setStockSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setStockFilter('ALL')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  stockFilter === 'ALL' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                }`}
+              >
+                All ({allMenuItems.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockFilter('OUT_OF_STOCK')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  stockFilter === 'OUT_OF_STOCK' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                }`}
+              >
+                Out of Stock ({outOfStockDishes.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockFilter('IN_STOCK')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  stockFilter === 'IN_STOCK' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                }`}
+              >
+                Available ({allMenuItems.length - outOfStockDishes.length})
+              </button>
+            </div>
+          </div>
+
+          {/* Items Grid */}
+          <div className="max-h-72 overflow-y-auto divide-y divide-zinc-100 pr-1">
+            {filteredStockDishes.length === 0 ? (
+              <p className="text-center text-xs text-zinc-400 py-6">No matching dishes found.</p>
+            ) : (
+              filteredStockDishes.map((m) => {
+                const isAvail = m.isAvailable !== false;
+                return (
+                  <div key={m.id} className="py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <strong className="text-xs font-black text-zinc-900 truncate">{m.name}</strong>
+                        <span className="text-[10px] text-zinc-400 uppercase font-semibold">({m.category})</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-brand-600">৳{m.price}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={stockUpdatingId === m.id}
+                      onClick={() => handleToggleGlobalStock(m.id, !isAvail, m.name)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                        isAvail
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                          : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
+                      }`}
+                      title={`Click to switch ${isAvail ? 'OFF (Stock Out)' : 'ON (Available)'}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${isAvail ? 'bg-emerald-500 animate-pulse' : 'bg-white'}`} />
+                      <span>{isAvail ? 'Available (ON)' : 'Stock Out (OFF)'}</span>
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Status Feedback Notification */}
+      {statusFeedback && (
+        <div className="p-3.5 rounded-2xl bg-zinc-900 text-white text-xs font-bold flex items-center justify-between shadow-md animate-in fade-in">
+          <span>{statusFeedback}</span>
+          <button onClick={() => setStatusFeedback(null)} className="text-zinc-400 hover:text-white font-black cursor-pointer">
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Reset Feedback Notification */}
       {resetFeedback && (
@@ -461,13 +664,20 @@ export const OrdersManager: React.FC = () => {
                       <div className="text-xs font-black text-brand-600 mt-1">
                         ৳ {order.grandTotal}
                       </div>
-                      <div className="flex items-center gap-1 mt-1 justify-end">
+                      <div className="flex flex-col items-end gap-1 mt-1">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
+                          (order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL')
+                            ? 'bg-purple-100 text-purple-900 border-purple-300'
+                            : 'bg-blue-100 text-blue-900 border-blue-300'
+                        }`}>
+                          {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                        </span>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
                           order.serviceType === 'TABLE_SERVICE'
                             ? 'bg-amber-100 text-amber-900 border-amber-300'
                             : 'bg-emerald-100 text-emerald-900 border-emerald-300'
                         }`}>
-                          Service Type: {order.serviceType === 'TABLE_SERVICE' ? 'TABLE SERVICE' : 'SELF-SERVICE'}
+                          Service: {order.serviceType === 'TABLE_SERVICE' ? 'TABLE SERVICE' : 'SELF-SERVICE'}
                         </span>
                       </div>
                     </div>
@@ -553,14 +763,23 @@ export const OrdersManager: React.FC = () => {
                   </strong>
                 </div>
                 <div>
-                  <span className="text-zinc-400 text-[10px] uppercase font-bold block">Service Selection</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block mt-0.5 border ${
-                    selectedOrder.serviceType === 'TABLE_SERVICE'
-                      ? 'bg-amber-100 text-amber-900 border-amber-300'
-                      : 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                  }`}>
-                    Service Type: {selectedOrder.serviceType === 'TABLE_SERVICE' ? 'TABLE SERVICE' : 'SELF-SERVICE'}
-                  </span>
+                  <span className="text-zinc-400 text-[10px] uppercase font-bold block">Order &amp; Service</span>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block border ${
+                      (selectedOrder.customerOrderType === 'TAKEAWAY' || selectedOrder.type === 'PARCEL')
+                        ? 'bg-purple-100 text-purple-900 border-purple-300'
+                        : 'bg-blue-100 text-blue-900 border-blue-300'
+                    }`}>
+                      {selectedOrder.orderTypeDescription || ((selectedOrder.customerOrderType === 'TAKEAWAY' || selectedOrder.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block border ${
+                      selectedOrder.serviceType === 'TABLE_SERVICE'
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    }`}>
+                      Service: {selectedOrder.serviceType === 'TABLE_SERVICE' ? 'TABLE SERVICE' : 'SELF-SERVICE'}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <span className="text-zinc-400 text-[10px] uppercase font-bold block">Customer</span>
@@ -577,50 +796,87 @@ export const OrdersManager: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                    Order Items Breakdown
+                    Order Items Breakdown &amp; Stock Status
                   </h3>
                   <span className="text-[10px] text-zinc-400">
-                    Manage item availability below
+                    Hasan Stock Control: Toggle Available / Stock Out
                   </span>
                 </div>
 
                 <div className="space-y-2">
-                  {selectedOrder.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`p-3 rounded-2xl border flex items-center justify-between text-xs ${
-                        item.isUnavailable
-                          ? 'bg-red-50/70 border-red-200 text-red-800'
-                          : 'bg-white border-zinc-200 text-zinc-800'
-                      }`}
-                    >
-                      <div className="flex-1 min-w-0 pr-3">
-                        <div className="font-bold flex items-center gap-2">
-                          <span className="text-sm font-black text-brand-600">[{item.quantity}x]</span>
-                          <span className="truncate">{item.name}</span>
-                          {item.isUnavailable && (
-                            <span className="text-[10px] font-black uppercase px-2 py-0.2 rounded bg-red-600 text-white">
-                              Unavailable
-                            </span>
+                  {selectedOrder.items.map((item) => {
+                    const menuItem = menuItemsMap[item.menuItemId];
+                    const isGlobalAvailable = menuItem ? menuItem.isAvailable !== false : true;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs transition-colors ${
+                          item.isUnavailable || !isGlobalAvailable
+                            ? 'bg-red-50/70 border-red-200 text-red-900'
+                            : 'bg-white border-zinc-200 text-zinc-800'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0 pr-2">
+                          <div className="font-bold flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-black text-brand-600">[{item.quantity}x]</span>
+                            <span className="truncate">{item.name}</span>
+                            {!isGlobalAvailable && (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-600 text-white shadow-xs">
+                                Stock Out (Global)
+                              </span>
+                            )}
+                            {item.isUnavailable && isGlobalAvailable && (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-600 text-white">
+                                Order Unavailable
+                              </span>
+                            )}
+                          </div>
+                          {item.variantName && (
+                            <p className="text-[11px] text-zinc-500 font-medium">
+                              Portion: <strong className="text-zinc-700">{item.variantName}</strong>
+                            </p>
+                          )}
+                          {((item.addOnNames && item.addOnNames.length > 0) || (item.customizations && item.customizations.length > 0)) && (
+                            <p className="text-[11px] text-brand-700 font-semibold mt-0.5">
+                              Add-ons: {(item.addOnNames || item.customizations?.map((c: any) => c.name))?.join(', ')}
+                            </p>
+                          )}
+                          {item.notes && <p className="text-[11px] text-zinc-500 italic mt-0.5">"{item.notes}"</p>}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          <span className="font-black text-xs sm:text-sm">৳ {item.price * item.quantity}</span>
+                          
+                          {/* Central Counter Stock Availability Toggle */}
+                          <button
+                            type="button"
+                            disabled={stockUpdatingId === item.menuItemId}
+                            onClick={() => handleToggleGlobalStock(item.menuItemId, !isGlobalAvailable, item.name)}
+                            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                              isGlobalAvailable
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
+                            }`}
+                            title={`Click to switch ${isGlobalAvailable ? 'OFF (Mark Stock Out)' : 'ON (Mark Available)'}`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isGlobalAvailable ? 'bg-emerald-500 animate-pulse' : 'bg-white'}`} />
+                            <span>{isGlobalAvailable ? 'Stock: Available (ON)' : 'Stock: Stock Out (OFF)'}</span>
+                          </button>
+
+                          {/* Existing Per-Order Mark Unavailable */}
+                          {!item.isUnavailable && (
+                            <button
+                              onClick={() => handleMarkUnavailable(selectedOrder.id, item.id)}
+                              className="px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-[10px] font-bold cursor-pointer"
+                              title="Mark out of stock for this specific order"
+                            >
+                              Per-Order Note
+                            </button>
                           )}
                         </div>
-                        {item.notes && <p className="text-[11px] text-zinc-500 italic mt-0.5">"{item.notes}"</p>}
                       </div>
-
-                      <div className="flex items-center gap-3">
-                        <span className="font-black">৳ {item.price * item.quantity}</span>
-                        {!item.isUnavailable && (
-                          <button
-                            onClick={() => handleMarkUnavailable(selectedOrder.id, item.id)}
-                            className="px-2.5 py-1 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-[10px] font-bold"
-                            title="Mark out of stock"
-                          >
-                            Mark Unavailable
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

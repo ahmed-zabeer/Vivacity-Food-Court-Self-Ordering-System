@@ -16,8 +16,18 @@ export const MyOrdersPage: React.FC = () => {
   useEffect(() => {
     api.getOrders()
       .then(res => {
-        // Filter orders for this table if available or show recent orders
-        if (tableId) {
+        const storedOrderIds: string[] = (() => {
+          try {
+            return JSON.parse(localStorage.getItem('vivacity_customer_orders') || '[]');
+          } catch {
+            return [];
+          }
+        })();
+
+        if (storedOrderIds.length > 0) {
+          const matched = res.filter(o => storedOrderIds.includes(o.id) || (tableId && o.tableId === tableId));
+          setOrders(matched.length > 0 ? matched : (tableId ? res.filter(o => o.tableId === tableId) : res));
+        } else if (tableId) {
           setOrders(res.filter(o => o.tableId === tableId));
         } else {
           setOrders(res);

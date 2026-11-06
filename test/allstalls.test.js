@@ -3,15 +3,48 @@ import assert from 'node:assert/strict';
 import { stallsData, menuItemsData } from '../server/menuData.js';
 import { db } from '../server/db.js';
 
-test('All 6 Stalls exist with correct metadata and non-empty categories', () => {
-  const stallIds = ['fusion-cafe', 'top-town', 'momo-buzz', 'waffle-city', 'live-station', 'burger-bar'];
-  assert.equal(stallsData.length, 6);
+test('All 7 Stalls exist with correct metadata and non-empty categories', () => {
+  const stallIds = ['fusion-cafe', 'top-town', 'momo-buzz', 'waffle-city', 'live-station', 'burger-bar', 'drinks-beverage'];
+  assert.equal(stallsData.length, 7);
   stallIds.forEach(id => {
     const stall = stallsData.find(s => s.id === id);
     assert.ok(stall, `Stall ${id} must exist`);
     assert.ok(stall.name, `Stall ${id} must have a name`);
     assert.ok(stall.categories.length > 0, `Stall ${id} must have categories`);
   });
+});
+
+test('Drinks & Beverage stall has 53 items including 4 new drinks and correct banner', () => {
+  const stall = stallsData.find(s => s.id === 'drinks-beverage');
+  assert.ok(stall);
+  assert.equal(stall.coverImage, '/assets/Drinks/drinks-banner.jpg');
+
+  const drinks = menuItemsData.filter(i => i.stallId === 'drinks-beverage');
+  assert.equal(drinks.length, 52, 'Drinks & Beverage must have exactly 52 items');
+  
+  const coke = drinks.find(i => i.id === 'db-coke');
+  assert.ok(coke);
+  assert.equal(coke.name, 'Fountain Coke (250ml Glass)');
+  assert.equal(coke.price, 50);
+  assert.equal(coke.image, '/assets/Drinks/Cocacola.jpg');
+
+  const sprite = drinks.find(i => i.id === 'db-sprite');
+  assert.ok(sprite);
+  assert.equal(sprite.name, 'Sprite (250ml Glass)');
+  assert.equal(sprite.price, 50);
+  assert.equal(sprite.image, '/assets/Drinks/Sprite.jpg');
+
+  const fanta = drinks.find(i => i.id === 'db-fanta');
+  assert.ok(fanta);
+  assert.equal(fanta.name, 'Fanta (250ml Glass)');
+  assert.equal(fanta.price, 50);
+  assert.equal(fanta.image, '/assets/Drinks/Fanta.jpg');
+
+  const water = drinks.find(i => i.id === 'db-water');
+  assert.ok(water);
+  assert.equal(water.name, 'Water (500ml Bottle)');
+  assert.equal(water.price, 20);
+  assert.equal(water.image, '/assets/Drinks/Kinley.jpg');
 });
 
 test('Burger Bar menu items and prices match specification', () => {

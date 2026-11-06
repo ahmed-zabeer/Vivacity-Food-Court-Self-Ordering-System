@@ -10,6 +10,14 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, 'data');
 const RESETS_FILE = path.join(DATA_DIR, 'revenue_resets.json');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
+const EXPENSES_FILE = path.join(DATA_DIR, 'expenses.json');
+const INVENTORY_FILE = path.join(DATA_DIR, 'inventory.json');
+const STALL_STATUS_FILE = path.join(DATA_DIR, 'stall_status.json');
+const REVIEWS_FILE = path.join(DATA_DIR, 'reviews.json');
+const PURCHASES_FILE = path.join(DATA_DIR, 'purchases.json');
+const CART_RESERVATIONS_FILE = path.join(DATA_DIR, 'cart_reservations.json');
+const CUSTOMIZATION_CONFIG_FILE = path.join(DATA_DIR, 'customization_config.json');
+const CART_INACTIVITY_MS = 60 * 1000; // 1 minute (60 seconds) inactivity timeout
 
 export function getDhakaDateParts(d = new Date()) {
   const date = typeof d === 'string' || typeof d === 'number' ? new Date(d) : d;
@@ -66,12 +74,34 @@ class Database {
     this.tokenCounter = 48; // Starts after seed token #0047
     this.parcelTokenCounter = 1;
     this.revenueResets = [];
+    this.expenses = [];
+    this.inventory = {};       // { menuItemId: { preparedQty, soldQty, reservedQty, manuallyDisabled, lastUpdatedAt, updatedBy } }
+    this.stallStatus = {};     // { stallId: { isPaused, pausedAt, pauseReason, pauseUntil, pausedBy } }
+    this.reviews = [];         // order reviews
+    this.purchases = [];       // supplier purchases
+    this.cartReservations = []; // [ { id, sessionId, menuItemId, quantity, createdAt, lastActiveAt } ]
+    this.customizationConfig = null;
 
     this.loadPersistedData();
     if (this.orders.length === 0 && !this._ordersFileExisted) {
       this.initSeedData();
     }
     this._scheduleMidnightReset();
+    // Auto-resume paused stalls when their timer expires
+    const _autoResumeInterval = setInterval(() => {
+      for (const stallId of Object.keys(this.stallStatus)) {
+        if (this.stallStatus[stallId]?.isPaused) {
+          this.getStallStatus(stallId); // triggers auto-expire check
+        }
+      }
+    }, 30000);
+    if (_autoResumeInterval && _autoResumeInterval.unref) _autoResumeInterval.unref();
+
+    // Reliable background cleanup of expired cart reservations (1-minute inactivity timeout)
+    const _cartCleanupInterval = setInterval(() => {
+      this._purgeExpiredCartReservations();
+    }, 2000);
+    if (_cartCleanupInterval && _cartCleanupInterval.unref) _cartCleanupInterval.unref();
   }
 
   loadPersistedData() {
@@ -83,6 +113,153 @@ class Database {
         const rawResets = fs.readFileSync(RESETS_FILE, 'utf-8');
         this.revenueResets = JSON.parse(rawResets);
       }
+      if (fs.existsSync(EXPENSES_FILE)) {
+        try {
+          const rawExpenses = fs.readFileSync(EXPENSES_FILE, 'utf-8');
+          const parsedExpenses = JSON.parse(rawExpenses);
+          if (Array.isArray(parsedExpenses)) {
+            this.expenses = parsedExpenses;
+          }
+        } catch (e) {
+          console.error('Error loading expenses:', e);
+          this.expenses = [];
+        }
+      }
+      // Load inventory
+      if (fs.existsSync(INVENTORY_FILE)) {
+        try {
+          const raw = fs.readFileSync(INVENTORY_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            this.inventory = parsed;
+            // Sync isAvailable for items with inventory records
+            for (const [menuItemId, inv] of Object.entries(this.inventory)) {
+              const item = this.menuItems.find(m => m.id === menuItemId);
+              if (!item) continue;
+              if (inv.manuallyDisabled) {
+                item.isAvailable = false;
+              } else if (inv.preparedQty !== null && inv.preparedQty !== undefined) {
+                const avail = Math.max(0, inv.preparedQty - (inv.soldQty || 0) - (inv.reservedQty || 0));
+                item.isAvailable = avail > 0;
+              }
+            }
+          }
+        } catch (e) { console.error('Error loading inventory:', e); }
+      }
+      // Load stall status
+      if (fs.existsSync(STALL_STATUS_FILE)) {
+        try {
+          const raw = fs.readFileSync(STALL_STATUS_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            this.stallStatus = parsed;
+          }
+        } catch (e) { console.error('Error loading stall status:', e); }
+      }
+      // Load reviews
+      if (fs.existsSync(REVIEWS_FILE)) {
+        try {
+          const raw = fs.readFileSync(REVIEWS_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.reviews = parsed;
+        } catch (e) { console.error('Error loading reviews:', e); }
+      }
+      // Load purchases
+      if (fs.existsSync(PURCHASES_FILE)) {
+        try {
+          const raw = fs.readFileSync(PURCHASES_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.purchases = parsed;
+        } catch (e) { console.error('Error loading purchases:', e); }
+      }
+      // Load cart reservations
+      if (fs.existsSync(CART_RESERVATIONS_FILE)) {
+        try {
+          const raw = fs.readFileSync(CART_RESERVATIONS_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.cartReservations = parsed;
+        } catch (e) { console.error('Error loading cart reservations:', e); }
+      }
+      this._purgeExpiredCartReservations();
+
+      // Load or initialize customization config
+      const defaultCustomizationConfig = {
+        boba_pearls: [
+          { id: "boba-no-extra", name: "No Extra Pearls", price: 0 },
+          { id: "boba-regular", name: "Regular Pearls", price: 0 },
+          { id: "extra-pearl", name: "Extra Pearls", price: 50 },
+          { id: "boba-more-pearl", name: "More Pearls", price: 80 }
+        ],
+        pizza_toppings: [
+          { id: "piz-top-cheese", name: "Extra Cheese", price: 60 },
+          { id: "piz-top-chicken", name: "Chicken", price: 60 },
+          { id: "piz-top-sausage", name: "Sausage", price: 50 },
+          { id: "piz-top-beef", name: "Beef", price: 80 },
+          { id: "piz-top-capsicum", name: "Capsicum", price: 30 },
+          { id: "piz-top-onion", name: "Onion", price: 20 },
+          { id: "piz-top-mushroom", name: "Mushroom", price: 40 },
+          { id: "piz-top-olives", name: "Black Olives", price: 40 },
+          { id: "piz-top-corn", name: "Sweet Corn", price: 30 },
+          { id: "piz-top-jalapeno", name: "Jalapeño", price: 40 },
+          { id: "piz-top-tomato", name: "Tomato", price: 20 }
+        ],
+        burger_patties: [
+          { id: "bgr-pat-chicken", name: "Chicken Patty", price: 0 },
+          { id: "bgr-pat-beef", name: "Beef Patty", price: 40 },
+          { id: "bgr-pat-extra", name: "Extra Patty", price: 99 }
+        ],
+        burger_addons: [
+          { id: "bgr-ado-cheese", name: "Extra Cheese Slice", price: 35 },
+          { id: "bgr-ado-egg", name: "Fried Egg", price: 30 },
+          { id: "bgr-ado-sausage", name: "Sausage", price: 40 },
+          { id: "bgr-ado-chicken", name: "Extra Chicken", price: 60 },
+          { id: "bgr-ado-beef", name: "Extra Beef", price: 80 },
+          { id: "bgr-ado-lettuce", name: "Lettuce", price: 15 },
+          { id: "bgr-ado-tomato", name: "Tomato", price: 15 },
+          { id: "bgr-ado-onion", name: "Onion", price: 10 },
+          { id: "bgr-ado-pickles", name: "Pickles", price: 20 },
+          { id: "bgr-ado-jalapeno", name: "Jalapeño", price: 25 },
+          { id: "bgr-ado-mayo", name: "Extra Mayo", price: 35 },
+          { id: "bgr-ado-bbq", name: "BBQ Sauce", price: 20 },
+          { id: "bgr-ado-special", name: "Special Sauce", price: 25 }
+        ],
+        waffle_toppings: [
+          { id: "waf-top-vanilla-ice", name: "Vanilla Ice Cream", price: 60 },
+          { id: "waf-top-choc-ice", name: "Chocolate Ice Cream", price: 60 },
+          { id: "waf-top-straw-ice", name: "Strawberry Ice Cream", price: 60 },
+          { id: "waf-top-nutella", name: "Nutella", price: 50 },
+          { id: "waf-top-choc-syrup", name: "Chocolate Syrup", price: 30 },
+          { id: "waf-top-caramel-syrup", name: "Caramel Syrup", price: 30 },
+          { id: "waf-top-honey", name: "Honey", price: 30 },
+          { id: "waf-top-whip-cream", name: "Whipped Cream", price: 40 },
+          { id: "waf-top-oreo", name: "Oreo Crumbs", price: 30 },
+          { id: "waf-top-brownie", name: "Brownie Pieces", price: 50 },
+          { id: "waf-top-strawberry", name: "Strawberry", price: 40 },
+          { id: "waf-top-banana", name: "Banana", price: 30 },
+          { id: "waf-top-fruits", name: "Mixed Fruits", price: 50 },
+          { id: "waf-top-nuts", name: "Chopped Nuts", price: 20 },
+          { id: "waf-top-chips", name: "Chocolate Chips", price: 30 },
+          { id: "waf-top-sprinkles", name: "Colour Sprinkles", price: 20 },
+          { id: "waf-top-extra-portion", name: "Extra Waffle Portion", price: 80 }
+        ]
+      };
+
+      if (fs.existsSync(CUSTOMIZATION_CONFIG_FILE)) {
+        try {
+          const rawCustom = fs.readFileSync(CUSTOMIZATION_CONFIG_FILE, 'utf-8');
+          this.customizationConfig = JSON.parse(rawCustom);
+        } catch (e) {
+          console.error('Error loading customization config:', e);
+          this.customizationConfig = defaultCustomizationConfig;
+        }
+      } else {
+        this.customizationConfig = defaultCustomizationConfig;
+        try {
+          fs.writeFileSync(CUSTOMIZATION_CONFIG_FILE, JSON.stringify(defaultCustomizationConfig, null, 2));
+        } catch (e) {}
+      }
+      this.applyCustomizationConfig();
+
       if (fs.existsSync(ORDERS_FILE)) {
         const rawOrders = fs.readFileSync(ORDERS_FILE, 'utf-8');
         const parsed = JSON.parse(rawOrders);
@@ -111,6 +288,18 @@ class Database {
             return order;
           });
           this._ordersFileExisted = true;
+
+          // Never re-issue a token/invoice that already exists after a restart.
+          const maxToken = this.orders.reduce(
+            (max, order) => Math.max(max, parseInt(order.token, 10) || 0),
+            47
+          );
+          this.tokenCounter = Math.max(this.tokenCounter, maxToken + 1);
+          const maxParcelToken = this.orders.reduce((max, order) => {
+            const n = parseInt(String(order.parcelToken || '').replace(/^P/, ''), 10);
+            return Number.isFinite(n) ? Math.max(max, n) : max;
+          }, 0);
+          this.parcelTokenCounter = Math.max(this.parcelTokenCounter, maxParcelToken + 1);
           return;
         }
       }
@@ -126,9 +315,33 @@ class Database {
       }
       fs.writeFileSync(RESETS_FILE, JSON.stringify(this.revenueResets, null, 2), 'utf-8');
       fs.writeFileSync(ORDERS_FILE, JSON.stringify(this.orders, null, 2), 'utf-8');
+      fs.writeFileSync(EXPENSES_FILE, JSON.stringify(this.expenses, null, 2), 'utf-8');
+      fs.writeFileSync(REVIEWS_FILE, JSON.stringify(this.reviews, null, 2), 'utf-8');
+      fs.writeFileSync(PURCHASES_FILE, JSON.stringify(this.purchases, null, 2), 'utf-8');
     } catch (e) {
       console.error('Error saving persisted data:', e);
     }
+  }
+
+  _saveInventory() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(INVENTORY_FILE, JSON.stringify(this.inventory, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving inventory:', e); }
+  }
+
+  _saveStallStatus() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(STALL_STATUS_FILE, JSON.stringify(this.stallStatus, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving stall status:', e); }
+  }
+
+  _saveCartReservations() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(CART_RESERVATIONS_FILE, JSON.stringify(this.cartReservations, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving cart reservations:', e); }
   }
 
   _scheduleMidnightReset() {
@@ -435,14 +648,119 @@ class Database {
 
   // --- Stalls & Menu ---
   getAllStalls() {
-    return this.stalls;
+    return this.stalls.map(s => ({ ...s, ...this.getStallStatus(s.id) }));
   }
 
   getStall(slugOrId) {
-    return this.stalls.find(s => s.slug === slugOrId || s.id === slugOrId);
+    const stall = this.stalls.find(s => s.slug === slugOrId || s.id === slugOrId);
+    if (!stall) return null;
+    return { ...stall, ...this.getStallStatus(stall.id) };
+  }
+
+  // --- Stall Pause / Resume ---
+  getStallStatus(stallId) {
+    const status = this.stallStatus[stallId];
+    if (!status || !status.isPaused) return { isPaused: false };
+    // Auto-expire paused stalls
+    if (status.pauseUntil && new Date(status.pauseUntil) <= new Date()) {
+      this.stallStatus[stallId] = { isPaused: false, pausedAt: null, pauseReason: '', pauseUntil: null, pausedBy: null };
+      this._saveStallStatus();
+      const stall = this.stalls.find(s => s.id === stallId);
+      this.logAudit('STALL_RESUMED', `Stall "${stall?.name || stallId}" automatically resumed after pause period expired`, { stallId }, 'System');
+      eventBus.broadcast('stall_updated', { stallId, stallName: stall?.name || stallId, isPaused: false });
+      return { isPaused: false };
+    }
+    return status;
+  }
+
+  pauseStall(stallId, reason = '', durationMinutes = null, user = 'Manager') {
+    const stall = this.stalls.find(s => s.id === stallId || s.slug === stallId);
+    if (!stall) throw new Error('Stall not found');
+    const pauseUntil = durationMinutes ? new Date(Date.now() + durationMinutes * 60000).toISOString() : null;
+    this.stallStatus[stall.id] = {
+      isPaused: true,
+      pausedAt: new Date().toISOString(),
+      pauseReason: reason || '',
+      pauseUntil,
+      pausedBy: user
+    };
+    this._saveStallStatus();
+    this.logAudit('STALL_PAUSED', `Stall "${stall.name}" temporarily paused by ${user}. Reason: ${reason || 'Not specified'}. Duration: ${durationMinutes ? durationMinutes + ' min' : 'Manual resume'}`, { stallId: stall.id, reason, durationMinutes }, user);
+    const payload = { stallId: stall.id, stallName: stall.name, ...this.stallStatus[stall.id] };
+    eventBus.broadcast('stall_updated', payload);
+    return { success: true, ...payload };
+  }
+
+  resumeStall(stallId, user = 'Manager') {
+    const stall = this.stalls.find(s => s.id === stallId || s.slug === stallId);
+    if (!stall) throw new Error('Stall not found');
+    this.stallStatus[stall.id] = { isPaused: false, pausedAt: null, pauseReason: '', pauseUntil: null, pausedBy: null };
+    this._saveStallStatus();
+    this.logAudit('STALL_RESUMED', `Stall "${stall.name}" resumed by ${user}`, { stallId: stall.id }, user);
+    eventBus.broadcast('stall_updated', { stallId: stall.id, stallName: stall.name, isPaused: false });
+    return { success: true, stallId: stall.id, stallName: stall.name, isPaused: false };
+  }
+
+  applyCustomizationConfig() {
+    if (!this.customizationConfig) return;
+    const { boba_pearls, pizza_toppings, burger_patties, burger_addons, waffle_toppings } = this.customizationConfig;
+
+    for (const item of this.menuItems) {
+      if (['BOBA MILK TEA', 'SMOOTHIE', 'QQ JELLY', 'BOBA DRINK'].includes(item.category) && boba_pearls) {
+        if (!item.isAddOn) {
+          item.addOns = [...boba_pearls];
+        }
+      } else if (item.category === 'PIZZA' && pizza_toppings) {
+        item.addOns = [...pizza_toppings];
+      } else if (item.category === 'WAFFLE' && waffle_toppings) {
+        item.addOns = [...waffle_toppings];
+      }
+    }
+  }
+
+  getCustomizationConfig() {
+    return this.customizationConfig;
+  }
+
+  updateCustomizationPrice(categoryKey, addOnId, newPrice) {
+    if (!this.customizationConfig || !this.customizationConfig[categoryKey]) {
+      throw new Error(`Category "${categoryKey}" not found in customization config`);
+    }
+    const item = this.customizationConfig[categoryKey].find(a => a.id === addOnId);
+    if (!item) {
+      throw new Error(`Add-on "${addOnId}" not found`);
+    }
+    const priceNum = Math.max(0, parseInt(newPrice, 10) || 0);
+    item.price = priceNum;
+    try {
+      fs.writeFileSync(CUSTOMIZATION_CONFIG_FILE, JSON.stringify(this.customizationConfig, null, 2));
+    } catch (e) {
+      console.error('Failed to write customization config:', e);
+    }
+    this.applyCustomizationConfig();
+    return item;
+  }
+
+  _enrichMenuItem(item) {
+    if (!item) return item;
+    const available = this.getAvailableStock(item.id);
+    const inv = this.inventory[item.id];
+    return {
+      ...item,
+      available,
+      inv: inv ? {
+        preparedQty: inv.preparedQty,
+        soldQty: inv.soldQty || 0,
+        reservedQty: inv.reservedQty || 0,
+        available,
+        stockOut: (inv.preparedQty !== null && available === 0) || inv.manuallyDisabled,
+        manuallyDisabled: inv.manuallyDisabled || false
+      } : undefined
+    };
   }
 
   getAllMenuItems(stallId = null, category = null, search = "") {
+    this._purgeExpiredCartReservations();
     let items = [...this.menuItems];
     if (stallId) {
       items = items.filter(i => i.stallId === stallId);
@@ -464,11 +782,12 @@ class Database {
         (i.parentCategory && i.parentCategory.toLowerCase().includes(q))
       );
     }
-    return items;
+    return items.map(i => this._enrichMenuItem(i));
   }
 
   getMenuItem(id) {
-    return this.menuItems.find(i => i.id === id);
+    const item = this.menuItems.find(i => i.id === id);
+    return item ? this._enrichMenuItem(item) : null;
   }
 
   updateItemAvailability(id, isAvailable) {
@@ -476,9 +795,9 @@ class Database {
     if (item) {
       item.isAvailable = isAvailable;
       this.logAudit("MENU_AVAILABILITY_CHANGED", `Item "${item.name}" availability set to ${isAvailable}`);
-      eventBus.broadcast("menu_item_updated", item);
+      eventBus.broadcast("menu_item_updated", this._enrichMenuItem(item));
     }
-    return item;
+    return item ? this._enrichMenuItem(item) : null;
   }
 
   updateMenuItemPrice(id, newPrice) {
@@ -487,9 +806,9 @@ class Database {
       const old = item.price;
       item.price = Number(newPrice);
       this.logAudit("MENU_PRICE_CHANGED", `Price of "${item.name}" changed from ৳${old} to ৳${newPrice}`);
-      eventBus.broadcast("menu_item_updated", item);
+      eventBus.broadcast("menu_item_updated", this._enrichMenuItem(item));
     }
-    return item;
+    return item ? this._enrichMenuItem(item) : null;
   }
 
   addMenuItem(itemData) {
@@ -527,9 +846,12 @@ class Database {
     customerPhone = "",
     customerAddress = "",
     serviceType,
+    customerOrderType = null,
     customerNotes = "",
     paymentMethod = null,
-    couponCode = null
+    couponCode = null,
+    cartSessionId = null,
+    guestCount = 0
   }) {
     if (!serviceType || (serviceType !== "SELF_SERVICE" && serviceType !== "TABLE_SERVICE")) {
       throw new Error("Please select Self-Service or Table Service to continue.");
@@ -548,9 +870,55 @@ class Database {
     const verifiedItems = [];
     let subtotal = 0;
 
+    if (!Array.isArray(rawItems) || rawItems.length === 0 || rawItems.length > 50) {
+      throw new Error("Cart must contain between 1 and 50 items.");
+    }
+
     for (const raw of rawItems) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw) ||
+          typeof raw.menuItemId !== "string" || raw.menuItemId.length > 100) {
+        throw new Error("Each cart item must include a valid menu item ID.");
+      }
+      const quantity = raw.quantity === undefined ? 1 : raw.quantity;
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+        throw new Error("Item quantity must be a whole number between 1 and 99.");
+      }
       const dbItem = this.getMenuItem(raw.menuItemId);
-      if (!dbItem) continue;
+      if (!dbItem) {
+        throw new Error(`Selected item (ID: ${raw.menuItemId}) not found in menu.`);
+      }
+      let weight = null;
+      if (dbItem.isWeightBased) {
+        weight = raw.weight === undefined || raw.weight === null ? 400 : raw.weight;
+        if (!Number.isInteger(weight) || weight < 1 || weight > 10000) {
+          throw new Error("Item weight must be a whole number between 1g and 10000g.");
+        }
+      }
+      const inv = this.inventory[dbItem.id];
+      if (inv?.manuallyDisabled) {
+        throw new Error(`"${dbItem.name}" is currently unavailable. Please remove it from your tray.`);
+      }
+      if (dbItem.isAvailable === false) {
+        if (inv && inv.preparedQty !== null && inv.preparedQty !== undefined) {
+          const canOrder = this.getAvailableStock(dbItem.id, cartSessionId);
+          if (canOrder < quantity) {
+            const excess = quantity - canOrder;
+            const portionWord = canOrder === 1 ? 'portion' : 'portions';
+            const msg = canOrder > 0
+              ? `Only ${canOrder} ${portionWord} available. Please reduce your quantity by ${excess}.`
+              : `"${dbItem.name}" is currently out of stock (Stock Out). Please remove it from your tray.`;
+            throw new Error(msg);
+          }
+        } else {
+          throw new Error(`"${dbItem.name}" is currently out of stock (Stock Out). Please remove it from your tray.`);
+        }
+      }
+      // Check stall pause status
+      const stallPauseStatus = this.getStallStatus(dbItem.stallId);
+      if (stallPauseStatus.isPaused) {
+        const stallInfo = this.stalls.find(s => s.id === dbItem.stallId);
+        throw new Error(`"${stallInfo?.name || dbItem.stallId}" is temporarily unavailable. Please remove its items from your tray or try again later.`);
+      }
 
       let itemPrice = dbItem.price;
 
@@ -561,22 +929,39 @@ class Database {
       }
 
       // Handle weight-based pricing (per 100g)
-      if (dbItem.isWeightBased && raw.weight) {
-        const weight = Number(raw.weight) || 400;
+      if (dbItem.isWeightBased) {
         itemPrice = (dbItem.price / 100) * weight;
       }
 
-      // Handle add-ons
+      // Handle add-ons & customizations
       let addOnsTotal = 0;
+      const matchedAddOns = [];
       if (raw.selectedAddOns && Array.isArray(raw.selectedAddOns)) {
         for (const addOnId of raw.selectedAddOns) {
-          const matched = dbItem.addOns?.find(a => a.id === addOnId);
-          if (matched) addOnsTotal += matched.price;
+          let matched = dbItem.addOns?.find(a => a.id === addOnId);
+          if (!matched && this.customizationConfig) {
+            for (const catList of Object.values(this.customizationConfig)) {
+              if (Array.isArray(catList)) {
+                matched = catList.find(a => a.id === addOnId);
+                if (matched) break;
+              }
+            }
+          }
+          if (matched) {
+            addOnsTotal += matched.price;
+            matchedAddOns.push({
+              id: matched.id,
+              name: matched.name,
+              price: matched.price
+            });
+          }
         }
       }
 
-      const lineTotal = (itemPrice + addOnsTotal) * (raw.quantity || 1);
+      const lineTotal = (itemPrice + addOnsTotal) * quantity;
       subtotal += lineTotal;
+
+      const addOnDisplayNames = matchedAddOns.map(a => `${a.name}${a.price > 0 ? ` (+৳${a.price})` : ''}`);
 
       verifiedItems.push({
         id: "oli-" + randomUUID().slice(0, 8),
@@ -585,12 +970,56 @@ class Database {
         name: dbItem.name,
         price: itemPrice + addOnsTotal,
         basePrice: dbItem.price,
-        quantity: raw.quantity || 1,
+        quantity,
         variantName: raw.variantName || null,
-        weight: raw.weight || null,
+        weight,
+        selectedAddOns: raw.selectedAddOns || [],
+        addOnNames: addOnDisplayNames,
+        customizations: matchedAddOns,
         notes: raw.notes || "",
         isUnavailable: false
       });
+    }
+
+    // --- Inventory reservation (atomic check-and-reserve, with cart reservation transfer) ---
+    this._purgeExpiredCartReservations();
+    const reservationsToApply = [];
+    for (const item of verifiedItems) {
+      const inv = this.inventory[item.menuItemId];
+      if (inv && inv.preparedQty !== null && inv.preparedQty !== undefined) {
+        // Maximum this session can order (accounting for its own cart hold, without double counting)
+        const maxCanOrder = this.getAvailableStock(item.menuItemId, cartSessionId);
+
+        if (maxCanOrder !== null && item.quantity > maxCanOrder) {
+          const excess = item.quantity - maxCanOrder;
+          const portionWord = maxCanOrder === 1 ? 'portion' : 'portions';
+          const msg = maxCanOrder > 0
+            ? `Only ${maxCanOrder} ${portionWord} available. Please reduce your quantity by ${excess}.`
+            : `This item is out of stock. Please reduce your quantity by ${excess}.`;
+          throw new Error(msg);
+        }
+        reservationsToApply.push({
+          menuItemId: item.menuItemId,
+          quantity: item.quantity
+        });
+      }
+    }
+
+    // Atomically transfer: remove cart reservation and add to order reservedQty
+    for (const res of reservationsToApply) {
+      if (cartSessionId) {
+        this.cartReservations = this.cartReservations.filter(r => !(r.sessionId === cartSessionId && r.menuItemId === res.menuItemId));
+      }
+      if (!this.inventory[res.menuItemId]) {
+        this.inventory[res.menuItemId] = { preparedQty: null, soldQty: 0, reservedQty: 0, manuallyDisabled: false };
+      }
+      this.inventory[res.menuItemId].reservedQty = (this.inventory[res.menuItemId].reservedQty || 0) + res.quantity;
+    }
+    if (reservationsToApply.length > 0) {
+      this._saveCartReservations();
+      this._saveInventory();
+      this._syncMenuItemsAvailability(reservationsToApply.map(r => r.menuItemId));
+      eventBus.broadcast('inventory_updated', { transferred: reservationsToApply.map(r => r.menuItemId) });
     }
 
     // Apply Coupon if valid
@@ -650,9 +1079,16 @@ class Database {
     }
     const stallOrders = Array.from(stallMap.values());
 
+    const isTakeaway = customerOrderType === "TAKEAWAY" || type === "PARCEL";
+    const resolvedCustomerOrderType = isTakeaway ? "TAKEAWAY" : "DINE_IN";
+    const resolvedType = isTakeaway ? "PARCEL" : "DINE_IN";
+    const orderTypeExactLabel = isTakeaway
+      ? "Takeaway → Carryout parcel box"
+      : "Dine-in → Hall / Table dining";
+
     // Active session linkage
     let sessionId = null;
-    if (type === "DINE_IN" && tableId) {
+    if (!isTakeaway && tableId) {
       const session = this.openTableSession(tableId);
       sessionId = session.id;
       session.orderIds.push(orderId);
@@ -662,10 +1098,12 @@ class Database {
     const order = {
       id: orderId,
       token: tokenNum,
-      tableId: type === "DINE_IN" ? tableId : null,
-      parcelToken: type === "PARCEL" ? `P${(this.parcelTokenCounter++).toString().padStart(3, "0")}` : null,
+      invoiceNo: String(88000 + Number(tokenNum)),
+      guestCount: Number.isInteger(guestCount) && guestCount > 0 ? guestCount : 0,
+      tableId: isTakeaway ? null : tableId,
+      parcelToken: isTakeaway ? `P${(this.parcelTokenCounter++).toString().padStart(3, "0")}` : null,
       sessionId,
-      type,
+      type: resolvedType,
       status: "NEW", // Pipeline step 1: NEW / UNDER REVIEW
       paymentStatus: paymentMethod === "CASH" ? "PAYMENT DUE" : "UNPAID",
       paymentMethod,
@@ -673,10 +1111,17 @@ class Database {
       customerPhone,
       customerAddress,
       serviceType: isTableService ? "TABLE_SERVICE" : "SELF_SERVICE",
+      customerOrderType: resolvedCustomerOrderType,
+      orderTypeDescription: orderTypeExactLabel,
       customerNotes,
       createdAt: new Date().toISOString(),
       items: verifiedItems,
-      stalls: stallOrders,
+      stalls: stallOrders.map(s => ({
+        ...s,
+        orderType: resolvedCustomerOrderType,
+        orderTypeDescription: orderTypeExactLabel,
+        serviceType: isTableService ? "TABLE_SERVICE" : "SELF_SERVICE"
+      })),
       subtotal,
       discount,
       tax,
@@ -685,7 +1130,7 @@ class Database {
       kotGenerated: false,
       kotNumber: null,
       history: [
-        { status: "NEW", time: new Date().toISOString(), note: "Customer submitted master order." }
+        { status: "NEW", time: new Date().toISOString(), note: `Customer submitted master order (${orderTypeExactLabel}).` }
       ]
     };
 
@@ -700,10 +1145,81 @@ class Database {
     return order;
   }
 
+  // --- Inventory helpers ---
+  _releaseInventoryReservation(order) {
+    // Release reserved stock without deducting (used on reject/cancel BEFORE deduction)
+    let changed = false;
+    for (const item of (order.items || [])) {
+      const inv = this.inventory[item.menuItemId];
+      if (!inv) continue;
+      inv.reservedQty = Math.max(0, (inv.reservedQty || 0) - item.quantity);
+      changed = true;
+    }
+    if (changed) {
+      this._saveInventory();
+      this._syncMenuItemsAvailability(order.items?.map(i => i.menuItemId));
+      eventBus.broadcast('inventory_updated', { orderItems: order.items?.map(i => i.menuItemId) });
+    }
+  }
+
+  _deductInventory(order) {
+    // Move from reserved to sold (actual deduction at kitchen release)
+    let changed = false;
+    for (const item of (order.items || [])) {
+      const inv = this.inventory[item.menuItemId];
+      if (!inv || inv.preparedQty === null || inv.preparedQty === undefined) continue;
+      inv.reservedQty = Math.max(0, (inv.reservedQty || 0) - item.quantity);
+      inv.soldQty = (inv.soldQty || 0) + item.quantity;
+      const available = Math.max(0, inv.preparedQty - (inv.soldQty || 0) - (inv.reservedQty || 0));
+      const menuItem = this.menuItems.find(m => m.id === item.menuItemId);
+      if (menuItem && !inv.manuallyDisabled) {
+        menuItem.isAvailable = available > 0;
+        if (!menuItem.isAvailable) {
+          this.logAudit('STOCK_OUT', `"${menuItem.name}" is now Stock Out (${inv.soldQty} sold of ${inv.preparedQty} prepared)`, { menuItemId: item.menuItemId });
+        }
+      }
+      changed = true;
+    }
+    if (changed) {
+      this._saveInventory();
+      this._syncMenuItemsAvailability(order.items?.map(i => i.menuItemId));
+      eventBus.broadcast('inventory_updated', { orderItems: order.items?.map(i => i.menuItemId) });
+    }
+  }
+
+  _reverseInventoryDeduction(order) {
+    // Reverse a deduction (used for refunds)
+    let changed = false;
+    for (const item of (order.items || [])) {
+      const inv = this.inventory[item.menuItemId];
+      if (!inv || inv.preparedQty === null || inv.preparedQty === undefined) continue;
+      inv.soldQty = Math.max(0, (inv.soldQty || 0) - item.quantity);
+      changed = true;
+    }
+    if (changed) {
+      this._saveInventory();
+      this._syncMenuItemsAvailability(order.items?.map(i => i.menuItemId));
+      eventBus.broadcast('inventory_updated', {});
+    }
+  }
+
   // Management Step 2: Accept or Reject Order
   acceptOrder(orderId, managerName = "Central Counter") {
     const order = this.getOrder(orderId);
     if (!order) return null;
+
+    // Check every ordered food item's availability before acceptance
+    const hasUnavailable = order.items.some(i => i.isUnavailable);
+    if (hasUnavailable) {
+      throw new Error("Cannot accept order: one or more items are unavailable. Guest must remove or replace them before acceptance.");
+    }
+    for (const item of order.items) {
+      const dbItem = this.getMenuItem(item.menuItemId);
+      const inv = this.inventory[item.menuItemId];
+      if (inv?.manuallyDisabled || (dbItem && dbItem.isAvailable === false && (!inv || inv.preparedQty === null))) {
+        throw new Error(`Cannot accept order: "${item.name}" is currently disabled/out of stock. Please mark it unavailable to notify guest.`);
+      }
+    }
 
     order.status = "ACCEPTED";
     order.history.push({ status: "ACCEPTED", time: new Date().toISOString(), note: `Accepted by ${managerName}.` });
@@ -717,6 +1233,7 @@ class Database {
     }
 
     this.logAudit("ORDER_ACCEPTED", `Order #${order.token} accepted by ${managerName}`, { orderId });
+    this.saveData();
     eventBus.broadcast("order_updated", order);
     return order;
   }
@@ -729,8 +1246,14 @@ class Database {
     order.cancellationReason = reason;
     order.history.push({ status: "CANCELLED", time: new Date().toISOString(), note: `Rejected: ${reason}` });
 
+    // Release inventory reservations when order is rejected
+    this._releaseInventoryReservation(order);
+
     this.logAudit("ORDER_REJECTED", `Order #${order.token} rejected by ${managerName}: ${reason}`, { orderId });
     eventBus.broadcast("order_updated", order);
+    eventBus.broadcast("revenue_updated", this.getRevenueSummary());
+    eventBus.broadcast("financial_updated", this.getDailyFinancialSummary(order.paidAt ? getDhakaDateParts(new Date(order.paidAt)).dateStr : undefined));
+    eventBus.broadcast("analytics_updated", this.getAnalyticsSummary());
     return order;
   }
 
@@ -757,6 +1280,16 @@ class Database {
       throw new Error(`Invalid status: ${newStatus}`);
     }
 
+    // Pipeline guard: Never mark an unpaid cash order as Paid & Released (PREPARING / READY / etc)
+    if (["PREPARING", "READY", "OUT FOR DELIVERY", "DELIVERED", "COMPLETED"].includes(newStatus)) {
+      if (order.paymentMethod === "CASH" && order.paymentStatus !== "PAID") {
+        throw new Error("Cannot release or advance status: Cash payment is pending. Please confirm cash payment at Central Counter first.");
+      }
+      if (order.items.some(i => i.isUnavailable)) {
+        throw new Error("Cannot release incomplete order: order contains unavailable food items.");
+      }
+    }
+
     const prevStatus = order.status;
     order.status = newStatus;
     const nowIso = new Date().toISOString();
@@ -767,8 +1300,11 @@ class Database {
       note: note || `Status updated from ${prevStatus} to ${newStatus} by ${staffName}.`
     });
 
-    if (newStatus === "CANCELLED" && note) {
-      order.cancellationReason = note;
+    if (newStatus === "CANCELLED") {
+      if (note) order.cancellationReason = note;
+      if (order.paymentStatus !== "PAID") {
+        this._releaseInventoryReservation(order);
+      }
     }
 
     // Sync stall statuses
@@ -806,6 +1342,36 @@ class Database {
     this.saveData();
     this.logAudit("ORDER_STATUS_UPDATE", `Order #${order.token} status updated to ${newStatus} by ${staffName}`, { orderId, prevStatus, newStatus }, staffName);
     eventBus.broadcast("order_updated", order);
+    if (newStatus === "CANCELLED" || prevStatus === "CANCELLED") {
+      eventBus.broadcast("revenue_updated", this.getRevenueSummary());
+      eventBus.broadcast("financial_updated", this.getDailyFinancialSummary(order.paidAt ? getDhakaDateParts(new Date(order.paidAt)).dateStr : undefined));
+      eventBus.broadcast("analytics_updated", this.getAnalyticsSummary());
+    }
+    return order;
+  }
+
+  refundOrder(orderId, reason = "Customer refund", staffName = "Manager") {
+    const order = this.getOrder(orderId);
+    if (!order) return null;
+
+    order.paymentStatus = "REFUNDED";
+    order.status = "CANCELLED";
+    order.history.push({
+      status: "CANCELLED",
+      time: new Date().toISOString(),
+      note: `Payment refunded and order cancelled: ${reason} by ${staffName}.`
+    });
+
+    this.saveData();
+    this.logAudit("ORDER_REFUNDED", `Order #${order.token} refunded (${order.grandTotal}) by ${staffName}: ${reason}`, { orderId });
+
+    // Reverse inventory deduction for refunded orders
+    this._reverseInventoryDeduction(order);
+
+    eventBus.broadcast("order_updated", order);
+    eventBus.broadcast("revenue_updated", this.getRevenueSummary());
+    eventBus.broadcast("financial_updated", this.getDailyFinancialSummary(order.paidAt ? getDhakaDateParts(new Date(order.paidAt)).dateStr : undefined));
+    eventBus.broadcast("analytics_updated", this.getAnalyticsSummary());
     return order;
   }
 
@@ -840,6 +1406,18 @@ class Database {
     const order = this.getOrder(orderId);
     if (!order) return null;
 
+    const targetItem = order.items.find(i => i.id === itemId);
+    const targetName = targetItem ? targetItem.name : "Item";
+
+    if (targetItem) {
+      const inv = this.inventory[targetItem.menuItemId];
+      if (inv && (inv.reservedQty || 0) > 0) {
+        inv.reservedQty = Math.max(0, (inv.reservedQty || 0) - (targetItem.quantity || 1));
+        this._saveInventory();
+        this._syncMenuItemsAvailability([targetItem.menuItemId]);
+      }
+    }
+
     order.items = order.items.filter(i => i.id !== itemId);
     // Also remove from stall sub-orders
     for (const stall of order.stalls) {
@@ -850,14 +1428,105 @@ class Database {
 
     this.recalculateOrderTotal(order);
 
-    // If all items resolved
+    // If all items resolved, return to Hasan at Central Counter for recheck before acceptance
     const hasMoreUnavailable = order.items.some(i => i.isUnavailable);
     if (!hasMoreUnavailable) {
-      order.status = "ACCEPTED";
-      order.history.push({ status: "ACCEPTED", time: new Date().toISOString(), note: "Customer accepted modified order." });
+      order.status = "UNDER REVIEW";
+      order.history.push({
+        status: "UNDER REVIEW",
+        time: new Date().toISOString(),
+        note: `Guest removed "${targetName}". Awaiting counter recheck before acceptance.`
+      });
     }
 
-    this.logAudit("ORDER_MODIFIED", `Customer confirmed removal of unavailable item in #${order.token}`);
+    this.logAudit("ORDER_MODIFIED", `Customer confirmed removal of unavailable item "${targetName}" in #${order.token}`);
+    this.saveData();
+    eventBus.broadcast("order_updated", order);
+    return order;
+  }
+
+  // Customer selects replacement food item for an unavailable dish
+  customerReplaceUnavailableItem(orderId, oldItemId, newMenuItemId, quantity = 1, notes = "") {
+    const order = this.getOrder(orderId);
+    if (!order) return null;
+
+    const oldItem = order.items.find(i => i.id === oldItemId);
+    if (!oldItem) return null;
+
+    const newMenuItem = this.getMenuItem(newMenuItemId);
+    if (!newMenuItem) {
+      throw new Error("Selected replacement food item not found in menu.");
+    }
+    if (newMenuItem.isAvailable === false) {
+      throw new Error(`"${newMenuItem.name}" is currently out of stock. Please choose another available food.`);
+    }
+
+    // Remove old item from order items
+    order.items = order.items.filter(i => i.id !== oldItemId);
+    for (const stall of order.stalls) {
+      stall.items = stall.items.filter(i => i.id !== oldItemId);
+    }
+
+    // Add new replacement item
+    const newItemId = "item-" + randomUUID().slice(0, 8);
+    const replacementItem = {
+      id: newItemId,
+      menuItemId: newMenuItem.id,
+      stallId: newMenuItem.stallId,
+      name: newMenuItem.name,
+      price: newMenuItem.price,
+      basePrice: newMenuItem.price,
+      quantity: quantity || oldItem.quantity || 1,
+      variantName: null,
+      weight: null,
+      notes: notes || `Replacement for ${oldItem.name}`,
+      isUnavailable: false
+    };
+
+    order.items.push(replacementItem);
+
+    // Add to stall sub-order
+    let stallSub = order.stalls.find(s => s.stallId === newMenuItem.stallId);
+    if (stallSub) {
+      stallSub.items.push({
+        id: newItemId,
+        menuItemId: newMenuItem.id,
+        name: newMenuItem.name,
+        price: newMenuItem.price,
+        quantity: quantity || oldItem.quantity || 1,
+        notes: notes || `Replacement for ${oldItem.name}`
+      });
+    } else {
+      const stallData = this.getStall(newMenuItem.stallId);
+      order.stalls.push({
+        stallId: newMenuItem.stallId,
+        stallName: stallData ? stallData.name : newMenuItem.stallId,
+        status: "NEW",
+        items: [{
+          id: newItemId,
+          menuItemId: newMenuItem.id,
+          name: newMenuItem.name,
+          price: newMenuItem.price,
+          quantity: quantity || oldItem.quantity || 1,
+          notes: notes || `Replacement for ${oldItem.name}`
+        }]
+      });
+    }
+
+    // Remove empty stalls
+    order.stalls = order.stalls.filter(s => s.items.length > 0);
+    this.recalculateOrderTotal(order);
+
+    // Recheck the updated order before acceptance
+    order.status = "UNDER REVIEW";
+    order.history.push({
+      status: "UNDER REVIEW",
+      time: new Date().toISOString(),
+      note: `Guest replaced unavailable "${oldItem.name}" with "${newMenuItem.name}". Awaiting counter recheck.`
+    });
+
+    this.logAudit("ORDER_ITEM_REPLACED", `Item "${oldItem.name}" replaced with "${newMenuItem.name}" in Order #${order.token}`);
+    this.saveData();
     eventBus.broadcast("order_updated", order);
     return order;
   }
@@ -882,6 +1551,16 @@ class Database {
     const order = this.getOrder(orderId);
     if (!order) return null;
 
+    // Avoid duplicate payments or duplicate KOT generation
+    if (order.paymentStatus === "PAID") {
+      return order;
+    }
+
+    // Do not charge or release an incomplete order
+    if (order.status === "ACTION REQUIRED" || order.items.some(i => i.isUnavailable)) {
+      throw new Error("Cannot confirm payment: order contains unavailable food items. Incomplete orders cannot be charged or released.");
+    }
+
     order.paymentStatus = "PAID";
     if (paymentMethod) order.paymentMethod = paymentMethod;
     order.transactionId = transactionId || "TXN-" + randomUUID().slice(0, 10).toUpperCase();
@@ -902,6 +1581,7 @@ class Database {
 
     // Broadcast real-time revenue update
     eventBus.broadcast("revenue_updated", this.getRevenueSummary());
+    eventBus.broadcast("financial_updated", this.getDailyFinancialSummary());
     eventBus.broadcast("analytics_updated", this.getAnalyticsSummary());
 
     eventBus.broadcast("order_updated", order);
@@ -938,6 +1618,8 @@ class Database {
     });
 
     this.logAudit("KOT_GENERATED", `KOT #${order.kotNumber} generated for Table ${order.tableId || 'Takeaway'}`);
+    // Deduct inventory when order is released to kitchen
+    this._deductInventory(order);
     this.saveData();
     eventBus.broadcast("kot_generated", order);
     eventBus.broadcast("order_updated", order);
@@ -972,7 +1654,7 @@ class Database {
     this.logAudit("STALL_STATUS_CHANGE", `Stall "${stallOrder.stallName}" marked sub-order for #${order.token} as ${newStatus}`, { orderId, stallId }, staffName);
 
     // Check if ALL stalls for this master order are READY
-    const allStallsReady = order.stalls.every(s => s.status === "READY" || s.status === "NOTIFIED" || s.status === "COLLECTED");
+    const allStallsReady = order.stalls.every(s => s.status === "READY" || s.status === "NOTIFIED" || s.status === "COLLECTED" || s.status === "DELIVERED");
     if (allStallsReady && order.status !== "READY" && order.status !== "OUT FOR DELIVERY" && order.status !== "DELIVERED") {
       order.status = "READY";
       if (order.tableId) this.updateTableStatus(order.tableId, "READY");
@@ -985,6 +1667,17 @@ class Database {
 
       // Create unified Runner Task!
       this.createRunnerTask(order);
+    }
+
+    const allStallsDelivered = order.stalls.every(s => s.status === "DELIVERED" || s.status === "COLLECTED");
+    if (allStallsDelivered && order.status !== "DELIVERED" && order.status !== "COMPLETED") {
+      order.status = "DELIVERED";
+      if (order.tableId) this.updateTableStatus(order.tableId, "ACTIVE");
+      order.history.push({
+        status: "DELIVERED",
+        time: nowIso,
+        note: "All stall orders marked delivered/collected!"
+      });
     }
 
     this.saveData();
@@ -1480,6 +2173,762 @@ class Database {
     };
   }
 
+  // ========================================================
+  // INVENTORY MANAGEMENT
+  // ========================================================
+
+  getInventoryItem(menuItemId) {
+    return this.inventory[menuItemId] || { preparedQty: null, soldQty: 0, reservedQty: 0, manuallyDisabled: false, lastUpdatedAt: null, updatedBy: null };
+  }
+
+  getFullInventory(stallId = null) {
+    this._purgeExpiredCartReservations();
+    const items = stallId ? this.menuItems.filter(m => m.stallId === stallId) : [...this.menuItems];
+    return items.map(item => {
+      const inv = this.getInventoryItem(item.id);
+      const preparedQty = inv.preparedQty;
+      const soldQty = inv.soldQty || 0;
+      const reservedQty = inv.reservedQty || 0;
+      const cartReservedQty = this.cartReservations
+        .filter(r => r.menuItemId === item.id)
+        .reduce((sum, r) => sum + (r.quantity || 0), 0);
+      const totalReserved = reservedQty + cartReservedQty;
+      const available = preparedQty !== null ? Math.max(0, preparedQty - soldQty - totalReserved) : null;
+      const stockOut = (preparedQty !== null && available === 0) || inv.manuallyDisabled;
+      const stallData = this.stalls.find(s => s.id === item.stallId);
+      return {
+        ...item,
+        stallName: stallData?.name || item.stallId,
+        inv: {
+          preparedQty,
+          soldQty,
+          reservedQty,
+          cartReservedQty,
+          available,
+          stockOut,
+          manuallyDisabled: inv.manuallyDisabled || false,
+          lastUpdatedAt: inv.lastUpdatedAt,
+          updatedBy: inv.updatedBy
+        }
+      };
+    });
+  }
+
+  setItemStock(menuItemId, preparedQty, user = 'Chef') {
+    const item = this.menuItems.find(m => m.id === menuItemId);
+    if (!item) throw new Error('Menu item not found');
+    const existing = this.inventory[menuItemId] || { manuallyDisabled: false };
+    this.inventory[menuItemId] = {
+      manuallyDisabled: existing.manuallyDisabled || false,
+      preparedQty: Number(preparedQty),
+      soldQty: 0,
+      reservedQty: 0,
+      lastUpdatedAt: new Date().toISOString(),
+      updatedBy: user
+    };
+    // Clear any stale cart reservations for this item when stock is freshly set
+    this.cartReservations = this.cartReservations.filter(r => r.menuItemId !== menuItemId);
+    this._saveCartReservations();
+
+    const inv = this.inventory[menuItemId];
+    const available = Math.max(0, inv.preparedQty - (inv.soldQty || 0) - (inv.reservedQty || 0));
+    if (!inv.manuallyDisabled) {
+      item.isAvailable = available > 0 || inv.preparedQty === null;
+      item.available = inv.preparedQty !== null ? available : null;
+    }
+    this._saveInventory();
+    this.logAudit('STOCK_UPDATED', `Stock for "${item.name}" set to ${preparedQty} by ${user}. Available: ${available}`, { menuItemId, preparedQty, available }, user);
+    eventBus.broadcast('inventory_updated', { menuItemId, stallId: item.stallId });
+    eventBus.broadcast('menu_item_updated', this._enrichMenuItem(item));
+    return this.getFullInventory().find(i => i.id === menuItemId);
+  }
+
+  setItemManualAvailability(menuItemId, isAvailable, user = 'Manager') {
+    const item = this.menuItems.find(m => m.id === menuItemId);
+    if (!item) throw new Error('Menu item not found');
+    const existing = this.inventory[menuItemId] || { preparedQty: null, soldQty: 0, reservedQty: 0 };
+    this.inventory[menuItemId] = {
+      ...existing,
+      manuallyDisabled: !isAvailable,
+      lastUpdatedAt: new Date().toISOString(),
+      updatedBy: user
+    };
+    item.isAvailable = isAvailable;
+    item.available = isAvailable ? this.getAvailableStock(menuItemId) : 0;
+    this._saveInventory();
+    this.logAudit('MANUAL_AVAILABILITY', `"${item.name}" manually set to ${isAvailable ? 'Available' : 'Unavailable'} by ${user}`, { menuItemId, isAvailable }, user);
+    eventBus.broadcast('inventory_updated', { menuItemId, stallId: item.stallId });
+    eventBus.broadcast('menu_item_updated', this._enrichMenuItem(item));
+    return this.getFullInventory().find(i => i.id === menuItemId);
+  }
+
+  resetItemStock(menuItemId, user = 'Manager') {
+    const item = this.menuItems.find(m => m.id === menuItemId);
+    delete this.inventory[menuItemId];
+    this.cartReservations = this.cartReservations.filter(r => r.menuItemId !== menuItemId);
+    this._saveCartReservations();
+    if (item) {
+      item.isAvailable = true;
+      item.available = null;
+    }
+    this._saveInventory();
+    this.logAudit('STOCK_RESET', `Stock for "${item?.name || menuItemId}" reset by ${user}`, { menuItemId }, user);
+    eventBus.broadcast('inventory_updated', { menuItemId });
+    if (item) eventBus.broadcast('menu_item_updated', this._enrichMenuItem(item));
+    return { success: true };
+  }
+
+  // ========================================================
+  // LIVE CART RESERVATIONS (ACROSS ALL PHONES)
+  // ========================================================
+
+  _purgeExpiredCartReservations() {
+    if (!this.cartReservations || this.cartReservations.length === 0) return 0;
+    const now = Date.now();
+    const expired = [];
+    const valid = [];
+    for (const r of this.cartReservations) {
+      const lastActive = new Date(r.lastActiveAt || r.createdAt || 0).getTime();
+      if (now - lastActive > CART_INACTIVITY_MS) {
+        expired.push(r);
+      } else {
+        valid.push(r);
+      }
+    }
+    if (expired.length > 0) {
+      this.cartReservations = valid;
+      this._saveCartReservations();
+      const affectedItemIds = [...new Set(expired.map(r => r.menuItemId))];
+      this._syncMenuItemsAvailability(affectedItemIds);
+      eventBus.broadcast('inventory_updated', { expired: affectedItemIds });
+      return expired.length;
+    }
+    return 0;
+  }
+
+  _syncMenuItemsAvailability(menuItemIds = null) {
+    const ids = menuItemIds ? (Array.isArray(menuItemIds) ? menuItemIds : [menuItemIds]) : Object.keys(this.inventory);
+    for (const id of ids) {
+      const item = this.menuItems.find(m => m.id === id);
+      if (!item) continue;
+      const inv = this.inventory[id];
+      if (!inv) {
+        const wasAvail = item.isAvailable;
+        item.isAvailable = true;
+        item.available = null;
+        if (wasAvail !== true) {
+          eventBus.broadcast('menu_item_updated', this._enrichMenuItem(item));
+        }
+        continue;
+      }
+      if (inv.manuallyDisabled) {
+        const wasAvail = item.isAvailable;
+        const prevAvail = item.available;
+        item.isAvailable = false;
+        item.available = 0;
+        if (wasAvail !== false || prevAvail !== 0) {
+          eventBus.broadcast('menu_item_updated', this._enrichMenuItem(item));
+        }
+        continue;
+      }
+      if (inv.preparedQty !== null && inv.preparedQty !== undefined) {
+        const totalCartReserved = this.cartReservations
+          .filter(r => r.menuItemId === id)
+          .reduce((sum, r) => sum + (r.quantity || 0), 0);
+        const available = Math.max(0, inv.preparedQty - (inv.soldQty || 0) - (inv.reservedQty || 0) - totalCartReserved);
+        const wasAvailable = item.isAvailable;
+        const prevAvailable = item.available;
+        item.isAvailable = available > 0;
+        item.available = available;
+        if (wasAvailable !== item.isAvailable || prevAvailable !== available) {
+          eventBus.broadcast('menu_item_updated', this._enrichMenuItem(item));
+        }
+      }
+    }
+  }
+
+  getAvailableStock(menuItemId, forSessionId = null) {
+    const inv = this.inventory[menuItemId];
+    if (!inv) return null;
+    if (inv.manuallyDisabled) return 0;
+    if (inv.preparedQty === null || inv.preparedQty === undefined) return null;
+    const preparedQty = inv.preparedQty;
+    const soldQty = inv.soldQty || 0;
+    const orderReserved = inv.reservedQty || 0;
+    const otherCartReserved = this.cartReservations
+      .filter(r => r.menuItemId === menuItemId && (forSessionId ? r.sessionId !== forSessionId : true))
+      .reduce((sum, r) => sum + (r.quantity || 0), 0);
+    return Math.max(0, preparedQty - soldQty - orderReserved - otherCartReserved);
+  }
+
+  reserveCartItem(sessionId, menuItemId, quantity) {
+    if (!sessionId) throw new Error("Missing session ID for reservation");
+    const item = this.menuItems.find(m => m.id === menuItemId);
+    if (!item) throw new Error("Menu item not found");
+
+    this._purgeExpiredCartReservations();
+    const qty = Math.max(0, parseInt(quantity, 10) || 0);
+    if (qty === 0) {
+      return this.releaseCartItem(sessionId, menuItemId);
+    }
+
+    const inv = this.inventory[menuItemId];
+    if (inv) {
+      if (inv.manuallyDisabled) {
+        throw new Error(`"${item.name}" is currently unavailable.`);
+      }
+      if (inv.preparedQty !== null && inv.preparedQty !== undefined) {
+        const available = this.getAvailableStock(menuItemId, sessionId);
+        if (available !== null && qty > available) {
+          const excess = qty - available;
+          const portionWord = available === 1 ? 'portion' : 'portions';
+          const msg = available > 0
+            ? `Only ${available} ${portionWord} available. Please reduce your quantity by ${excess}.`
+            : `This item is out of stock. Please reduce your quantity by ${excess}.`;
+          throw new Error(msg);
+        }
+      }
+    }
+
+    const now = new Date().toISOString();
+    const existingIndex = this.cartReservations.findIndex(r => r.sessionId === sessionId && r.menuItemId === menuItemId);
+    if (existingIndex >= 0) {
+      this.cartReservations[existingIndex].quantity = qty;
+      this.cartReservations[existingIndex].lastActiveAt = now;
+    } else {
+      this.cartReservations.push({
+        id: 'cres-' + randomUUID(),
+        sessionId,
+        menuItemId,
+        quantity: qty,
+        createdAt: now,
+        lastActiveAt: now
+      });
+    }
+
+    this._saveCartReservations();
+    this._syncMenuItemsAvailability([menuItemId]);
+    eventBus.broadcast('inventory_updated', { menuItemId, sessionId });
+    return { success: true, menuItemId, quantity: qty };
+  }
+
+  releaseCartItem(sessionId, menuItemId) {
+    if (!sessionId || !menuItemId) return { success: true };
+    const prevCount = this.cartReservations.length;
+    this.cartReservations = this.cartReservations.filter(r => !(r.sessionId === sessionId && r.menuItemId === menuItemId));
+    if (this.cartReservations.length !== prevCount) {
+      this._saveCartReservations();
+      this._syncMenuItemsAvailability([menuItemId]);
+      eventBus.broadcast('inventory_updated', { menuItemId, sessionId });
+    }
+    return { success: true };
+  }
+
+  releaseCartSession(sessionId) {
+    if (!sessionId) return { success: true };
+    const sessionItems = this.cartReservations.filter(r => r.sessionId === sessionId).map(r => r.menuItemId);
+    if (sessionItems.length > 0) {
+      this.cartReservations = this.cartReservations.filter(r => r.sessionId !== sessionId);
+      this._saveCartReservations();
+      this._syncMenuItemsAvailability(sessionItems);
+      eventBus.broadcast('inventory_updated', { sessionId, releasedItems: sessionItems });
+    }
+    return { success: true };
+  }
+
+  touchCartSession(sessionId) {
+    if (!sessionId) return { success: true };
+    const now = new Date().toISOString();
+    let touched = false;
+    for (const r of this.cartReservations) {
+      if (r.sessionId === sessionId) {
+        r.lastActiveAt = now;
+        touched = true;
+      }
+    }
+    if (touched) {
+      this._saveCartReservations();
+    }
+    return { success: true };
+  }
+
+  getCartReservations(sessionId = null) {
+    this._purgeExpiredCartReservations();
+    if (sessionId) {
+      return this.cartReservations.filter(r => r.sessionId === sessionId);
+    }
+    return [...this.cartReservations];
+  }
+
+  // ========================================================
+  // ORDER REVIEWS
+  // ========================================================
+
+  submitReview({ orderId, rating, feedback }) {
+    const order = this.getOrder(orderId);
+    if (!order) throw new Error('Order not found');
+    const isDelivered = order.status === 'DELIVERED' || order.status === 'COMPLETED' || (order.stalls && order.stalls.every(s => s.status === 'DELIVERED' || s.status === 'COLLECTED'));
+    if (!isDelivered) {
+      throw new Error('Reviews can only be submitted for delivered orders.');
+    }
+    const existing = this.reviews.find(r => r.orderId === orderId);
+    if (existing) throw new Error('You have already submitted a review for this order.');
+    if (!rating || Number(rating) < 1 || Number(rating) > 5) throw new Error('Please select a rating between 1 and 5 stars.');
+    const review = {
+      id: 'rev-' + randomUUID(),
+      orderId,
+      token: order.token,
+      tableId: order.tableId,
+      rating: Number(rating),
+      feedback: (feedback || '').trim(),
+      createdAt: new Date().toISOString(),
+      orderTotal: order.grandTotal
+    };
+    this.reviews.unshift(review);
+    this.saveData();
+    this.logAudit('ORDER_REVIEWED', `Order #${order.token} rated ${rating}/5 stars`, { orderId, rating });
+    eventBus.broadcast('review_submitted', review);
+    return review;
+  }
+
+  getReviews({ orderId = null, limit = 100 } = {}) {
+    let list = [...this.reviews];
+    if (orderId) list = list.filter(r => r.orderId === orderId);
+    return list.slice(0, limit);
+  }
+
+  getReviewForOrder(orderId) {
+    return this.reviews.find(r => r.orderId === orderId) || null;
+  }
+
+  // ========================================================
+  // PURCHASES (Due Purchases)
+  // ========================================================
+
+  addPurchase({ supplier, description, category, amount, date, status = 'UNPAID', createdBy = 'Manager' }) {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) throw new Error('Invalid purchase amount');
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Purchase date is required (YYYY-MM-DD)');
+    const purchase = {
+      id: 'pur-' + randomUUID().slice(0, 10),
+      supplier: supplier || '',
+      description: description || '',
+      category: category || 'Food Cost',
+      amount: Math.round(Number(amount)),
+      date,
+      status: status || 'UNPAID',
+      paidAt: null,
+      createdBy,
+      createdAt: new Date().toISOString()
+    };
+    this.purchases.push(purchase);
+    this.saveData();
+    this.logAudit('PURCHASE_ADDED', `Purchase from "${supplier}" for ৳${amount} added by ${createdBy}`, { purchaseId: purchase.id }, createdBy);
+    return purchase;
+  }
+
+  updatePurchase(id, updates, user = 'Manager') {
+    const purchase = this.purchases.find(p => p.id === id);
+    if (!purchase) return null;
+    Object.assign(purchase, updates, { updatedAt: new Date().toISOString(), updatedBy: user });
+    if (updates.status === 'PAID' && !purchase.paidAt) purchase.paidAt = new Date().toISOString();
+    this.saveData();
+    this.logAudit('PURCHASE_UPDATED', `Purchase ${id} updated by ${user}`, { id }, user);
+    return purchase;
+  }
+
+  deletePurchase(id, user = 'Manager') {
+    const idx = this.purchases.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    const [removed] = this.purchases.splice(idx, 1);
+    this.saveData();
+    this.logAudit('PURCHASE_DELETED', `Purchase ৳${removed.amount} deleted by ${user}`, { purchaseId: id }, user);
+    return { success: true };
+  }
+
+  getPurchases({ dateFrom = null, dateTo = null, status = null } = {}) {
+    let list = [...this.purchases];
+    if (dateFrom) list = list.filter(p => p.date >= dateFrom);
+    if (dateTo) list = list.filter(p => p.date <= dateTo);
+    if (status) list = list.filter(p => p.status === status);
+    return list.sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  // ========================================================
+  // ACCOUNTING QUERIES
+  // ========================================================
+
+  getAccountingLedger({ dateFrom = null, dateTo = null, type = null, search = '', limit = 300 } = {}) {
+    const entries = [];
+    for (const order of this.orders) {
+      if (order.paymentStatus !== 'PAID' || order.status === 'CANCELLED') continue;
+      const dateStr = getDhakaDateParts(new Date(order.paidAt || order.createdAt)).dateStr;
+      if (dateFrom && dateStr < dateFrom) continue;
+      if (dateTo && dateStr > dateTo) continue;
+      entries.push({
+        id: 'led-' + order.id,
+        date: dateStr,
+        refNo: `ORD-${order.token}`,
+        type: 'Revenue',
+        description: `Sales – Order #${order.token} (${order.paymentMethod || ''})`,
+        debit: 0,
+        credit: order.grandTotal,
+        relatedId: order.id
+      });
+    }
+    for (const expense of this.expenses) {
+      if (dateFrom && expense.date < dateFrom) continue;
+      if (dateTo && expense.date > dateTo) continue;
+      entries.push({
+        id: 'led-exp-' + expense.id,
+        date: expense.date,
+        refNo: `EXP-${expense.id.slice(-6).toUpperCase()}`,
+        type: 'Expense',
+        description: `${expense.category} – ${expense.notes || 'Operating Expense'}`,
+        debit: expense.amount,
+        credit: 0,
+        relatedId: expense.id
+      });
+    }
+    for (const p of this.purchases) {
+      if (dateFrom && p.date < dateFrom) continue;
+      if (dateTo && p.date > dateTo) continue;
+      entries.push({
+        id: 'led-pur-' + p.id,
+        date: p.date,
+        refNo: `PUR-${p.id.slice(-6).toUpperCase()}`,
+        type: 'Purchase',
+        description: `Purchase – ${p.supplier || 'Supplier'}: ${p.description || p.category}`,
+        debit: p.amount,
+        credit: 0,
+        relatedId: p.id
+      });
+    }
+    entries.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+    let filtered = entries;
+    if (type) filtered = filtered.filter(e => e.type === type);
+    if (search) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter(e => e.description.toLowerCase().includes(q) || e.refNo.toLowerCase().includes(q));
+    }
+    let balance = 0;
+    const withBalance = [...filtered].reverse().map(e => {
+      balance += e.credit - e.debit;
+      return { ...e, balance };
+    });
+    withBalance.reverse();
+    return withBalance.slice(0, limit);
+  }
+
+  getIncomeStatement({ dateFrom = null, dateTo = null } = {}) {
+    const revenue = this.orders
+      .filter(o => {
+        if (o.paymentStatus !== 'PAID' || o.status === 'CANCELLED') return false;
+        const dateStr = getDhakaDateParts(new Date(o.paidAt || o.createdAt)).dateStr;
+        if (dateFrom && dateStr < dateFrom) return false;
+        if (dateTo && dateStr > dateTo) return false;
+        return true;
+      })
+      .reduce((sum, o) => sum + (o.grandTotal || 0), 0);
+    const expensesTotal = this.expenses
+      .filter(e => (!dateFrom || e.date >= dateFrom) && (!dateTo || e.date <= dateTo))
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
+    const purchasesTotal = this.purchases
+      .filter(p => (!dateFrom || p.date >= dateFrom) && (!dateTo || p.date <= dateTo))
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    const expenseByCategory = {};
+    for (const e of this.expenses) {
+      if (dateFrom && e.date < dateFrom) continue;
+      if (dateTo && e.date > dateTo) continue;
+      expenseByCategory[e.category] = (expenseByCategory[e.category] || 0) + e.amount;
+    }
+    return { revenue, expensesTotal, purchasesTotal, totalCosts: expensesTotal + purchasesTotal, netProfit: revenue - expensesTotal - purchasesTotal, expenseByCategory, dateFrom, dateTo };
+  }
+
+  getTrialBalance({ dateFrom = null, dateTo = null } = {}) {
+    const revenue = this.orders
+      .filter(o => {
+        if (o.paymentStatus !== 'PAID' || o.status === 'CANCELLED') return false;
+        const d = getDhakaDateParts(new Date(o.paidAt || o.createdAt)).dateStr;
+        return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
+      })
+      .reduce((s, o) => s + o.grandTotal, 0);
+    const expenses = this.expenses.filter(e => (!dateFrom || e.date >= dateFrom) && (!dateTo || e.date <= dateTo)).reduce((s, e) => s + e.amount, 0);
+    const purchases = this.purchases.filter(p => (!dateFrom || p.date >= dateFrom) && (!dateTo || p.date <= dateTo)).reduce((s, p) => s + p.amount, 0);
+    const netProfit = revenue - expenses - purchases;
+    return {
+      accounts: [
+        { name: 'Cash / Bank (Revenue Received)', debit: revenue, credit: 0 },
+        { name: 'Sales Revenue', debit: 0, credit: revenue },
+        { name: 'Operating Expenses', debit: expenses, credit: 0 },
+        { name: 'Purchases / COGS', debit: purchases, credit: 0 },
+        netProfit >= 0
+          ? { name: 'Retained Earnings (Net Profit)', debit: 0, credit: netProfit }
+          : { name: 'Net Loss', debit: Math.abs(netProfit), credit: 0 }
+      ].filter(a => a.debit > 0 || a.credit > 0),
+      totalDebits: revenue + expenses + purchases + (netProfit < 0 ? Math.abs(netProfit) : 0),
+      totalCredits: revenue + (netProfit >= 0 ? netProfit : 0),
+      dateFrom, dateTo
+    };
+  }
+
+  getBalanceSheet() {
+    const totalRevenue = this.orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED').reduce((s, o) => s + o.grandTotal, 0);
+    const totalExpenses = this.expenses.reduce((s, e) => s + e.amount, 0);
+    const totalPurchases = this.purchases.reduce((s, p) => s + p.amount, 0);
+    const unpaidPurchases = this.purchases.filter(p => p.status !== 'PAID').reduce((s, p) => s + p.amount, 0);
+    const retainedEarnings = totalRevenue - totalExpenses - totalPurchases;
+    return {
+      assets: [{ name: 'Cash & Bank (from Sales)', amount: totalRevenue }],
+      totalAssets: totalRevenue,
+      liabilities: [{ name: 'Accounts Payable (Unpaid Purchases)', amount: unpaidPurchases }],
+      totalLiabilities: unpaidPurchases,
+      equity: [{ name: 'Retained Earnings', amount: retainedEarnings }],
+      totalEquity: retainedEarnings,
+      asOf: new Date().toISOString()
+    };
+  }
+
+  getDueReceivables() {
+    return this.orders
+      .filter(o => o.status !== 'CANCELLED' && o.paymentStatus !== 'PAID')
+      .map(o => ({
+        orderId: o.id,
+        token: o.token,
+        tableId: o.tableId,
+        customerName: o.customerName || 'Guest',
+        customerPhone: o.customerPhone || '',
+        orderType: o.type,
+        serviceType: o.serviceType,
+        grandTotal: o.grandTotal,
+        paymentStatus: o.paymentStatus,
+        paymentMethod: o.paymentMethod,
+        createdAt: o.createdAt
+      }));
+  }
+
+  // ========================================================
+  // EXPENSE MANAGEMENT
+  // ========================================================
+
+  addExpense({ amount, date, category, notes = '', createdBy = 'Manager' }) {
+    const VALID_CATEGORIES = ['Food Cost', 'Labor', 'Utilities', 'Rent', 'Maintenance', 'Miscellaneous'];
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      throw new Error('Expense amount must be a positive number.');
+    }
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error('Expense date must be in YYYY-MM-DD format.');
+    }
+    if (!VALID_CATEGORIES.includes(category)) {
+      throw new Error(`Expense category must be one of: ${VALID_CATEGORIES.join(', ')}.`);
+    }
+
+    const nowIso = new Date().toISOString();
+    const cleanAmount = Math.round(Number(amount));
+    const cleanNotes = (notes || '').trim();
+
+    const expense = {
+      id: 'exp-' + randomUUID().slice(0, 10),
+      amount: cleanAmount,
+      date,
+      category,
+      notes: cleanNotes,
+      createdBy,
+      createdAt: nowIso,
+      updatedAt: null,
+      updatedBy: null,
+      history: [
+        {
+          amount: cleanAmount,
+          date,
+          category,
+          notes: cleanNotes,
+          modifiedBy: createdBy,
+          modifiedAt: nowIso,
+          action: 'CREATED'
+        }
+      ]
+    };
+
+    this.expenses.push(expense);
+    this.saveData();
+    this.logAudit('EXPENSE_ADDED', `Expense of ৳${expense.amount} (${category}) added for ${date}`, { id: expense.id, amount: expense.amount }, createdBy);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(date));
+    return expense;
+  }
+
+  updateExpense(id, { amount, date, category, notes }, updatedBy = 'Manager') {
+    const expense = this.expenses.find(e => e.id === id);
+    if (!expense) return null;
+
+    const VALID_CATEGORIES = ['Food Cost', 'Labor', 'Utilities', 'Rent', 'Maintenance', 'Miscellaneous'];
+    if (amount !== undefined) {
+      if (isNaN(Number(amount)) || Number(amount) <= 0) throw new Error('Expense amount must be a positive number.');
+    }
+    if (date !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Expense date must be in YYYY-MM-DD format.');
+    }
+    if (category !== undefined) {
+      if (!VALID_CATEGORIES.includes(category)) throw new Error(`Invalid category.`);
+    }
+
+    if (!Array.isArray(expense.history)) {
+      expense.history = [
+        {
+          amount: expense.amount,
+          date: expense.date,
+          category: expense.category,
+          notes: expense.notes,
+          modifiedBy: expense.createdBy || 'Manager',
+          modifiedAt: expense.createdAt || new Date().toISOString(),
+          action: 'CREATED'
+        }
+      ];
+    }
+
+    const previousDate = expense.date;
+    if (amount !== undefined) expense.amount = Math.round(Number(amount));
+    if (date !== undefined) expense.date = date;
+    if (category !== undefined) expense.category = category;
+    if (notes !== undefined) expense.notes = (notes || '').trim();
+
+    const nowIso = new Date().toISOString();
+    expense.updatedAt = nowIso;
+    expense.updatedBy = updatedBy;
+
+    // Record revision in history for audit & correction review
+    expense.history.push({
+      amount: expense.amount,
+      date: expense.date,
+      category: expense.category,
+      notes: expense.notes,
+      modifiedBy: updatedBy,
+      modifiedAt: nowIso,
+      action: 'CORRECTION'
+    });
+
+    this.saveData();
+    this.logAudit('EXPENSE_UPDATED', `Expense ${id} updated to ৳${expense.amount} (${expense.category})`, { id }, updatedBy);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(expense.date));
+    if (previousDate !== expense.date) {
+      eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(previousDate));
+    }
+    return expense;
+  }
+
+  deleteExpense(id, deletedBy = 'Manager') {
+    const idx = this.expenses.findIndex(e => e.id === id);
+    if (idx === -1) return null;
+    const [removed] = this.expenses.splice(idx, 1);
+    this.saveData();
+    this.logAudit('EXPENSE_DELETED', `Expense ${id} (৳${removed.amount}) deleted`, { id }, deletedBy);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(removed.date));
+    return { success: true, id };
+  }
+
+  getExpenses({ date, dateFrom, dateTo } = {}) {
+    let results = [...this.expenses];
+    if (date) results = results.filter(e => e.date === date);
+    else if (dateFrom || dateTo) {
+      results = results.filter(e => {
+        if (dateFrom && e.date < dateFrom) return false;
+        if (dateTo && e.date > dateTo) return false;
+        return true;
+      });
+    }
+    return results.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  }
+
+  getDailyFinancialSummary(dateStr) {
+    if (!dateStr) {
+      dateStr = getDhakaDateParts(new Date()).dateStr;
+    }
+
+    // Daily reset cutoff if viewing today
+    const todayStr = getDhakaDateParts(new Date()).dateStr;
+    let dailyResetCutoff = 0;
+    if (dateStr === todayStr) {
+      const dailyResets = this.revenueResets
+        .filter(r => (r.date === dateStr) && (r.type === 'daily' || !r.type))
+        .sort((a, b) => new Date(b.resetAt).getTime() - new Date(a.resetAt).getTime());
+      const latestDailyReset = dailyResets[0] || null;
+      if (latestDailyReset) {
+        dailyResetCutoff = new Date(latestDailyReset.resetAt).getTime();
+      }
+    }
+
+    // Revenue from actual eligible paid orders (avoid duplicate counting, exclude unpaid/pending/cancelled)
+    const dayOrders = this.orders.filter(o => {
+      if (o.paymentStatus !== 'PAID' || o.status === 'CANCELLED') return false;
+      const paidDateTimestamp = o.paidAt || o.createdAt;
+      if (!paidDateTimestamp) return false;
+      const orderPaidMs = new Date(paidDateTimestamp).getTime();
+      const orderParts = getDhakaDateParts(new Date(orderPaidMs));
+      if (orderParts.dateStr !== dateStr) return false;
+      if (dailyResetCutoff > 0 && orderPaidMs <= dailyResetCutoff) return false;
+      return true;
+    });
+    const revenue = dayOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || 0), 0);
+
+    // Expenses on that date
+    const dayExpenses = this.expenses.filter(e => e.date === dateStr);
+    const expenses = dayExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+    return {
+      date: dateStr,
+      revenue,
+      expenses,
+      profit: revenue - expenses,
+      revenueOrders: dayOrders.length,
+      expenseCount: dayExpenses.length
+    };
+  }
+
+  getFinancialGraph(params = 7) {
+    let days = null;
+    let dateFrom = null;
+    let dateTo = null;
+
+    if (typeof params === 'number') {
+      days = params;
+    } else if (params && typeof params === 'object') {
+      days = params.days ? parseInt(params.days, 10) : null;
+      dateFrom = params.dateFrom || null;
+      dateTo = params.dateTo || null;
+    }
+
+    const results = [];
+
+    if (dateFrom && dateTo) {
+      if (dateFrom > dateTo) {
+        const tmp = dateFrom;
+        dateFrom = dateTo;
+        dateTo = tmp;
+      }
+      let curr = new Date(dateFrom + 'T00:00:00Z');
+      const end = new Date(dateTo + 'T00:00:00Z');
+      let safetyCount = 0;
+      while (curr <= end && safetyCount < 366) {
+        const dateStr = curr.toISOString().slice(0, 10);
+        results.push(this.getDailyFinancialSummary(dateStr));
+        curr.setUTCDate(curr.getUTCDate() + 1);
+        safetyCount++;
+      }
+    } else {
+      if (!days || isNaN(days) || days <= 0) days = 7;
+      days = Math.min(366, days);
+
+      const todayDhaka = getDhakaDateParts(new Date()).dateStr;
+      const baseDate = new Date(todayDhaka + 'T00:00:00Z');
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(baseDate.getTime() - i * 86400000);
+        const dateStr = d.toISOString().slice(0, 10);
+        results.push(this.getDailyFinancialSummary(dateStr));
+      }
+    }
+
+    return results;
+  }
+
   // --- Reset Daily Revenue Summary ---
   resetDailyRevenue(user = 'Manager', role = 'MANAGER') {
     const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
@@ -1512,8 +2961,8 @@ class Database {
 
     const summary = this.getRevenueSummary();
     eventBus.broadcast('revenue_updated', summary);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary());
     eventBus.broadcast('analytics_updated', this.getAnalyticsSummary());
-
     return { success: true, resetEntry: entry, summary };
   }
 
@@ -1549,8 +2998,8 @@ class Database {
 
     const summary = this.getRevenueSummary();
     eventBus.broadcast('revenue_updated', summary);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary());
     eventBus.broadcast('analytics_updated', this.getAnalyticsSummary());
-
     return { success: true, resetEntry: entry, summary };
   }
 
@@ -1586,8 +3035,8 @@ class Database {
 
     const summary = this.getRevenueSummary();
     eventBus.broadcast('revenue_updated', summary);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary());
     eventBus.broadcast('analytics_updated', this.getAnalyticsSummary());
-
     return { success: true, resetEntry: entry, summary };
   }
 
@@ -1699,6 +3148,7 @@ class Database {
     eventBus.broadcast('order_updated', null);
     eventBus.broadcast('tables_updated', this.tables);
     eventBus.broadcast('revenue_updated', summary);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary());
     eventBus.broadcast('analytics_updated', analytics);
 
     return {
