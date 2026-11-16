@@ -180,6 +180,7 @@ export interface StallSubOrder {
 
 export interface StallReadyConfirmedEvent {
   orderId: string;
+  clientId?: string | null;
   token: string;
   tableId: string | null;
   stallId: string;
@@ -262,24 +263,11 @@ export type CustomerOrderType = 'DINE_IN' | 'TAKEAWAY';
 export interface ExpenseRevision {
   amount: number;
   date: string;
-  category: 'Food Cost' | 'Labor' | 'Utilities' | 'Rent' | 'Maintenance' | 'Miscellaneous';
+  category: 'Food Cost' | 'Labor' | 'Utilities' | 'Rent' | 'Maintenance' | 'Marketing' | 'Cleaning' | 'Packaging' | 'Miscellaneous';
   notes?: string;
   modifiedBy: string;
   modifiedAt: string;
   action: 'CREATED' | 'CORRECTION';
-}
-
-export interface Expense {
-  id: string;
-  amount: number;
-  date: string; // YYYY-MM-DD in Asia/Dhaka
-  category: 'Food Cost' | 'Labor' | 'Utilities' | 'Rent' | 'Maintenance' | 'Miscellaneous';
-  notes?: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt?: string | null;
-  updatedBy?: string | null;
-  history?: ExpenseRevision[];
 }
 
 export interface DailyFinancialSummary {
@@ -323,6 +311,119 @@ export interface Order {
   kotGeneratedAt?: string;
   history: OrderHistoryStep[];
   cancellationReason?: string;
+  voidStatus?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  pendingVoidRequestId?: string | null;
+  voidHistory?: string[];
+  refundDetails?: {
+    refundAmount: number;
+    refundedAt: string;
+    refundedBy: string;
+    reason: string;
+    paymentMethod: string;
+    transactionId?: string;
+  };
+  refunds?: Array<{
+    refundAmount: number;
+    refundedAt: string;
+    refundedBy: string;
+    reason: string;
+    paymentMethod: string;
+    transactionId?: string;
+  }>;
+}
+
+export type VoidRequestType =
+  | 'FULL_CANCELLATION'
+  | 'ITEM_CANCELLATION'
+  | 'QUANTITY_CORRECTION'
+  | 'ORDER_MODIFICATION';
+
+export type VoidRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface VoidItemCorrection {
+  menuItemId: string;
+  variantId?: string;
+  name: string;
+  oldQuantity: number;
+  newQuantity: number;
+  unitPrice: number;
+  stallId?: string;
+  stallName?: string;
+}
+
+export interface VoidItemRemoval {
+  menuItemId: string;
+  variantId?: string;
+  name: string;
+  quantity: number;
+  price: number;
+  stallId?: string;
+  stallName?: string;
+}
+
+export interface VoidRequestDetails {
+  cancelEntireOrder?: boolean;
+  itemsToRemove?: VoidItemRemoval[];
+  corrections?: VoidItemCorrection[];
+  notes?: string;
+  serviceType?: ServiceType;
+}
+
+export interface VoidProposedImpact {
+  newSubtotal: number;
+  newGrandTotal: number;
+  differenceAmount: number;
+  refundRequired: boolean;
+  refundAmount: number;
+}
+
+export interface VoidExecutionResult {
+  executedAt: string;
+  executedBy: string;
+  refundRecorded: boolean;
+  refundAmount: number;
+  refundTransactionId?: string;
+  inventoryRestored: boolean;
+  inventoryItemsAdjusted: Array<{ menuItemId: string; qtyRestored: number }>;
+  stallsNotified: string[];
+}
+
+export interface VoidRequest {
+  id: string;
+  orderId: string;
+  invoiceNo: string;
+  token: string;
+  tableId: string | null;
+  orderType: CustomerOrderType;
+  requestType: VoidRequestType;
+  status: VoidRequestStatus;
+  reason: string;
+  cashierId: string;
+  cashierName: string;
+  cashierRole: string;
+  requestedAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  resolverId: string | null;
+  resolverRole: string | null;
+  resolutionReason: string | null;
+  originalSnapshot: {
+    items: OrderItem[];
+    subtotal: number;
+    discount: number;
+    tax: number;
+    serviceCharge: number;
+    grandTotal: number;
+    paymentStatus: PaymentStatus;
+    paymentMethod: PaymentMethod;
+    orderStatus: OrderStatus;
+    kotGenerated: boolean;
+    kotNumber?: string | null;
+    stalls?: StallSubOrder[];
+  };
+  requestDetails: VoidRequestDetails;
+  proposedImpact: VoidProposedImpact;
+  executionResult: VoidExecutionResult | null;
 }
 
 export interface Table {
@@ -334,16 +435,6 @@ export interface Table {
   currentSessionId: string | null;
   activeOrderToken: string | null;
   totalSpentToday: number;
-}
-
-export interface TableSession {
-  id: string;
-  tableId: string;
-  startedAt: string;
-  endedAt?: string;
-  orderIds: string[];
-  active: boolean;
-  guestCount: number;
 }
 
 export interface RunnerTask {
@@ -430,17 +521,401 @@ export interface OrderReview {
 
 export interface Purchase {
   id: string;
+  poNumber?: string;
+  invoiceNumber?: string;
   supplier: string;
   description: string;
   category: string;
   amount: number;
   date: string; // YYYY-MM-DD
+  expectedDeliveryDate?: string;
+  orderStatus?: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'ORDERED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
+  paymentStatus?: 'PAID' | 'PARTIALLY_PAID' | 'UNPAID';
   status: 'PAID' | 'UNPAID';
+  paidAmount?: number;
+  dueAmount?: number;
+  paymentMethod?: string;
   paidAt?: string | null;
+  items?: Array<{
+    itemId: string;
+    itemName: string;
+    category?: string;
+    unit?: string;
+    quantity: number;
+    receivedQuantity?: number;
+    returnedQuantity?: number;
+    unitCost: number;
+    totalCost: number;
+  }>;
+  paymentHistory?: Array<{
+    id: string;
+    amount: number;
+    date: string;
+    paymentMethod: string;
+    refNo?: string;
+    notes?: string;
+    recordedBy: string;
+  }>;
+  goodsReceivedNotes?: Array<{
+    grnNumber: string;
+    date: string;
+    receivedBy: string;
+    items: any[];
+  }>;
   createdBy: string;
   createdAt: string;
   updatedAt?: string | null;
   updatedBy?: string | null;
+}
+
+export interface ExpenseHistoryEntry {
+  amount: number;
+  date: string;
+  category: Expense['category'];
+  notes?: string;
+  modifiedBy: string;
+  modifiedAt: string;
+  action: 'CREATED' | 'CORRECTION';
+}
+
+export interface Expense {
+  id: string;
+  amount: number;
+  date: string;
+  dueDate?: string;
+  category:
+    | 'Food Cost'
+    | 'Labor'
+    | 'Utilities'
+    | 'Rent'
+    | 'Maintenance'
+    | 'Marketing'
+    | 'Cleaning'
+    | 'Packaging'
+    | 'Miscellaneous';
+  notes?: string;
+  supplier?: string;
+  payee?: string;
+  billNumber?: string;
+  paymentMethod?: string;
+  paymentStatus?: 'PAID' | 'PARTIALLY_PAID' | 'UNPAID';
+  paidAmount?: number;
+  dueAmount?: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+  history?: ExpenseHistoryEntry[];
+  paymentHistory?: Array<{
+    id: string;
+    amount: number;
+    date: string;
+    paymentMethod: string;
+    notes?: string;
+    recordedBy: string;
+  }>;
+}
+
+export interface TopSellingItem {
+  itemId: string;
+  name: string;
+  stallId: string;
+  stallName: string;
+  category: string;
+  unit: string;
+  quantitySold: number;
+  orderCount: number;
+  grossSales: number;
+  discounts: number;
+  refunds: number;
+  netSales: number;
+  avgSellingPrice: number;
+  recipeCostPerUnit: number | null;
+  totalCost: number | null;
+  grossProfit: number | null;
+  profitMargin: number | null;
+  contributionPercent: number;
+  hasRecipe: boolean;
+}
+
+export interface SalesSummaryReport {
+  totalOrders: number;
+  completedOrders: number;
+  pendingOrders: number;
+  cancelledOrders: number;
+  refundedOrders: number;
+  totalQuantitySold: number;
+  grossItemSales: number;
+  totalDiscounts: number;
+  totalRefunds: number;
+  netSales: number;
+  vatTaxCollected: number;
+  serviceChargesCollected: number;
+  totalCollections: number;
+  outstandingReceivables: number;
+  paymentMethods: Record<string, number>;
+  averageOrderValue: number;
+  cogs: number;
+  grossProfit: number;
+  operatingExpenses: number;
+  netProfit: number;
+  comparison?: {
+    prevDateFrom: string;
+    prevDateTo: string;
+    prevRevenue: number;
+    prevOrdersCount: number;
+    revenueChange: number | null;
+    ordersChange: number | null;
+  } | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+export interface SalesDetailTransaction {
+  orderId: string;
+  invoiceNo: string;
+  token: string;
+  date: string;
+  time: string;
+  guestName: string;
+  customerPhone: string;
+  tableNumber: string;
+  orderType: string;
+  serviceType: string;
+  stallId: string;
+  stallName: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  tax: number;
+  totalAmount: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  orderStatus: string;
+  cashier: string;
+}
+
+export interface SalesByUserItem {
+  userName: string;
+  role: string;
+  ordersHandled: number;
+  salesProcessed: number;
+  paymentsConfirmed: number;
+  discountsAuthorized: number;
+  refundsProcessed: number;
+  cancelledOrders: number;
+  totalValue: number;
+  averageTransactionValue: number;
+}
+
+export interface OrderTypeSummaryItem {
+  key: string;
+  name: string;
+  count: number;
+  quantity: number;
+  gross: number;
+  discount: number;
+  refund: number;
+  net: number;
+  averageOrderValue: number;
+  payments: Record<string, number>;
+}
+
+export interface StallWiseSaleItem {
+  stallId: string;
+  stallName: string;
+  badge: string;
+  orderCount: number;
+  quantitySold: number;
+  grossSales: number;
+  discounts: number;
+  refunds: number;
+  netSales: number;
+  cogs: number;
+  grossProfit: number;
+  profitMargin: number;
+  bestSellingItem: string;
+  commissionRate: string;
+  managementCommission: number;
+  merchantPayout: number;
+  paymentBreakdown: Record<string, number>;
+}
+
+export interface CategoryWiseSaleItem {
+  category: string;
+  itemCount: number;
+  quantitySold: number;
+  grossSales: number;
+  discounts: number;
+  netSales: number;
+  percentage: number;
+}
+
+export interface HourlySaleItem {
+  hour: number;
+  label: string;
+  orders: number;
+  itemsSold: number;
+  sales: number;
+  paymentsCollected: number;
+  averageOrderValue: number;
+}
+
+export interface PaymentMethodItem {
+  key: string;
+  name: string;
+  transactions: number;
+  successfulCollections: number;
+  pendingAmount: number;
+  failedAmount: number;
+  refunds: number;
+  netCollected: number;
+  percentage: number;
+}
+
+export interface StockMovementItem {
+  id: string;
+  timestamp: string;
+  date: string;
+  menuItemId: string;
+  itemName: string;
+  stallId?: string | null;
+  unit: string;
+  movementType: string;
+  quantityIn: number;
+  quantityOut: number;
+  previousBalance: number;
+  newBalance: number;
+  unitCost: number;
+  totalValue: number;
+  refNo: string;
+  user: string;
+  notes: string;
+}
+
+export interface InventoryValuationItem {
+  itemId: string;
+  name: string;
+  stallId: string;
+  stallName: string;
+  category: string;
+  unit: string;
+  physicalStock: number;
+  reservedStock: number;
+  availableStock: number;
+  unitCost: number;
+  stockValue: number;
+  minStock: number;
+  reorderLevel: number;
+  maxStock: number;
+  status: 'IN_STOCK' | 'LOW_STOCK' | 'CRITICAL' | 'OUT_OF_STOCK';
+}
+
+export interface DailyClosingReportData {
+  date: string;
+  isClosed: boolean;
+  closedBy?: string | null;
+  closedAt?: string | null;
+  sales: {
+    totalOrders: number;
+    completedOrders: number;
+    cancelledOrders: number;
+    totalFoodQty: number;
+    grossSales: number;
+    discounts: number;
+    refunds: number;
+    netSales: number;
+    salesByStall: Record<string, number>;
+    salesByPaymentMethod: Record<string, number>;
+  };
+  expenses: {
+    cashExpenses: number;
+    bankMobileExpenses: number;
+    dueExpenses: number;
+    totalExpenses: number;
+  };
+  purchases: {
+    totalPurchases: number;
+    goodsReceived: number;
+    supplierPayments: number;
+    supplierOutstanding: number;
+    cashPurchasesPaid: number;
+  };
+  inventory: {
+    currentStockValue: number;
+    purchasesReceived: number;
+    wastageLoss: number;
+  };
+  profitability: {
+    netSales: number;
+    cogs: number;
+    grossProfit: number;
+    operatingExpenses: number;
+    netProfit: number;
+    profitMargin: number;
+  };
+  cashManagement: {
+    openingCash: number;
+    cashSalesReceived: number;
+    cashRefunds: number;
+    cashExpenses: number;
+    cashPurchasesPaid: number;
+    cashDeposits: number;
+    cashWithdrawals: number;
+    adjustments: number;
+    expectedClosingCash: number;
+    countedCash: number | null;
+    cashDiscrepancy: number | null;
+    isReconciled: boolean;
+    notes: string;
+  };
+  nonCashCollections: {
+    bKash: number;
+    Nagad: number;
+    onlineCard: number;
+    nfcContactless: number;
+    totalNonCash: number;
+  };
+}
+
+export interface BusinessHealthData {
+  today: {
+    date: string;
+    sales: number;
+    ordersCount: number;
+    salesChange: number | null;
+    expenses: number;
+    grossProfit: number;
+    netProfit: number;
+    wastage: number;
+  };
+  receivables: {
+    customerReceivables: number;
+  };
+  payables: {
+    supplierPayables: number;
+    overdueExpenses: number;
+  };
+  inventory: {
+    valuation: number;
+    lowStockCount: number;
+  };
+  insights: Array<{
+    id: string;
+    type: 'POSITIVE' | 'WARNING' | 'ALERT';
+    title: string;
+    message: string;
+    metric: string;
+  }>;
+  alerts: Array<{
+    id: string;
+    severity: 'low' | 'medium' | 'high';
+    title: string;
+    description: string;
+    link: string;
+  }>;
 }
 
 export interface LedgerEntry {

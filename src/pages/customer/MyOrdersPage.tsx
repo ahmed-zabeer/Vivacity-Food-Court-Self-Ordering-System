@@ -3,7 +3,7 @@ import { api } from '../../services/api';
 import { Order } from '../../types';
 import { useTableSession } from '../../context/TableSessionContext';
 import { useLocation } from 'wouter';
-import { Receipt, Clock, ChevronRight, ShoppingBag } from 'lucide-react';
+import { Receipt, ChevronRight } from 'lucide-react';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 
 export const MyOrdersPage: React.FC = () => {

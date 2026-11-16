@@ -10,7 +10,7 @@ import { createServer as createViteServer } from 'vite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === 'production' || process.argv.includes('--production');
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 
 /**

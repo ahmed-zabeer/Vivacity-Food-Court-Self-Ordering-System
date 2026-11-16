@@ -86,7 +86,7 @@ export const KOTPrintView: React.FC<KOTPrintViewProps> = ({ order, stallFilter, 
                   <div className="text-[14px] font-black tracking-[0.05em] leading-tight">
                     {FOOD_COURT_INFO.name}
                   </div>
-                  <div className="text-[11.5px] font-bold tracking-wide mt-0.5">
+                  <div className="text-[13px] font-black tracking-wide mt-0.5">
                     {stall.stallName}
                   </div>
                 </div>
@@ -116,16 +116,16 @@ export const KOTPrintView: React.FC<KOTPrintViewProps> = ({ order, stallFilter, 
                     ].filter(Boolean) as string[];
                     return (
                       <div key={`${stall.stallId}-${idx}`}>
-                        <div className="text-[14.5px] font-bold leading-snug break-words">
+                        <div className="text-[15.5px] font-black leading-snug break-words">
                           {item.quantity}-:{item.name}
                         </div>
                         {extras.length > 0 && (
-                          <div className="text-[9px] leading-snug break-words pl-1">
+                          <div className="text-[9.5px] leading-snug break-words pl-1 font-semibold">
                             {extras.join(' • ')}
                           </div>
                         )}
                         {item.notes && (
-                          <div className="text-[9px] leading-snug break-words pl-1">
+                          <div className="text-[9.5px] leading-snug break-words pl-1 font-semibold">
                             Note: {item.notes}
                           </div>
                         )}
@@ -140,25 +140,27 @@ export const KOTPrintView: React.FC<KOTPrintViewProps> = ({ order, stallFilter, 
                 <Dash />
 
                 {/* Time, token & service details */}
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-2 text-[10px]">
                   <span>Date:{formatReceiptDate(order.createdAt)}</span>
                   <span>Time:{formatReceiptTime(order.createdAt)}</span>
                 </div>
                 <div className="text-[17px] font-black tracking-wide leading-tight">
                   Token No:{order.token}
                 </div>
-                <div className="flex items-start justify-between gap-2">
-                  <span>{tableLabel}</span>
-                  <span>Guests:{guestCount}</span>
+                <div className="flex items-center justify-between gap-2 my-0.5">
+                  <span className="text-[15px] font-black tracking-wide">{tableLabel}</span>
+                  <span className="text-[10px] font-semibold">Guests: {guestCount}</span>
                 </div>
-                <div className="text-[9.5px] break-words">
+                <div className="text-[12px] font-black break-words mt-0.5">
                   Guest: {order.customerName || 'Guest'}
+                  {order.customerPhone ? ` • ${order.customerPhone}` : ''}
                 </div>
-                {order.customerPhone && (
-                  <div className="text-[9.5px] break-words">Phone: {order.customerPhone}</div>
-                )}
-                <div className="text-[9.5px] break-words">Order Type: {orderType}</div>
-                <div className="text-[9.5px] break-words">Service: {serviceLabel}</div>
+                <div className="text-[11.5px] font-black break-words">
+                  Order Type: {orderType}
+                </div>
+                <div className="text-[12px] font-black break-words tracking-wide">
+                  Service: {serviceLabel}
+                </div>
                 <div className="text-[9.5px] break-words">
                   Notes: {order.customerNotes || '-'}
                 </div>

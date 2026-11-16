@@ -1,31 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { realtime } from '../../services/events';
-import { sound } from '../../services/sound';
-import { Order, StallReadyConfirmedEvent, MenuItem, OrderItem, OrderReview } from '../../types';
+import { Order, MenuItem, OrderItem, OrderReview } from '../../types';
 import { useRoute, useLocation } from 'wouter';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 import { FoodPreparationAnimation } from '../../components/customer/FoodPreparationAnimation';
 import { OrderReviewModal } from '../../components/customer/OrderReviewModal';
-import {
-  Clock,
-  CheckCircle2,
-  ChefHat,
-  Receipt,
-  Store,
-  PlusCircle,
-  AlertTriangle,
-  Bell,
-  Package,
-  Bike,
-  CircleCheck,
-  Utensils,
-  Trash2,
-  Search,
-  X,
-  Star,
-  Sparkles
-} from 'lucide-react';
+import { Clock, CheckCircle2, ChefHat, Receipt, Store, PlusCircle, AlertTriangle, Bell, Package, CircleCheck, Utensils, Trash2, Star, Sparkles } from 'lucide-react';
 
 // --- Stall Card Component ---
 interface StallCardProps {
@@ -34,7 +15,7 @@ interface StallCardProps {
   serviceType?: Order['serviceType'];
 }
 
-const StallCard: React.FC<StallCardProps> = ({ stall, isReadyToCollect, serviceType }) => {
+const StallCard: React.FC<StallCardProps> = ({ stall, serviceType }) => {
   const isTableService = serviceType === 'TABLE_SERVICE';
 
   const statusLabel = () => {
@@ -165,9 +146,9 @@ export const OrderTrackingPage: React.FC = () => {
 
   // Replacement Food Selection Modal State
   const [replacingItem, setReplacingItem] = useState<OrderItem | null>(null);
-  const [availableMenuItems, setAvailableMenuItems] = useState<MenuItem[]>([]);
-  const [replaceSearch, setReplaceSearch] = useState<string>('');
-  const [replacingLoading, setReplacingLoading] = useState<boolean>(false);
+  const [, setAvailableMenuItems] = useState<MenuItem[]>([]);
+  const [, setReplaceSearch] = useState<string>('');
+  const [, setReplacingLoading] = useState<boolean>(false);
 
   const openReplaceModal = async (item: OrderItem) => {
     setReplacingItem(item);
@@ -202,9 +183,23 @@ export const OrderTrackingPage: React.FC = () => {
 
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, [orderId]);
+
+  useEffect(() => {
     if (!orderId) return;
 
-    // Track this order on this customer's device
+    // Track this order on this customer's device & subscribe SSE
+    try {
+      const sessionOrders = JSON.parse(sessionStorage.getItem('vivacity_session_orders') || '[]');
+      if (Array.isArray(sessionOrders) && !sessionOrders.includes(orderId)) {
+        sessionOrders.push(orderId);
+        sessionStorage.setItem('vivacity_session_orders', JSON.stringify(sessionOrders));
+      }
+    } catch {}
+
     try {
       const stored = JSON.parse(localStorage.getItem('vivacity_customer_orders') || '[]');
       if (Array.isArray(stored) && !stored.includes(orderId)) {
@@ -212,6 +207,8 @@ export const OrderTrackingPage: React.FC = () => {
         localStorage.setItem('vivacity_customer_orders', JSON.stringify(stored));
       }
     } catch {}
+
+    realtime.subscribe({ orderId });
 
     api.getOrder(orderId)
       .then(res => setOrder(res))

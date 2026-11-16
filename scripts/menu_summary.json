@@ -1,0 +1,92 @@
+[
+  {
+    "stallId": "fusion-cafe",
+    "stallName": "Coffee Buzz Fusion Cafe",
+    "totalItems": 150,
+    "categories": {
+      "STEAK": 15,
+      "SEAFOOD": 12,
+      "PIZZA": 11,
+      "COMBO MEAL": 4,
+      "CHEF SPECIAL": 6,
+      "STARTERS": 19,
+      "PASTA & NOODLES": 9,
+      "SOUP": 6,
+      "SALAD": 4,
+      "IMPROVED PLATTER": 15,
+      "BOBA DRINK": 17,
+      "ICE CRUSHED": 8,
+      "HEALTHY DRINKS": 6,
+      "SHAKE": 8,
+      "SPECIAL DRINKS": 4,
+      "COFFEE": 6
+    }
+  },
+  {
+    "stallId": "top-town",
+    "stallName": "Top Town",
+    "totalItems": 78,
+    "categories": {
+      "CHOWMEIN": 2,
+      "COMBO PLATTERS": 2,
+      "SOUP": 4,
+      "SNACKS": 4,
+      "DOSA": 6,
+      "BIRIYANI": 2,
+      "CHAATS": 4,
+      "NAN RUTI": 3,
+      "DRINKS": 3,
+      "COUPLE PLATTERS": 2,
+      "FRIED RICE": 5,
+      "SIZZLING": 8,
+      "GRAVY": 7,
+      "APPETIZER": 14,
+      "SET MENU": 7,
+      "RICE BOWL": 5
+    }
+  },
+  {
+    "stallId": "momo-buzz",
+    "stallName": "Momo Buzz",
+    "totalItems": 22,
+    "categories": {
+      "MOMO": 9,
+      "MOMOCOLA": 4,
+      "COMBO & OTHERS": 2,
+      "FUCHKA BUZZ": 7
+    }
+  },
+  {
+    "stallId": "waffle-city",
+    "stallName": "Waffle City",
+    "totalItems": 19,
+    "categories": {
+      "WAFFLE": 13,
+      "ADD ONS": 6
+    }
+  },
+  {
+    "stallId": "live-station",
+    "stallName": "Live Station",
+    "totalItems": 24,
+    "categories": {
+      "BBQ & KABAB": 18,
+      "PLATTERS": 6
+    }
+  },
+  {
+    "stallId": "burger-bar",
+    "stallName": "Burger Bar",
+    "totalItems": 39,
+    "categories": {
+      "BURGER": 5,
+      "SANDWICH": 4,
+      "MEAT BOX": 3,
+      "CRISPY CHICKEN": 7,
+      "WRAP ROLL": 4,
+      "FRENCH FRIES": 3,
+      "ADD ONS": 7,
+      "COMBO": 6
+    }
+  }
+]

@@ -6,11 +6,7 @@ interface FoodPrepAnimationProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export const FoodPreparationAnimation: React.FC<FoodPrepAnimationProps> = ({
-  status,
-  stallName,
-  size = 'md'
-}) => {
+export const FoodPreparationAnimation: React.FC<FoodPrepAnimationProps> = ({ status, size = 'md' }) => {
   const isCooking = status === 'PREPARING';
   const isAwaitingCounter = status === 'READY';
   const isReadyToCollect = status === 'NOTIFIED';

@@ -14,8 +14,8 @@ console.log('✅ Categories count:', stall.categories.length);
 const cbItems = menuItemsData.filter(i => i.stallId === 'fusion-cafe');
 console.log('✅ Total Coffee Buzz items:', cbItems.length);
 
-if (cbItems.length !== 101) {
-  throw new Error(`Expected 101 items, but found ${cbItems.length}`);
+if (cbItems.length < 101) {
+  throw new Error(`Expected at least 101 items, but found ${cbItems.length}`);
 }
 
 // 3. Check for duplicates

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Route, Switch, useRoute, useLocation } from 'wouter';
 import { TableSessionProvider, useTableSession } from './context/TableSessionContext';
 import { CartProvider, useCart } from './context/CartContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { Header } from './components/common/Header';
 import { BottomNav } from './components/common/BottomNav';
 import { BrandSplash } from './components/common/BrandSplash';
@@ -14,30 +14,30 @@ import { realtime } from './services/events';
 import { AlertTriangle } from 'lucide-react';
 
 // Customer Pages
-import { HomePage } from './pages/customer/HomePage';
-import { StallPage } from './pages/customer/StallPage';
-import { AllStallsPage } from './pages/customer/AllStallsPage';
-import { SearchPage } from './pages/customer/SearchPage';
-import { CartPage } from './pages/customer/CartPage';
-import { CheckoutPage } from './pages/customer/CheckoutPage';
-import { OrderTrackingPage } from './pages/customer/OrderTrackingPage';
-import { MyOrdersPage } from './pages/customer/MyOrdersPage';
-import { QRScannerPage } from './pages/customer/QRScannerPage';
-import { ParcelOrderPage } from './pages/customer/ParcelOrderPage';
+const HomePage = React.lazy(() => import('./pages/customer/HomePage').then(module => ({ default: module.HomePage })));
+const StallPage = React.lazy(() => import('./pages/customer/StallPage').then(module => ({ default: module.StallPage })));
+const AllStallsPage = React.lazy(() => import('./pages/customer/AllStallsPage').then(module => ({ default: module.AllStallsPage })));
+const SearchPage = React.lazy(() => import('./pages/customer/SearchPage').then(module => ({ default: module.SearchPage })));
+const CartPage = React.lazy(() => import('./pages/customer/CartPage').then(module => ({ default: module.CartPage })));
+const CheckoutPage = React.lazy(() => import('./pages/customer/CheckoutPage').then(module => ({ default: module.CheckoutPage })));
+const OrderTrackingPage = React.lazy(() => import('./pages/customer/OrderTrackingPage').then(module => ({ default: module.OrderTrackingPage })));
+const MyOrdersPage = React.lazy(() => import('./pages/customer/MyOrdersPage').then(module => ({ default: module.MyOrdersPage })));
+const QRScannerPage = React.lazy(() => import('./pages/customer/QRScannerPage').then(module => ({ default: module.QRScannerPage })));
+const ParcelOrderPage = React.lazy(() => import('./pages/customer/ParcelOrderPage').then(module => ({ default: module.ParcelOrderPage })));
 
 // Admin & Staff Pages
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { OrdersManager } from './pages/admin/OrdersManager';
-import { TableManager } from './pages/admin/TableManager';
-import { QRCodesManager } from './pages/admin/QRCodesManager';
-import { MenuManager } from './pages/admin/MenuManager';
-import { KitchenDisplay } from './pages/admin/KitchenDisplay';
-import { RunnerDashboard } from './pages/admin/RunnerDashboard';
-import { StallDashboard } from './pages/admin/StallDashboard';
-import { ReportsAnalytics } from './pages/admin/ReportsAnalytics';
-import { AuditLogViewer } from './pages/admin/AuditLogViewer';
-import { AccountingPage } from './pages/admin/AccountingPage';
-import { InventoryManager } from './pages/admin/InventoryManager';
+const AdminDashboard = React.lazy(() => import('./pages/admin/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
+const OrdersManager = React.lazy(() => import('./pages/admin/OrdersManager').then(module => ({ default: module.OrdersManager })));
+const TableManager = React.lazy(() => import('./pages/admin/TableManager').then(module => ({ default: module.TableManager })));
+const QRCodesManager = React.lazy(() => import('./pages/admin/QRCodesManager').then(module => ({ default: module.QRCodesManager })));
+const MenuManager = React.lazy(() => import('./pages/admin/MenuManager').then(module => ({ default: module.MenuManager })));
+const KitchenDisplay = React.lazy(() => import('./pages/admin/KitchenDisplay').then(module => ({ default: module.KitchenDisplay })));
+const RunnerDashboard = React.lazy(() => import('./pages/admin/RunnerDashboard').then(module => ({ default: module.RunnerDashboard })));
+const StallDashboard = React.lazy(() => import('./pages/admin/StallDashboard').then(module => ({ default: module.StallDashboard })));
+const ReportsAnalytics = React.lazy(() => import('./pages/admin/ReportsAnalytics').then(module => ({ default: module.ReportsAnalytics })));
+const AuditLogViewer = React.lazy(() => import('./pages/admin/AuditLogViewer').then(module => ({ default: module.AuditLogViewer })));
+const AccountingPage = React.lazy(() => import('./pages/admin/AccountingPage').then(module => ({ default: module.AccountingPage })));
+const InventoryManager = React.lazy(() => import('./pages/admin/InventoryManager').then(module => ({ default: module.InventoryManager })));
 
 // Route handler for table scans /t/:tableId
 const TableRouteHandler: React.FC = () => {
@@ -62,8 +62,8 @@ const TableRouteHandler: React.FC = () => {
 };
 
 const MainContent: React.FC = () => {
-  const { currentUser } = useAuth();
   const { tableId } = useTableSession();
+  const [location] = useLocation();
   const [introKey, setIntroKey] = useState(0);
   const [splashFinished, setSplashFinished] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{ connected: boolean; attempts: number }>({ connected: true, attempts: 0 });
@@ -73,6 +73,36 @@ const MainContent: React.FC = () => {
   const [reminderQueue, setReminderQueue] = useState<StallReadyConfirmedEvent[]>([]);
   const activeReadyReminder = reminderQueue[0] || null;
   const seenEventIds = React.useRef<Set<string>>(new Set());
+
+  // Automatically reset scroll position to 0 on every route transition (mobile & desktop)
+  React.useLayoutEffect(() => {
+    if (typeof window !== 'undefined') {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) {
+        document.documentElement.scrollTop = 0;
+        document.documentElement.scrollLeft = 0;
+      }
+      if (document.body) {
+        document.body.scrollTop = 0;
+        document.body.scrollLeft = 0;
+      }
+      const scrollContainers = document.querySelectorAll<HTMLElement>(
+        'main, [data-scroll-container], .overflow-y-auto, .overflow-auto'
+      );
+      scrollContainers.forEach(el => {
+        el.scrollTop = 0;
+      });
+
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+      });
+    }
+  }, [location]);
 
   // Listen for real-time stall_ready_confirmed and connection status events
   React.useEffect(() => {
@@ -122,29 +152,50 @@ const MainContent: React.FC = () => {
         return;
       }
 
-      // 2. Only show alarm on guest phones if this order belongs to this customer/table
-      let isForThisGuest = false;
-      try {
-        const storedOrders = JSON.parse(localStorage.getItem('vivacity_customer_orders') || '[]');
-        if (Array.isArray(storedOrders) && (storedOrders.includes(evt.orderId) || storedOrders.includes(evt.token))) {
-          isForThisGuest = true;
-        }
-      } catch {}
+      // 2. Strict Table check: If this client has a table set, and event has a table set, they MUST match!
+      const currentTable = (tableId || sessionStorage.getItem('vivacity_table_id') || localStorage.getItem('vivacity_table_id') || '').trim().toUpperCase();
+      const notifTable = (evt.tableId || '').trim().toUpperCase();
 
-      if (!isForThisGuest && tableId && evt.tableId && tableId.toUpperCase() === evt.tableId.toUpperCase()) {
-        isForThisGuest = true;
+      if (currentTable && notifTable && currentTable !== notifTable) {
+        // Belongs to a different table! Never show or ring alarm
+        return;
       }
 
+      // 3. Guest identification: Only notify the specific guest whose order is ready
+      let isForThisGuest = false;
+
+      // Check per-tab session orders
       try {
-        const localTable = localStorage.getItem('vivacity_table_id');
-        if (!isForThisGuest && localTable && evt.tableId && localTable.toUpperCase() === evt.tableId.toUpperCase()) {
+        const sessionOrders = JSON.parse(sessionStorage.getItem('vivacity_session_orders') || '[]');
+        if (Array.isArray(sessionOrders) && (sessionOrders.includes(evt.orderId) || sessionOrders.includes(evt.token))) {
           isForThisGuest = true;
         }
       } catch {}
 
+      // Check client ID matching
+      if (!isForThisGuest && evt.clientId) {
+        const currentClientId = sessionStorage.getItem('vivacity_client_id');
+        if (currentClientId && currentClientId === evt.clientId) {
+          isForThisGuest = true;
+        }
+      }
+
+      // Check active route (e.g. customer is viewing /orders/:id)
       const cleanPath = pathname.replace(/\/+$/, '');
       if (!isForThisGuest && (cleanPath === `/orders/${evt.orderId}` || cleanPath === `/orders/${evt.token}`)) {
         isForThisGuest = true;
+      }
+
+      // Check stored customer orders (only if table matches or no table set)
+      if (!isForThisGuest) {
+        try {
+          const storedOrders = JSON.parse(localStorage.getItem('vivacity_customer_orders') || '[]');
+          if (Array.isArray(storedOrders) && (storedOrders.includes(evt.orderId) || storedOrders.includes(evt.token))) {
+            if (!notifTable || !currentTable || notifTable === currentTable) {
+              isForThisGuest = true;
+            }
+          }
+        } catch {}
       }
 
       // If this order has no association with this guest's phone, do not popup or alarm
@@ -248,39 +299,41 @@ const MainContent: React.FC = () => {
 
       {/* Main Routed Content */}
       <main className="w-full flex flex-col">
-        <Switch>
-          {/* Customer Dine-in & QR Routes */}
-          <Route path="/" component={HomePage} />
-          <Route path="/t/:tableId" component={TableRouteHandler} />
-          <Route path="/stalls" component={AllStallsPage} />
-          <Route path="/stall/:slug" component={StallPage} />
-          <Route path="/search" component={SearchPage} />
-          <Route path="/cart" component={CartPage} />
-          <Route path="/checkout" component={CheckoutPage} />
-          <Route path="/orders" component={MyOrdersPage} />
-          <Route path="/orders/:id" component={OrderTrackingPage} />
-          <Route path="/scan" component={QRScannerPage} />
-          <Route path="/parcel" component={ParcelOrderPage} />
+        <React.Suspense fallback={<div className="p-6 text-center text-sm text-zinc-500" role="status">Loading page...</div>}>
+          <Switch>
+            {/* Customer Dine-in & QR Routes */}
+            <Route path="/" component={HomePage} />
+            <Route path="/t/:tableId" component={TableRouteHandler} />
+            <Route path="/stalls" component={AllStallsPage} />
+            <Route path="/stall/:slug" component={StallPage} />
+            <Route path="/search" component={SearchPage} />
+            <Route path="/cart" component={CartPage} />
+            <Route path="/checkout" component={CheckoutPage} />
+            <Route path="/orders" component={MyOrdersPage} />
+            <Route path="/orders/:id" component={OrderTrackingPage} />
+            <Route path="/scan" component={QRScannerPage} />
+            <Route path="/parcel" component={ParcelOrderPage} />
 
-          {/* Admin & Operations Routes */}
-          <Route path="/admin" component={AdminDashboard} />
-          <Route path="/admin/accounting" component={AccountingPage} />
-          <Route path="/admin/inventory" component={InventoryManager} />
-          <Route path="/admin/orders" component={OrdersManager} />
-          <Route path="/admin/tables" component={TableManager} />
-          <Route path="/admin/qr-codes" component={QRCodesManager} />
-          <Route path="/admin/menu" component={MenuManager} />
-          <Route path="/admin/kitchen" component={KitchenDisplay} />
-          <Route path="/kitchen" component={KitchenDisplay} />
-          <Route path="/admin/runners" component={RunnerDashboard} />
-          <Route path="/admin/reports" component={ReportsAnalytics} />
-          <Route path="/admin/settlements" component={ReportsAnalytics} />
-          <Route path="/admin/audit-log" component={AuditLogViewer} />
-          <Route path="/stall/:slug/dashboard" component={StallDashboard} />
+            {/* Admin & Operations Routes */}
+            <Route path="/admin" component={AdminDashboard} />
+            <Route path="/admin/accounting" component={AccountingPage} />
+            <Route path="/admin/inventory" component={InventoryManager} />
+            <Route path="/admin/orders" component={OrdersManager} />
+            <Route path="/admin/tables" component={TableManager} />
+            <Route path="/admin/qr-codes" component={QRCodesManager} />
+            <Route path="/admin/menu" component={MenuManager} />
+            <Route path="/admin/kitchen" component={KitchenDisplay} />
+            <Route path="/kitchen" component={KitchenDisplay} />
+            <Route path="/admin/runners" component={RunnerDashboard} />
+            <Route path="/admin/reports" component={ReportsAnalytics} />
+            <Route path="/admin/settlements" component={ReportsAnalytics} />
+            <Route path="/admin/audit-log" component={AuditLogViewer} />
+            <Route path="/stall/:slug/dashboard" component={StallDashboard} />
 
-          {/* Fallback */}
-          <Route component={HomePage} />
-        </Switch>
+            {/* Fallback */}
+            <Route component={HomePage} />
+          </Switch>
+        </React.Suspense>
       </main>
 
       {/* Global Branding Footer on Every Page Except Intro */}

@@ -4,10 +4,19 @@ import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { JournalEngine } from './accounting/journalEngine.js';
+import { SalesReportsEngine } from './accounting/salesReports.js';
+import { ExpenseReportsEngine } from './accounting/expenseReports.js';
+import { PurchaseReportsEngine } from './accounting/purchaseReports.js';
+import { InventoryReportsEngine } from './accounting/inventoryReports.js';
+import { DailyClosingEngine } from './accounting/dailyClosing.js';
+import { BusinessIntelligenceEngine } from './accounting/biInsights.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, 'data');
 const RESETS_FILE = path.join(DATA_DIR, 'revenue_resets.json');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 const EXPENSES_FILE = path.join(DATA_DIR, 'expenses.json');
@@ -17,6 +26,14 @@ const REVIEWS_FILE = path.join(DATA_DIR, 'reviews.json');
 const PURCHASES_FILE = path.join(DATA_DIR, 'purchases.json');
 const CART_RESERVATIONS_FILE = path.join(DATA_DIR, 'cart_reservations.json');
 const CUSTOMIZATION_CONFIG_FILE = path.join(DATA_DIR, 'customization_config.json');
+const MOVEMENTS_FILE = path.join(DATA_DIR, 'inventory_movements.json');
+const RECIPES_FILE = path.join(DATA_DIR, 'recipes.json');
+const CASH_RECONCILIATION_FILE = path.join(DATA_DIR, 'cash_reconciliation.json');
+const VOID_REQUESTS_FILE = path.join(DATA_DIR, 'void_requests.json');
+const RESET_HISTORY_FILE = path.join(DATA_DIR, 'reset_history.json');
+const ARCHIVED_ORDERS_FILE = path.join(DATA_DIR, 'archived_orders.json');
+const ARCHIVED_VOID_REQUESTS_FILE = path.join(DATA_DIR, 'archived_void_requests.json');
+const REMOVED_WASTAGE_FILE = path.join(DATA_DIR, 'removed_wastage.json');
 const CART_INACTIVITY_MS = 60 * 1000; // 1 minute (60 seconds) inactivity timeout
 
 export function getDhakaDateParts(d = new Date()) {
@@ -81,11 +98,25 @@ class Database {
     this.purchases = [];       // supplier purchases
     this.cartReservations = []; // [ { id, sessionId, menuItemId, quantity, createdAt, lastActiveAt } ]
     this.customizationConfig = null;
+    this.inventoryMovements = [];
+    this.recipes = {};
+    this.cashReconciliations = [];
+    this.voidRequests = [];
+    this.archivedVoidRequests = [];
+    this.resetHistory = [];
+    this.archivedOrders = [];
+    this.removedWastage = [];
+
+    this.journalEngine = new JournalEngine(this);
+    this.salesReports = new SalesReportsEngine(this);
+    this.expenseReports = new ExpenseReportsEngine(this);
+    this.purchaseReports = new PurchaseReportsEngine(this);
+    this.inventoryReports = new InventoryReportsEngine(this);
+    this.dailyClosing = new DailyClosingEngine(this);
+    this.biInsights = new BusinessIntelligenceEngine(this);
 
     this.loadPersistedData();
-    if (this.orders.length === 0 && !this._ordersFileExisted) {
-      this.initSeedData();
-    }
+    this.syncTablesWithOrders();
     this._scheduleMidnightReset();
     // Auto-resume paused stalls when their timer expires
     const _autoResumeInterval = setInterval(() => {
@@ -181,6 +212,81 @@ class Database {
         } catch (e) { console.error('Error loading cart reservations:', e); }
       }
       this._purgeExpiredCartReservations();
+
+      // Load inventory movements
+      if (fs.existsSync(MOVEMENTS_FILE)) {
+        try {
+          const raw = fs.readFileSync(MOVEMENTS_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.inventoryMovements = parsed;
+        } catch (e) { console.error('Error loading inventory movements:', e); }
+      }
+
+      // Load recipes
+      if (fs.existsSync(RECIPES_FILE)) {
+        try {
+          const raw = fs.readFileSync(RECIPES_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') this.recipes = parsed;
+        } catch (e) { console.error('Error loading recipes:', e); }
+      }
+
+      // Load cash reconciliations
+      if (fs.existsSync(CASH_RECONCILIATION_FILE)) {
+        try {
+          const raw = fs.readFileSync(CASH_RECONCILIATION_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.cashReconciliations = parsed;
+        } catch (e) { console.error('Error loading cash reconciliations:', e); }
+      }
+
+      // Load void requests
+      if (fs.existsSync(VOID_REQUESTS_FILE)) {
+        try {
+          const rawVoid = fs.readFileSync(VOID_REQUESTS_FILE, 'utf-8');
+          const parsed = JSON.parse(rawVoid);
+          if (Array.isArray(parsed)) this.voidRequests = parsed;
+        } catch (e) {
+          console.error('Error loading void requests:', e);
+          this.voidRequests = [];
+        }
+      }
+
+      // Load reset history
+      if (fs.existsSync(RESET_HISTORY_FILE)) {
+        try {
+          const raw = fs.readFileSync(RESET_HISTORY_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.resetHistory = parsed;
+        } catch (e) { this.resetHistory = []; }
+      }
+
+      // Load archived orders
+      if (fs.existsSync(ARCHIVED_ORDERS_FILE)) {
+        try {
+          const raw = fs.readFileSync(ARCHIVED_ORDERS_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.archivedOrders = parsed;
+        } catch (e) { this.archivedOrders = []; }
+      }
+
+      // Load archived void requests
+      if (fs.existsSync(ARCHIVED_VOID_REQUESTS_FILE)) {
+        try {
+          const raw = fs.readFileSync(ARCHIVED_VOID_REQUESTS_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.archivedVoidRequests = parsed;
+        } catch (e) { this.archivedVoidRequests = []; }
+      }
+
+      // Load removed wastage
+      if (fs.existsSync(REMOVED_WASTAGE_FILE)) {
+        try {
+          const raw = fs.readFileSync(REMOVED_WASTAGE_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) this.removedWastage = parsed;
+        } catch (e) { this.removedWastage = []; }
+      }
 
       // Load or initialize customization config
       const defaultCustomizationConfig = {
@@ -318,9 +424,65 @@ class Database {
       fs.writeFileSync(EXPENSES_FILE, JSON.stringify(this.expenses, null, 2), 'utf-8');
       fs.writeFileSync(REVIEWS_FILE, JSON.stringify(this.reviews, null, 2), 'utf-8');
       fs.writeFileSync(PURCHASES_FILE, JSON.stringify(this.purchases, null, 2), 'utf-8');
+      fs.writeFileSync(MOVEMENTS_FILE, JSON.stringify(this.inventoryMovements, null, 2), 'utf-8');
+      fs.writeFileSync(CASH_RECONCILIATION_FILE, JSON.stringify(this.cashReconciliations, null, 2), 'utf-8');
+      fs.writeFileSync(VOID_REQUESTS_FILE, JSON.stringify(this.voidRequests, null, 2), 'utf-8');
+      fs.writeFileSync(RESET_HISTORY_FILE, JSON.stringify(this.resetHistory, null, 2), 'utf-8');
+      fs.writeFileSync(ARCHIVED_ORDERS_FILE, JSON.stringify(this.archivedOrders, null, 2), 'utf-8');
+      fs.writeFileSync(ARCHIVED_VOID_REQUESTS_FILE, JSON.stringify(this.archivedVoidRequests, null, 2), 'utf-8');
+      fs.writeFileSync(REMOVED_WASTAGE_FILE, JSON.stringify(this.removedWastage, null, 2), 'utf-8');
     } catch (e) {
       console.error('Error saving persisted data:', e);
     }
+  }
+
+  _saveResetHistory() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(RESET_HISTORY_FILE, JSON.stringify(this.resetHistory, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving reset history:', e); }
+  }
+
+  _saveArchivedOrders() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(ARCHIVED_ORDERS_FILE, JSON.stringify(this.archivedOrders, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving archived orders:', e); }
+  }
+
+  _saveArchivedVoidRequests() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(ARCHIVED_VOID_REQUESTS_FILE, JSON.stringify(this.archivedVoidRequests, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving archived void requests:', e); }
+  }
+
+  _saveRemovedWastage() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(REMOVED_WASTAGE_FILE, JSON.stringify(this.removedWastage, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving removed wastage:', e); }
+  }
+
+  _saveMovements() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(MOVEMENTS_FILE, JSON.stringify(this.inventoryMovements, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving movements:', e); }
+  }
+
+  _saveCashReconciliations() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(CASH_RECONCILIATION_FILE, JSON.stringify(this.cashReconciliations, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving cash reconciliations:', e); }
+  }
+
+  _saveRecipes() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(RECIPES_FILE, JSON.stringify(this.recipes, null, 2), 'utf-8');
+    } catch (e) { console.error('Error saving recipes:', e); }
   }
 
   _saveInventory() {
@@ -520,6 +682,50 @@ class Database {
       session,
       activeOrders
     };
+  }
+
+  syncTablesWithOrders() {
+    const activeOrderMap = new Map();
+    const todayStr = getDhakaDateParts(new Date()).dateStr;
+    const tableSpentToday = new Map();
+
+    for (const order of (this.orders || [])) {
+      if (!order.tableId) continue;
+      const tId = String(order.tableId).trim().toUpperCase();
+      const orderDate = order.paidAt ? getDhakaDateParts(new Date(order.paidAt)).dateStr : (order.createdAt ? getDhakaDateParts(new Date(order.createdAt)).dateStr : todayStr);
+      
+      if (orderDate === todayStr && order.paymentStatus === 'PAID' && order.status !== 'CANCELLED' && order.status !== 'VOIDED') {
+        tableSpentToday.set(tId, (tableSpentToday.get(tId) || 0) + (Number(order.grandTotal) || 0));
+      }
+
+      if (order.status !== 'DELIVERED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && order.status !== 'VOIDED') {
+        if (!activeOrderMap.has(tId)) {
+          activeOrderMap.set(tId, order);
+        }
+      }
+    }
+
+    for (const table of (this.tables || [])) {
+      const activeOrder = activeOrderMap.get(table.id.toUpperCase());
+      table.totalSpentToday = tableSpentToday.get(table.id.toUpperCase()) || 0;
+      if (activeOrder) {
+        table.activeOrderToken = activeOrder.token;
+        table.currentSessionId = activeOrder.sessionId || table.currentSessionId || `sess-${table.id.toLowerCase()}`;
+        if (activeOrder.paymentStatus === 'PAYMENT DUE' || activeOrder.status === 'PAYMENT DUE') {
+          table.status = 'PAYMENT DUE';
+        } else if (activeOrder.status === 'READY') {
+          table.status = 'READY';
+        } else if (activeOrder.status === 'PREPARING') {
+          table.status = 'PREPARING';
+        } else {
+          table.status = 'ACTIVE';
+        }
+      } else {
+        table.status = 'AVAILABLE';
+        table.currentSessionId = null;
+        table.activeOrderToken = null;
+      }
+    }
   }
 
   updateTableStatus(id, status) {
@@ -851,15 +1057,18 @@ class Database {
     paymentMethod = null,
     couponCode = null,
     cartSessionId = null,
-    guestCount = 0
+    guestCount = 0,
+    clientId = null
   }) {
+    const invalidOrder = message => Object.assign(new Error(message), { statusCode: 400 });
+
     if (!serviceType || (serviceType !== "SELF_SERVICE" && serviceType !== "TABLE_SERVICE")) {
-      throw new Error("Please select Self-Service or Table Service to continue.");
+      throw invalidOrder("Please select Self-Service or Table Service to continue.");
     }
 
     const validPaymentMethods = ["bKash", "Online Card", "NFC / Contactless", "CASH"];
     if (!paymentMethod || !validPaymentMethods.includes(paymentMethod)) {
-      throw new Error("Please select a payment method to continue.");
+      throw invalidOrder("Please select a payment method to continue.");
     }
 
     // Generate sequential customer token
@@ -871,32 +1080,32 @@ class Database {
     let subtotal = 0;
 
     if (!Array.isArray(rawItems) || rawItems.length === 0 || rawItems.length > 50) {
-      throw new Error("Cart must contain between 1 and 50 items.");
+      throw invalidOrder("Cart must contain between 1 and 50 items.");
     }
 
     for (const raw of rawItems) {
       if (!raw || typeof raw !== "object" || Array.isArray(raw) ||
           typeof raw.menuItemId !== "string" || raw.menuItemId.length > 100) {
-        throw new Error("Each cart item must include a valid menu item ID.");
+        throw invalidOrder("Each cart item must include a valid menu item ID.");
       }
       const quantity = raw.quantity === undefined ? 1 : raw.quantity;
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
-        throw new Error("Item quantity must be a whole number between 1 and 99.");
+        throw invalidOrder("Item quantity must be a whole number between 1 and 99.");
       }
       const dbItem = this.getMenuItem(raw.menuItemId);
       if (!dbItem) {
-        throw new Error(`Selected item (ID: ${raw.menuItemId}) not found in menu.`);
+        throw invalidOrder(`Selected item (ID: ${raw.menuItemId}) not found in menu.`);
       }
       let weight = null;
       if (dbItem.isWeightBased) {
         weight = raw.weight === undefined || raw.weight === null ? 400 : raw.weight;
         if (!Number.isInteger(weight) || weight < 1 || weight > 10000) {
-          throw new Error("Item weight must be a whole number between 1g and 10000g.");
+          throw invalidOrder("Item weight must be a whole number between 1g and 10000g.");
         }
       }
       const inv = this.inventory[dbItem.id];
       if (inv?.manuallyDisabled) {
-        throw new Error(`"${dbItem.name}" is currently unavailable. Please remove it from your tray.`);
+        throw invalidOrder(`"${dbItem.name}" is currently unavailable. Please remove it from your tray.`);
       }
       if (dbItem.isAvailable === false) {
         if (inv && inv.preparedQty !== null && inv.preparedQty !== undefined) {
@@ -907,17 +1116,17 @@ class Database {
             const msg = canOrder > 0
               ? `Only ${canOrder} ${portionWord} available. Please reduce your quantity by ${excess}.`
               : `"${dbItem.name}" is currently out of stock (Stock Out). Please remove it from your tray.`;
-            throw new Error(msg);
+            throw invalidOrder(msg);
           }
         } else {
-          throw new Error(`"${dbItem.name}" is currently out of stock (Stock Out). Please remove it from your tray.`);
+          throw invalidOrder(`"${dbItem.name}" is currently out of stock (Stock Out). Please remove it from your tray.`);
         }
       }
       // Check stall pause status
       const stallPauseStatus = this.getStallStatus(dbItem.stallId);
       if (stallPauseStatus.isPaused) {
         const stallInfo = this.stalls.find(s => s.id === dbItem.stallId);
-        throw new Error(`"${stallInfo?.name || dbItem.stallId}" is temporarily unavailable. Please remove its items from your tray or try again later.`);
+        throw invalidOrder(`"${stallInfo?.name || dbItem.stallId}" is temporarily unavailable. Please remove its items from your tray or try again later.`);
       }
 
       let itemPrice = dbItem.price;
@@ -996,7 +1205,7 @@ class Database {
           const msg = maxCanOrder > 0
             ? `Only ${maxCanOrder} ${portionWord} available. Please reduce your quantity by ${excess}.`
             : `This item is out of stock. Please reduce your quantity by ${excess}.`;
-          throw new Error(msg);
+          throw invalidOrder(msg);
         }
         reservationsToApply.push({
           menuItemId: item.menuItemId,
@@ -1083,8 +1292,8 @@ class Database {
     const resolvedCustomerOrderType = isTakeaway ? "TAKEAWAY" : "DINE_IN";
     const resolvedType = isTakeaway ? "PARCEL" : "DINE_IN";
     const orderTypeExactLabel = isTakeaway
-      ? "Takeaway → Carryout parcel box"
-      : "Dine-in → Hall / Table dining";
+      ? "Takeaway"
+      : "Dine-in";
 
     // Active session linkage
     let sessionId = null;
@@ -1097,6 +1306,7 @@ class Database {
 
     const order = {
       id: orderId,
+      clientId: clientId || cartSessionId || null,
       token: tokenNum,
       invoiceNo: String(88000 + Number(tokenNum)),
       guestCount: Number.isInteger(guestCount) && guestCount > 0 ? guestCount : 0,
@@ -1162,15 +1372,51 @@ class Database {
     }
   }
 
+  recordStockMovement(mov) {
+    if (!this.inventoryMovements) this.inventoryMovements = [];
+    const dateParts = getDhakaDateParts(new Date());
+    const fullMovement = {
+      id: 'mov-' + randomUUID().slice(0, 10),
+      timestamp: new Date().toISOString(),
+      date: mov.date || dateParts.dateStr,
+      menuItemId: mov.menuItemId,
+      itemName: mov.itemName || 'Inventory Item',
+      stallId: mov.stallId || null,
+      unit: mov.unit || 'portion',
+      movementType: mov.movementType, // 'SALES_CONSUMPTION' | 'PURCHASE_RECEIPT' | 'WASTAGE' | 'DAMAGE' | 'ADJUSTMENT' | 'SUPPLIER_RETURN'
+      quantityIn: Number(mov.quantityIn) || 0,
+      quantityOut: Number(mov.quantityOut) || 0,
+      previousBalance: Number(mov.previousBalance) || 0,
+      newBalance: Number(mov.newBalance) || 0,
+      unitCost: Number(mov.unitCost) || 0,
+      totalValue: Number(mov.totalValue) || 0,
+      refNo: mov.refNo || '',
+      user: mov.user || 'System',
+      notes: mov.notes || ''
+    };
+    this.inventoryMovements.unshift(fullMovement);
+    if (this.inventoryMovements.length > 2000) this.inventoryMovements.pop();
+    this._saveMovements();
+    return fullMovement;
+  }
+
+  getRecipe(menuItemId) {
+    return this.recipes?.[menuItemId] || null;
+  }
+
   _deductInventory(order) {
     // Move from reserved to sold (actual deduction at kitchen release)
     let changed = false;
     for (const item of (order.items || [])) {
       const inv = this.inventory[item.menuItemId];
       if (!inv || inv.preparedQty === null || inv.preparedQty === undefined) continue;
+      
+      const prevBal = Math.max(0, inv.preparedQty - (inv.soldQty || 0));
       inv.reservedQty = Math.max(0, (inv.reservedQty || 0) - item.quantity);
       inv.soldQty = (inv.soldQty || 0) + item.quantity;
-      const available = Math.max(0, inv.preparedQty - (inv.soldQty || 0) - (inv.reservedQty || 0));
+      const newBal = Math.max(0, inv.preparedQty - (inv.soldQty || 0));
+      const available = Math.max(0, newBal - (inv.reservedQty || 0));
+
       const menuItem = this.menuItems.find(m => m.id === item.menuItemId);
       if (menuItem && !inv.manuallyDisabled) {
         menuItem.isAvailable = available > 0;
@@ -1178,6 +1424,24 @@ class Database {
           this.logAudit('STOCK_OUT', `"${menuItem.name}" is now Stock Out (${inv.soldQty} sold of ${inv.preparedQty} prepared)`, { menuItemId: item.menuItemId });
         }
       }
+
+      this.recordStockMovement({
+        menuItemId: item.menuItemId,
+        itemName: item.name,
+        stallId: item.stallId,
+        unit: menuItem?.unit || 'portion',
+        movementType: 'SALES_CONSUMPTION',
+        quantityIn: 0,
+        quantityOut: item.quantity,
+        previousBalance: prevBal,
+        newBalance: newBal,
+        unitCost: Number(inv.unitCost) || Math.round((Number(item.price) || 100) * 0.45),
+        totalValue: (item.quantity) * (Number(inv.unitCost) || Math.round((Number(item.price) || 100) * 0.45)),
+        refNo: `ORD-${order.token}`,
+        user: order.confirmedBy || 'Central Counter',
+        notes: `Order #${order.token} kitchen release`
+      });
+
       changed = true;
     }
     if (changed) {
@@ -1188,12 +1452,32 @@ class Database {
   }
 
   _reverseInventoryDeduction(order) {
-    // Reverse a deduction (used for refunds)
+    // Reverse a deduction (used for refunds) - Idempotency guard: prevent duplicate reversals
+    if (order._inventoryReversed) return;
+    order._inventoryReversed = true;
     let changed = false;
     for (const item of (order.items || [])) {
       const inv = this.inventory[item.menuItemId];
       if (!inv || inv.preparedQty === null || inv.preparedQty === undefined) continue;
+      
+      const prevBal = Math.max(0, inv.preparedQty - (inv.soldQty || 0));
       inv.soldQty = Math.max(0, (inv.soldQty || 0) - item.quantity);
+      const newBal = Math.max(0, inv.preparedQty - (inv.soldQty || 0));
+
+      this.recordStockMovement({
+        menuItemId: item.menuItemId,
+        itemName: item.name,
+        stallId: item.stallId,
+        movementType: 'SUPPLIER_RETURN',
+        quantityIn: item.quantity,
+        quantityOut: 0,
+        previousBalance: prevBal,
+        newBalance: newBal,
+        refNo: `REF-${order.token}`,
+        user: 'Manager',
+        notes: `Refund cancellation return for Order #${order.token}`
+      });
+
       changed = true;
     }
     if (changed) {
@@ -1373,6 +1657,634 @@ class Database {
     eventBus.broadcast("financial_updated", this.getDailyFinancialSummary(order.paidAt ? getDhakaDateParts(new Date(order.paidAt)).dateStr : undefined));
     eventBus.broadcast("analytics_updated", this.getAnalyticsSummary());
     return order;
+  }
+
+  // =========================================================================
+  // --- Manager-Approved Void & Order Cancellation System ---
+  // =========================================================================
+  createVoidRequest({
+    orderId,
+    requestType,
+    reason,
+    cashierId = 'usr-cashier',
+    cashierName = 'Counter Cashier',
+    cashierRole = 'CASHIER',
+    requestDetails = {}
+  }) {
+    const order = this.getOrder(orderId);
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    if (order.status === 'CANCELLED') {
+      throw new Error('Order is already cancelled');
+    }
+
+    const validTypes = ['FULL_CANCELLATION', 'ITEM_CANCELLATION', 'QUANTITY_CORRECTION', 'ORDER_MODIFICATION'];
+    if (!validTypes.includes(requestType)) {
+      throw new Error(`Invalid void request type: ${requestType}`);
+    }
+
+    if (!reason || reason.trim().length < 3) {
+      throw new Error('A detailed reason for the void/cancellation request is required.');
+    }
+
+    // Check for existing pending void request on this order
+    const existingPending = this.voidRequests.find(v => v.orderId === orderId && v.status === 'PENDING');
+    if (existingPending) {
+      throw new Error(`A ${existingPending.requestType} request is already pending manager approval for this order (Token #${order.token}).`);
+    }
+
+    // Calculate proposed financial and item impacts
+    let newSubtotal = order.subtotal;
+    let newGrandTotal = order.grandTotal;
+    let differenceAmount = 0;
+    let refundRequired = false;
+    let refundAmount = 0;
+
+    if (requestType === 'FULL_CANCELLATION') {
+      newSubtotal = 0;
+      newGrandTotal = 0;
+      differenceAmount = order.grandTotal;
+      if (order.paymentStatus === 'PAID') {
+        refundRequired = true;
+        refundAmount = order.grandTotal;
+      }
+    } else if (requestType === 'ITEM_CANCELLATION') {
+      const itemsToRemove = requestDetails.itemsToRemove || [];
+      if (!Array.isArray(itemsToRemove) || itemsToRemove.length === 0) {
+        throw new Error('Please select at least one item to cancel.');
+      }
+      const removalPrice = itemsToRemove.reduce((sum, it) => sum + ((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0);
+      newSubtotal = Math.max(0, order.subtotal - removalPrice);
+      const isTableService = order.serviceType === 'TABLE_SERVICE';
+      const waiterCharge = isTableService ? Math.round(newSubtotal * 0.05) : 0;
+      newGrandTotal = Math.max(0, newSubtotal - (order.discount || 0) + waiterCharge);
+      differenceAmount = Math.max(0, order.grandTotal - newGrandTotal);
+      if (order.paymentStatus === 'PAID' && differenceAmount > 0) {
+        refundRequired = true;
+        refundAmount = differenceAmount;
+      }
+    } else if (requestType === 'QUANTITY_CORRECTION') {
+      const corrections = requestDetails.corrections || requestDetails.correctedItems || [];
+      if (!Array.isArray(corrections) || corrections.length === 0) {
+        throw new Error('Please provide at least one quantity correction.');
+      }
+      let subtotalAdjustment = 0;
+      for (const corr of corrections) {
+        const item = (order.items || []).find(it => it.menuItemId === corr.menuItemId || it.id === corr.id);
+        if (!item) continue;
+        const oldQty = Number(corr.oldQuantity ?? corr.originalQuantity ?? item.quantity);
+        const newQty = Number(corr.newQuantity ?? corr.requestedQuantity);
+        if (isNaN(newQty) || newQty < 0) {
+          throw new Error(`Invalid new quantity ${corr.newQuantity ?? corr.requestedQuantity} for ${item.name}`);
+        }
+        if (newQty > oldQty) {
+          throw new Error('Quantity correction can only decrease quantity. If customer wants more items, place a new additional order.');
+        }
+        const unitPrice = Number(item.price) || Number(corr.unitPrice ?? corr.price) || 0;
+        const diffQty = oldQty - newQty;
+        subtotalAdjustment += diffQty * unitPrice;
+      }
+      newSubtotal = Math.max(0, order.subtotal - subtotalAdjustment);
+      const isTableService = order.serviceType === 'TABLE_SERVICE';
+      const waiterCharge = isTableService ? Math.round(newSubtotal * 0.05) : 0;
+      newGrandTotal = Math.max(0, newSubtotal - (order.discount || 0) + waiterCharge);
+      differenceAmount = Math.max(0, order.grandTotal - newGrandTotal);
+      if (order.paymentStatus === 'PAID' && differenceAmount > 0) {
+        refundRequired = true;
+        refundAmount = differenceAmount;
+      }
+    } else if (requestType === 'ORDER_MODIFICATION') {
+      newSubtotal = order.subtotal;
+      newGrandTotal = order.grandTotal;
+    }
+
+    const proposedImpact = {
+      newSubtotal,
+      newGrandTotal,
+      differenceAmount,
+      refundRequired,
+      refundAmount
+    };
+
+    const voidRequest = {
+      id: 'void-' + randomUUID(),
+      orderId: order.id,
+      invoiceNo: order.invoiceNo || order.token,
+      token: order.token,
+      tableId: order.tableId || null,
+      orderType: order.customerOrderType || (order.type === 'PARCEL' ? 'TAKEAWAY' : 'DINE_IN'),
+      requestType,
+      status: 'PENDING',
+      reason: reason.trim(),
+      cashierId,
+      cashierName,
+      cashierRole,
+      requestedAt: new Date().toISOString(),
+      resolvedAt: null,
+      resolvedBy: null,
+      resolverId: null,
+      resolverRole: null,
+      resolutionReason: null,
+      originalSnapshot: {
+        items: JSON.parse(JSON.stringify(order.items || [])),
+        subtotal: order.subtotal,
+        discount: order.discount || 0,
+        tax: order.tax || 0,
+        serviceCharge: order.serviceCharge || 0,
+        grandTotal: order.grandTotal,
+        paymentStatus: order.paymentStatus,
+        paymentMethod: order.paymentMethod,
+        orderStatus: order.status,
+        kotGenerated: Boolean(order.kotGenerated),
+        kotNumber: order.kotNumber || null,
+        stalls: JSON.parse(JSON.stringify(order.stalls || []))
+      },
+      requestDetails,
+      proposedImpact,
+      executionResult: null
+    };
+
+    this.voidRequests.unshift(voidRequest);
+
+    // Update order state without altering original items or totals (Safety rule)
+    order.voidStatus = 'PENDING';
+    order.pendingVoidRequestId = voidRequest.id;
+    if (!Array.isArray(order.voidHistory)) order.voidHistory = [];
+    order.voidHistory.push(voidRequest.id);
+
+    order.history.push({
+      status: order.status,
+      time: new Date().toISOString(),
+      note: `[Void Request Submitted] ${requestType} requested by Cashier ${cashierName} (${cashierRole}). Reason: ${reason} (Awaiting Manager Approval)`
+    });
+
+    this.saveData();
+
+    this.logAudit(
+      'VOID_REQUEST_CREATED',
+      `Void Request ${voidRequest.id} (${requestType}) submitted by ${cashierName} for Order #${order.token} (Table ${order.tableId || 'Takeaway'}). Reason: ${reason}`,
+      {
+        voidRequestId: voidRequest.id,
+        orderId: order.id,
+        token: order.token,
+        requestType,
+        reason,
+        cashierName,
+        proposedImpact
+      },
+      cashierName
+    );
+
+    // Real-time broadcast: alerts Manager and Chief Administrator
+    eventBus.broadcast('void_request_created', voidRequest);
+    eventBus.broadcast('order_updated', order);
+
+    return voidRequest;
+  }
+
+  getVoidRequests({ status, orderId } = {}) {
+    let list = [...this.voidRequests];
+    if (status && status !== 'ALL') {
+      list = list.filter(v => v.status === status);
+    }
+    if (orderId) {
+      list = list.filter(v => v.orderId === orderId);
+    }
+    return list;
+  }
+
+  getVoidRequest(id) {
+    return this.voidRequests.find(v => v.id === id) || null;
+  }
+
+  approveVoidRequest(id, { resolverId = 'usr-admin', resolverName = 'Manager', resolverRole = 'MANAGER', approvalNote = '' } = {}) {
+    const authorizedRoles = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    if (!authorizedRoles.includes(resolverRole)) {
+      throw new Error(`Unauthorized: Role "${resolverRole}" does not have manager/chief administrator void approval authority.`);
+    }
+
+    const voidReq = this.getVoidRequest(id);
+    if (!voidReq) {
+      throw new Error('Void request not found');
+    }
+
+    if (voidReq.status !== 'PENDING') {
+      throw new Error(`Void request is already ${voidReq.status} and cannot be processed again.`);
+    }
+
+    const order = this.getOrder(voidReq.orderId);
+    if (!order) {
+      throw new Error('Order associated with this void request not found');
+    }
+
+    const nowIso = new Date().toISOString();
+    let refundRecorded = false;
+    let refundAmount = 0;
+    let refundTransactionId = null;
+    let inventoryRestored = false;
+    const inventoryItemsAdjusted = [];
+    const stallsNotified = [];
+
+    // --- 1. FULL CANCELLATION EXECUTION ---
+    if (voidReq.requestType === 'FULL_CANCELLATION') {
+      order.status = 'CANCELLED';
+      order.cancellationReason = `Approved Void Request: ${voidReq.reason} (Approved by ${resolverName} [${resolverRole}])`;
+
+      // Update stall sub-orders
+      for (const stall of (order.stalls || [])) {
+        stall.status = 'CANCELLED';
+        stallsNotified.push(stall.stallId);
+      }
+
+      // Financial handling: If already paid, issue refund
+      if (order.paymentStatus === 'PAID') {
+        refundAmount = order.grandTotal;
+        refundRecorded = true;
+        refundTransactionId = `REF-${Date.now().toString().slice(-6)}`;
+        order.paymentStatus = 'REFUNDED';
+        order.refundDetails = {
+          refundedAmount: refundAmount,
+          refundAmount,
+          refundedAt: nowIso,
+          refundedBy: resolverName,
+          reason: voidReq.reason,
+          paymentMethod: order.paymentMethod,
+          transactionId: refundTransactionId
+        };
+      } else {
+        order.paymentStatus = 'CANCELLED';
+      }
+
+      // Inventory handling:
+      if (order.paymentStatus === 'REFUNDED') {
+        this._reverseInventoryDeduction(order);
+        inventoryRestored = true;
+        for (const it of (order.items || [])) {
+          inventoryItemsAdjusted.push({ menuItemId: it.menuItemId, qtyRestored: it.quantity });
+        }
+      } else {
+        this._releaseInventoryReservation(order);
+        inventoryRestored = true;
+      }
+
+      // KOT & Kitchen Notification
+      if (order.kotGenerated) {
+        eventBus.broadcast('stall_order_voided', {
+          orderId: order.id,
+          token: order.token,
+          tableId: order.tableId,
+          reason: voidReq.reason,
+          approvedBy: resolverName
+        });
+      }
+
+      order.history.push({
+        status: 'CANCELLED',
+        time: nowIso,
+        note: `[Void Approved] Full Order Cancellation approved by ${resolverName} (${resolverRole}). Reason: ${voidReq.reason}. ${refundRecorded ? `Refund ৳${refundAmount} recorded.` : ''}`
+      });
+    }
+
+    // --- 2. QUANTITY CORRECTION EXECUTION ---
+    else if (voidReq.requestType === 'QUANTITY_CORRECTION') {
+      const corrections = voidReq.requestDetails.corrections || voidReq.requestDetails.correctedItems || [];
+      const originalGrandTotal = order.grandTotal;
+
+      for (const corr of corrections) {
+        const item = (order.items || []).find(it => it.menuItemId === corr.menuItemId || it.id === corr.id);
+        if (!item) continue;
+        const oldQty = Number(item.quantity);
+        const newQty = Number(corr.newQuantity ?? corr.requestedQuantity);
+        const diffQty = Math.max(0, oldQty - newQty);
+        item.quantity = newQty;
+
+        // Also adjust stall sub-order item
+        for (const stall of (order.stalls || [])) {
+          const stallItem = (stall.items || []).find(it => it.menuItemId === corr.menuItemId || it.id === corr.id);
+          if (stallItem) {
+            stallItem.quantity = newQty;
+            stallsNotified.push(stall.stallId);
+          }
+        }
+
+        // Adjust inventory exactly once
+        if (diffQty > 0) {
+          const inv = this.inventory[item.menuItemId];
+          if (inv) {
+            if (order.paymentStatus === 'PAID') {
+              inv.soldQty = Math.max(0, (inv.soldQty || 0) - diffQty);
+            } else {
+              inv.reservedQty = Math.max(0, (inv.reservedQty || 0) - diffQty);
+            }
+          }
+          inventoryItemsAdjusted.push({ menuItemId: item.menuItemId, qtyRestored: diffQty });
+          inventoryRestored = true;
+
+          this.recordStockMovement({
+            menuItemId: item.menuItemId,
+            itemName: item.name,
+            stallId: item.stallId,
+            movementType: 'SUPPLIER_RETURN',
+            quantityIn: diffQty,
+            quantityOut: 0,
+            previousBalance: inv ? Math.max(0, inv.preparedQty - (inv.soldQty || 0) - diffQty) : 0,
+            newBalance: inv ? Math.max(0, inv.preparedQty - (inv.soldQty || 0)) : 0,
+            refNo: `VOID-CORR-${order.token}`,
+            user: resolverName,
+            notes: `Void qty correction Order #${order.token} by ${resolverName} (${resolverRole})`
+          });
+        }
+      }
+
+      // Recompute subtotal, waiter service charge, and grand total
+      const newSubtotal = order.items.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+      const isTableService = order.serviceType === 'TABLE_SERVICE';
+      const waiterCharge = isTableService ? Math.round(newSubtotal * 0.05) : 0;
+      const newGrandTotal = Math.max(0, newSubtotal - (order.discount || 0) + waiterCharge);
+      const diffAmount = Math.max(0, originalGrandTotal - newGrandTotal);
+
+      order.subtotal = newSubtotal;
+      order.serviceCharge = waiterCharge;
+      order.grandTotal = newGrandTotal;
+
+      if (order.paymentStatus === 'PAID' && diffAmount > 0) {
+        refundAmount = diffAmount;
+        refundRecorded = true;
+        refundTransactionId = `PARTIAL-REF-${Date.now().toString().slice(-6)}`;
+        if (!Array.isArray(order.refunds)) order.refunds = [];
+        order.refunds.push({
+          refundAmount,
+          refundedAt: nowIso,
+          refundedBy: resolverName,
+          reason: `Quantity correction: ${voidReq.reason}`,
+          paymentMethod: order.paymentMethod,
+          transactionId: refundTransactionId
+        });
+        order.refundDetails = {
+          refundedAmount: order.refunds.reduce((s, r) => s + (r.refundAmount || 0), 0),
+          refundedAt: nowIso,
+          refundedBy: resolverName,
+          reason: `Quantity correction: ${voidReq.reason}`,
+          voidRequestId: voidReq.id
+        };
+        order.paymentStatus = 'PARTIALLY_REFUNDED';
+      }
+
+      eventBus.broadcast('stall_order_modified', {
+        orderId: order.id,
+        token: order.token,
+        tableId: order.tableId,
+        corrections,
+        newGrandTotal,
+        approvedBy: resolverName
+      });
+
+      order.history.push({
+        status: order.status,
+        time: nowIso,
+        note: `[Void Approved] Quantity correction approved by ${resolverName} (${resolverRole}). New Total: ৳${newGrandTotal}. ${refundRecorded ? `Refund ৳${refundAmount} due to customer.` : ''}`
+      });
+    }
+
+    // --- 3. ITEM CANCELLATION EXECUTION ---
+    else if (voidReq.requestType === 'ITEM_CANCELLATION') {
+      const itemsToRemove = voidReq.requestDetails.itemsToRemove || [];
+      const originalGrandTotal = order.grandTotal;
+      const removeIds = new Set(itemsToRemove.map(it => it.menuItemId || it.id));
+
+      for (const it of itemsToRemove) {
+        const inv = this.inventory[it.menuItemId];
+        const qtyToRestore = Number(it.quantity) || 1;
+        if (inv) {
+          if (order.paymentStatus === 'PAID') {
+            inv.soldQty = Math.max(0, (inv.soldQty || 0) - qtyToRestore);
+          } else {
+            inv.reservedQty = Math.max(0, (inv.reservedQty || 0) - qtyToRestore);
+          }
+        }
+        inventoryItemsAdjusted.push({ menuItemId: it.menuItemId, qtyRestored: qtyToRestore });
+        inventoryRestored = true;
+
+        this.recordStockMovement({
+          menuItemId: it.menuItemId,
+          itemName: it.name || 'Voided Dish',
+          stallId: it.stallId,
+          movementType: 'SUPPLIER_RETURN',
+          quantityIn: qtyToRestore,
+          quantityOut: 0,
+          previousBalance: inv ? Math.max(0, inv.preparedQty - (inv.soldQty || 0) - qtyToRestore) : 0,
+          newBalance: inv ? Math.max(0, inv.preparedQty - (inv.soldQty || 0)) : 0,
+          refNo: `VOID-ITEM-${order.token}`,
+          user: resolverName,
+          notes: `Item voided Order #${order.token} by ${resolverName} (${resolverRole})`
+        });
+      }
+
+      order.items = (order.items || []).filter(it => !removeIds.has(it.menuItemId) && !removeIds.has(it.id));
+
+      for (const stall of (order.stalls || [])) {
+        stall.items = (stall.items || []).filter(it => !removeIds.has(it.menuItemId) && !removeIds.has(it.id));
+        stallsNotified.push(stall.stallId);
+      }
+
+      const newSubtotal = order.items.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+      const isTableService = order.serviceType === 'TABLE_SERVICE';
+      const waiterCharge = isTableService ? Math.round(newSubtotal * 0.05) : 0;
+      const newGrandTotal = Math.max(0, newSubtotal - (order.discount || 0) + waiterCharge);
+      const diffAmount = Math.max(0, originalGrandTotal - newGrandTotal);
+
+      order.subtotal = newSubtotal;
+      order.serviceCharge = waiterCharge;
+      order.grandTotal = newGrandTotal;
+
+      if (order.paymentStatus === 'PAID' && diffAmount > 0) {
+        refundAmount = diffAmount;
+        refundRecorded = true;
+        refundTransactionId = `PARTIAL-REF-${Date.now().toString().slice(-6)}`;
+        if (!Array.isArray(order.refunds)) order.refunds = [];
+        order.refunds.push({
+          refundAmount,
+          refundedAt: nowIso,
+          refundedBy: resolverName,
+          reason: `Item cancellation: ${voidReq.reason}`,
+          paymentMethod: order.paymentMethod,
+          transactionId: refundTransactionId
+        });
+      }
+
+      order.history.push({
+        status: order.status,
+        time: nowIso,
+        note: `[Void Approved] Item cancellation approved by ${resolverName} (${resolverRole}). New Total: ৳${newGrandTotal}. ${refundRecorded ? `Refund ৳${refundAmount} due to customer.` : ''}`
+      });
+    }
+
+    // --- 4. ORDER MODIFICATION EXECUTION ---
+    else if (voidReq.requestType === 'ORDER_MODIFICATION') {
+      if (voidReq.requestDetails.notes) {
+        order.customerNotes = voidReq.requestDetails.notes;
+      }
+      order.history.push({
+        status: order.status,
+        time: nowIso,
+        note: `[Void Approved] Order modification approved by ${resolverName} (${resolverRole}).`
+      });
+    }
+
+    // Finalize void request state
+    voidReq.status = 'APPROVED';
+    voidReq.resolvedAt = nowIso;
+    voidReq.resolvedBy = resolverName;
+    voidReq.resolverId = resolverId;
+    voidReq.resolverRole = resolverRole;
+    voidReq.resolutionReason = approvalNote || 'Approved by Manager';
+    voidReq.executionResult = {
+      executedAt: nowIso,
+      executedBy: resolverName,
+      refundRecorded,
+      refundAmount,
+      refundTransactionId,
+      inventoryRestored,
+      inventoryItemsAdjusted,
+      stallsNotified: Array.from(new Set(stallsNotified))
+    };
+
+    order.voidStatus = 'APPROVED';
+    order.pendingVoidRequestId = null;
+
+    this.saveData();
+
+    this.logAudit(
+      'VOID_REQUEST_APPROVED',
+      `Void Request ${voidReq.id} (${voidReq.requestType}) APPROVED by ${resolverName} (${resolverRole}) for Order #${order.token}. ${refundRecorded ? `Refund: ৳${refundAmount}.` : ''} Note: ${approvalNote || 'None'}`,
+      {
+        voidRequestId: voidReq.id,
+        orderId: order.id,
+        token: order.token,
+        requestType: voidReq.requestType,
+        resolverName,
+        resolverRole,
+        approvalNote,
+        executionResult: voidReq.executionResult
+      },
+      resolverName
+    );
+
+    eventBus.broadcast('void_request_approved', voidReq);
+    eventBus.broadcast('order_updated', order);
+    eventBus.broadcast('revenue_updated', this.getRevenueSummary());
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(order.paidAt ? getDhakaDateParts(new Date(order.paidAt)).dateStr : undefined));
+    eventBus.broadcast('inventory_updated', { orderItems: order.items?.map(i => i.menuItemId) || [] });
+    eventBus.broadcast('analytics_updated', this.getAnalyticsSummary());
+
+    return {
+      success: true,
+      voidRequest: voidReq,
+      order
+    };
+  }
+
+  rejectVoidRequest(id, { resolverId = 'usr-admin', resolverName = 'Manager', resolverRole = 'MANAGER', rejectionReason = 'Rejected by Manager' } = {}) {
+    const authorizedRoles = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    if (!authorizedRoles.includes(resolverRole)) {
+      throw new Error(`Unauthorized: Role "${resolverRole}" does not have manager/chief administrator void approval authority.`);
+    }
+
+    const voidReq = this.getVoidRequest(id);
+    if (!voidReq) {
+      throw new Error('Void request not found');
+    }
+
+    if (voidReq.status !== 'PENDING') {
+      throw new Error(`Void request is already ${voidReq.status} and cannot be processed again.`);
+    }
+
+    const order = this.getOrder(voidReq.orderId);
+    if (!order) {
+      throw new Error('Order associated with this void request not found');
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // Mark Void Request as REJECTED
+    voidReq.status = 'REJECTED';
+    voidReq.resolvedAt = nowIso;
+    voidReq.resolvedBy = resolverName;
+    voidReq.resolverId = resolverId;
+    voidReq.resolverRole = resolverRole;
+    voidReq.resolutionReason = rejectionReason;
+
+    // Safety rule: Original order remains completely UNCHANGED!
+    order.voidStatus = 'REJECTED';
+    order.pendingVoidRequestId = null;
+
+    order.history.push({
+      status: order.status,
+      time: nowIso,
+      note: `[Void Request Rejected] ${voidReq.requestType} request rejected by ${resolverName} (${resolverRole}). Reason: ${rejectionReason}. Original order remains unchanged.`
+    });
+
+    this.saveData();
+
+    this.logAudit(
+      'VOID_REQUEST_REJECTED',
+      `Void Request ${voidReq.id} (${voidReq.requestType}) REJECTED by ${resolverName} (${resolverRole}) for Order #${order.token}. Reason: ${rejectionReason}`,
+      {
+        voidRequestId: voidReq.id,
+        orderId: order.id,
+        token: order.token,
+        requestType: voidReq.requestType,
+        resolverName,
+        resolverRole,
+        rejectionReason
+      },
+      resolverName
+    );
+
+    eventBus.broadcast('void_request_rejected', voidReq);
+    eventBus.broadcast('order_updated', order);
+
+    return {
+      success: true,
+      voidRequest: voidReq,
+      order
+    };
+  }
+
+  resetVoidRequests(user = 'Manager', role = 'MANAGER', reason = 'Manual void register reset') {
+    const authorizedRoles = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    const normRole = (role || '').trim().toUpperCase();
+    if (!authorizedRoles.includes(normRole)) {
+      throw new Error(`Unauthorized: Role "${normRole}" does not have manager/chief administrator void reset authority.`);
+    }
+
+    const count = (this.voidRequests || []).length;
+    if (!this.archivedVoidRequests) this.archivedVoidRequests = [];
+    if (this.voidRequests && this.voidRequests.length > 0) {
+      this.archivedVoidRequests.push(...this.voidRequests);
+      this._saveArchivedVoidRequests();
+    }
+    this.voidRequests = [];
+    this.saveData();
+
+    eventBus.broadcast('void_request_updated', null);
+    eventBus.broadcast('void_request_approved', null);
+    eventBus.broadcast('void_request_rejected', null);
+
+    this.logAudit(
+      'VOID_REQUESTS_RESET',
+      `Void requests register reset by ${user} (${normRole}): ${count} requests archived. Reason: ${reason}`,
+      { resetVoidCount: count, reason },
+      user
+    );
+
+    return {
+      success: true,
+      count,
+      message: `Successfully reset and archived ${count} void requests.`
+    };
   }
 
   // Management Step: Mark individual item unavailable
@@ -1803,6 +2715,7 @@ class Database {
       orderId: order.id,
       token: order.token,
       tableId: order.tableId,
+      clientId: order.clientId || null,
       customerName: order.customerName || null,
       customerPhone: order.customerPhone || null,
       stallId: stall.stallId,
@@ -1816,8 +2729,8 @@ class Database {
       isRepeat
     };
 
-    // Broadcast customer-facing event: triggers sound & modal
-    eventBus.broadcast("stall_ready_confirmed", notificationPayload);
+    // Targeted notification: ONLY notify the specific guest whose order is ready
+    eventBus.notifyGuest(notificationPayload);
     eventBus.broadcast("order_updated", order);
 
     return {
@@ -1987,9 +2900,13 @@ class Database {
     const totalRevenue = rev.daily.revenue;
 
     const activeTables = this.tables.filter(t => t.status !== "AVAILABLE").length;
-    const paymentDueCount = this.orders.filter(o => o.paymentStatus === "PAYMENT DUE" || o.status === "PAYMENT DUE").length;
+    const pendingCount = this.orders.filter(o => o.status === "NEW" || o.status === "UNDER REVIEW" || o.paymentStatus === "PAYMENT DUE").length;
+    const acceptedCount = this.orders.filter(o => o.status === "ACCEPTED" || o.status === "CONFIRMED" || (o.paymentStatus === "PAID" && o.status === "NEW")).length;
     const preparingCount = this.orders.filter(o => o.status === "PREPARING").length;
     const readyCount = this.orders.filter(o => o.status === "READY").length;
+    const completedCount = this.orders.filter(o => o.status === "DELIVERED" || o.status === "COMPLETED").length;
+    const cancelledCount = this.orders.filter(o => o.status === "CANCELLED" || o.status === "VOIDED").length;
+    const paymentDueCount = this.orders.filter(o => o.paymentStatus === "PAYMENT DUE" || o.status === "PAYMENT DUE").length;
     const parcelCount = this.orders.filter(o => o.type === "PARCEL").length;
 
     // Stall-by-stall revenue breakdown
@@ -2027,9 +2944,13 @@ class Database {
       totalOrders,
       totalRevenue,
       activeTables,
-      paymentDueCount,
+      pendingCount,
+      acceptedCount,
       preparingCount,
       readyCount,
+      completedCount,
+      cancelledCount,
+      paymentDueCount,
       parcelCount,
       stallPerformance,
       revenueSummary: rev
@@ -2502,27 +3423,86 @@ class Database {
   }
 
   // ========================================================
-  // PURCHASES (Due Purchases)
+  // PURCHASES (Due Purchases & Extended Workflow)
   // ========================================================
 
-  addPurchase({ supplier, description, category, amount, date, status = 'UNPAID', createdBy = 'Manager' }) {
+  addPurchase({ supplier, description, category, amount, date, status = 'UNPAID', poNumber = null, invoiceNumber = null, expectedDeliveryDate = null, orderStatus = 'ORDERED', paymentMethod = 'CASH', paidAmount = 0, items = [], createdBy = 'Manager' }) {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) throw new Error('Invalid purchase amount');
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Purchase date is required (YYYY-MM-DD)');
+
+    const totalAmt = Math.round(Number(amount));
+    const isPaid = status === 'PAID';
+    const cleanPaid = paidAmount !== undefined ? Math.round(Number(paidAmount)) : (isPaid ? totalAmt : 0);
+    const purchaseId = 'pur-' + randomUUID().slice(0, 10);
+
     const purchase = {
-      id: 'pur-' + randomUUID().slice(0, 10),
+      id: purchaseId,
+      poNumber: poNumber || `PO-${purchaseId.slice(-6).toUpperCase()}`,
+      invoiceNumber: invoiceNumber || `INV-${purchaseId.slice(-6).toUpperCase()}`,
       supplier: supplier || '',
       description: description || '',
       category: category || 'Food Cost',
-      amount: Math.round(Number(amount)),
+      amount: totalAmt,
       date,
-      status: status || 'UNPAID',
-      paidAt: null,
+      expectedDeliveryDate: expectedDeliveryDate || date,
+      orderStatus: orderStatus || (isPaid ? 'RECEIVED' : 'ORDERED'),
+      paymentStatus: cleanPaid >= totalAmt ? 'PAID' : (cleanPaid > 0 ? 'PARTIALLY_PAID' : 'UNPAID'),
+      status: cleanPaid >= totalAmt ? 'PAID' : 'UNPAID', // preserve backward compatibility
+      paidAmount: cleanPaid,
+      dueAmount: Math.max(0, totalAmt - cleanPaid),
+      paymentMethod: paymentMethod || 'CASH',
+      paidAt: cleanPaid >= totalAmt ? new Date().toISOString() : null,
+      items: Array.isArray(items) ? items.map(item => ({
+        itemId: item.itemId || item.id || `ing-${randomUUID().slice(0, 6)}`,
+        itemName: item.itemName || item.name || 'Raw Ingredient',
+        category: item.category || category || 'Ingredient',
+        unit: item.unit || 'kg',
+        quantity: Number(item.quantity) || 1,
+        receivedQuantity: item.receivedQuantity !== undefined ? Number(item.receivedQuantity) : (orderStatus === 'RECEIVED' ? Number(item.quantity) || 1 : 0),
+        returnedQuantity: Number(item.returnedQuantity) || 0,
+        unitCost: Number(item.unitCost) || Math.round(totalAmt / Math.max(1, Number(item.quantity) || 1)),
+        totalCost: Number(item.totalCost) || totalAmt
+      })) : [],
+      paymentHistory: cleanPaid > 0 ? [
+        {
+          id: 'pmt-' + randomUUID().slice(0, 8),
+          amount: cleanPaid,
+          date,
+          paymentMethod: paymentMethod || 'CASH',
+          recordedBy: createdBy,
+          createdAt: new Date().toISOString()
+        }
+      ] : [],
       createdBy,
       createdAt: new Date().toISOString()
     };
+
     this.purchases.push(purchase);
+
+    // If stock was already received at order creation, record stock movements
+    if (purchase.orderStatus === 'RECEIVED' && purchase.items.length > 0) {
+      for (const it of purchase.items) {
+        this.recordStockMovement({
+          menuItemId: it.itemId,
+          itemName: it.itemName,
+          unit: it.unit,
+          movementType: 'PURCHASE_RECEIPT',
+          quantityIn: it.receivedQuantity,
+          quantityOut: 0,
+          previousBalance: 0,
+          newBalance: it.receivedQuantity,
+          unitCost: it.unitCost,
+          totalValue: it.receivedQuantity * it.unitCost,
+          refNo: purchase.poNumber,
+          user: createdBy,
+          notes: `Goods received from ${purchase.supplier}`
+        });
+      }
+    }
+
     this.saveData();
-    this.logAudit('PURCHASE_ADDED', `Purchase from "${supplier}" for ৳${amount} added by ${createdBy}`, { purchaseId: purchase.id }, createdBy);
+    this.logAudit('PURCHASE_ADDED', `Purchase #${purchase.poNumber} from "${supplier}" for ৳${amount} added by ${createdBy}`, { purchaseId: purchase.id }, createdBy);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(date));
     return purchase;
   }
 
@@ -2530,9 +3510,105 @@ class Database {
     const purchase = this.purchases.find(p => p.id === id);
     if (!purchase) return null;
     Object.assign(purchase, updates, { updatedAt: new Date().toISOString(), updatedBy: user });
-    if (updates.status === 'PAID' && !purchase.paidAt) purchase.paidAt = new Date().toISOString();
+    if (updates.status === 'PAID' && !purchase.paidAt) {
+      purchase.paidAt = new Date().toISOString();
+      purchase.paidAmount = purchase.amount;
+      purchase.dueAmount = 0;
+      purchase.paymentStatus = 'PAID';
+    }
     this.saveData();
     this.logAudit('PURCHASE_UPDATED', `Purchase ${id} updated by ${user}`, { id }, user);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(purchase.date));
+    return purchase;
+  }
+
+  recordPurchasePayment(id, { amount, paymentMethod = 'CASH', refNo = '', notes = '', recordedBy = 'Manager' }) {
+    const purchase = this.purchases.find(p => p.id === id);
+    if (!purchase) throw new Error('Purchase order not found');
+
+    const numAmount = Math.round(Number(amount));
+    if (isNaN(numAmount) || numAmount <= 0) throw new Error('Payment amount must be positive');
+
+    const currentPaid = purchase.paidAmount !== undefined ? purchase.paidAmount : (purchase.status === 'PAID' ? purchase.amount : 0);
+    const newPaid = currentPaid + numAmount;
+    purchase.paidAmount = newPaid;
+    purchase.dueAmount = Math.max(0, purchase.amount - newPaid);
+    purchase.paymentStatus = purchase.dueAmount === 0 ? 'PAID' : 'PARTIALLY_PAID';
+    purchase.status = purchase.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID';
+
+    if (!Array.isArray(purchase.paymentHistory)) purchase.paymentHistory = [];
+    purchase.paymentHistory.push({
+      id: 'pmt-' + randomUUID().slice(0, 8),
+      amount: numAmount,
+      date: getDhakaDateParts(new Date()).dateStr,
+      paymentMethod,
+      refNo: refNo || '',
+      notes: notes || '',
+      recordedBy,
+      createdAt: new Date().toISOString()
+    });
+
+    if (purchase.paymentStatus === 'PAID') {
+      purchase.paidAt = new Date().toISOString();
+    }
+
+    this.saveData();
+    this.logAudit('PURCHASE_PAYMENT_RECORDED', `Payment of ৳${numAmount} recorded for PO #${purchase.poNumber || id} via ${paymentMethod} by ${recordedBy}`, { purchaseId: id, amount: numAmount }, recordedBy);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(purchase.date));
+    return purchase;
+  }
+
+  recordGoodsReceipt(id, { itemsReceived = [], grnNumber = null, receivedBy = 'Storekeeper' }) {
+    const purchase = this.purchases.find(p => p.id === id);
+    if (!purchase) throw new Error('Purchase order not found');
+
+    const grn = grnNumber || `GRN-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const today = getDhakaDateParts(new Date()).dateStr;
+
+    if (!Array.isArray(purchase.goodsReceivedNotes)) purchase.goodsReceivedNotes = [];
+    const grnRecord = {
+      grnNumber: grn,
+      date: today,
+      receivedBy,
+      items: itemsReceived
+    };
+    purchase.goodsReceivedNotes.push(grnRecord);
+
+    // Update quantities in purchase.items and create inventory movement
+    let totalPurchased = 0;
+    let totalReceived = 0;
+
+    if (Array.isArray(purchase.items)) {
+      for (const item of purchase.items) {
+        totalPurchased += (Number(item.quantity) || 0);
+        const match = itemsReceived.find(ir => (ir.itemId && ir.itemId === item.itemId) || (ir.itemName && ir.itemName === item.itemName));
+        if (match) {
+          const qty = Number(match.quantityReceived) || 0;
+          item.receivedQuantity = (Number(item.receivedQuantity) || 0) + qty;
+
+          this.recordStockMovement({
+            menuItemId: item.itemId,
+            itemName: item.itemName,
+            unit: item.unit || 'kg',
+            movementType: 'PURCHASE_RECEIPT',
+            quantityIn: qty,
+            quantityOut: 0,
+            previousBalance: 0,
+            newBalance: qty,
+            unitCost: item.unitCost,
+            totalValue: qty * item.unitCost,
+            refNo: grn,
+            user: receivedBy,
+            notes: `Goods received against PO #${purchase.poNumber}`
+          });
+        }
+        totalReceived += (Number(item.receivedQuantity) || 0);
+      }
+    }
+
+    purchase.orderStatus = totalReceived >= totalPurchased ? 'RECEIVED' : (totalReceived > 0 ? 'PARTIALLY_RECEIVED' : purchase.orderStatus);
+    this.saveData();
+    this.logAudit('GOODS_RECEIVED', `GRN ${grn} recorded for PO #${purchase.poNumber} by ${receivedBy}`, { purchaseId: id, grn }, receivedBy);
     return purchase;
   }
 
@@ -2542,6 +3618,7 @@ class Database {
     const [removed] = this.purchases.splice(idx, 1);
     this.saveData();
     this.logAudit('PURCHASE_DELETED', `Purchase ৳${removed.amount} deleted by ${user}`, { purchaseId: id }, user);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(removed.date));
     return { success: true };
   }
 
@@ -2549,143 +3626,28 @@ class Database {
     let list = [...this.purchases];
     if (dateFrom) list = list.filter(p => p.date >= dateFrom);
     if (dateTo) list = list.filter(p => p.date <= dateTo);
-    if (status) list = list.filter(p => p.status === status);
+    if (status) list = list.filter(p => (p.paymentStatus === status || p.status === status));
     return list.sort((a, b) => b.date.localeCompare(a.date));
   }
 
   // ========================================================
-  // ACCOUNTING QUERIES
+  // ACCOUNTING QUERIES (DELEGATED TO ENGINES)
   // ========================================================
 
   getAccountingLedger({ dateFrom = null, dateTo = null, type = null, search = '', limit = 300 } = {}) {
-    const entries = [];
-    for (const order of this.orders) {
-      if (order.paymentStatus !== 'PAID' || order.status === 'CANCELLED') continue;
-      const dateStr = getDhakaDateParts(new Date(order.paidAt || order.createdAt)).dateStr;
-      if (dateFrom && dateStr < dateFrom) continue;
-      if (dateTo && dateStr > dateTo) continue;
-      entries.push({
-        id: 'led-' + order.id,
-        date: dateStr,
-        refNo: `ORD-${order.token}`,
-        type: 'Revenue',
-        description: `Sales – Order #${order.token} (${order.paymentMethod || ''})`,
-        debit: 0,
-        credit: order.grandTotal,
-        relatedId: order.id
-      });
-    }
-    for (const expense of this.expenses) {
-      if (dateFrom && expense.date < dateFrom) continue;
-      if (dateTo && expense.date > dateTo) continue;
-      entries.push({
-        id: 'led-exp-' + expense.id,
-        date: expense.date,
-        refNo: `EXP-${expense.id.slice(-6).toUpperCase()}`,
-        type: 'Expense',
-        description: `${expense.category} – ${expense.notes || 'Operating Expense'}`,
-        debit: expense.amount,
-        credit: 0,
-        relatedId: expense.id
-      });
-    }
-    for (const p of this.purchases) {
-      if (dateFrom && p.date < dateFrom) continue;
-      if (dateTo && p.date > dateTo) continue;
-      entries.push({
-        id: 'led-pur-' + p.id,
-        date: p.date,
-        refNo: `PUR-${p.id.slice(-6).toUpperCase()}`,
-        type: 'Purchase',
-        description: `Purchase – ${p.supplier || 'Supplier'}: ${p.description || p.category}`,
-        debit: p.amount,
-        credit: 0,
-        relatedId: p.id
-      });
-    }
-    entries.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-    let filtered = entries;
-    if (type) filtered = filtered.filter(e => e.type === type);
-    if (search) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter(e => e.description.toLowerCase().includes(q) || e.refNo.toLowerCase().includes(q));
-    }
-    let balance = 0;
-    const withBalance = [...filtered].reverse().map(e => {
-      balance += e.credit - e.debit;
-      return { ...e, balance };
-    });
-    withBalance.reverse();
-    return withBalance.slice(0, limit);
+    return this.journalEngine.getGeneralLedger({ dateFrom, dateTo, type, search, limit });
   }
 
   getIncomeStatement({ dateFrom = null, dateTo = null } = {}) {
-    const revenue = this.orders
-      .filter(o => {
-        if (o.paymentStatus !== 'PAID' || o.status === 'CANCELLED') return false;
-        const dateStr = getDhakaDateParts(new Date(o.paidAt || o.createdAt)).dateStr;
-        if (dateFrom && dateStr < dateFrom) return false;
-        if (dateTo && dateStr > dateTo) return false;
-        return true;
-      })
-      .reduce((sum, o) => sum + (o.grandTotal || 0), 0);
-    const expensesTotal = this.expenses
-      .filter(e => (!dateFrom || e.date >= dateFrom) && (!dateTo || e.date <= dateTo))
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
-    const purchasesTotal = this.purchases
-      .filter(p => (!dateFrom || p.date >= dateFrom) && (!dateTo || p.date <= dateTo))
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
-    const expenseByCategory = {};
-    for (const e of this.expenses) {
-      if (dateFrom && e.date < dateFrom) continue;
-      if (dateTo && e.date > dateTo) continue;
-      expenseByCategory[e.category] = (expenseByCategory[e.category] || 0) + e.amount;
-    }
-    return { revenue, expensesTotal, purchasesTotal, totalCosts: expensesTotal + purchasesTotal, netProfit: revenue - expensesTotal - purchasesTotal, expenseByCategory, dateFrom, dateTo };
+    return this.journalEngine.getIncomeStatement({ dateFrom, dateTo });
   }
 
   getTrialBalance({ dateFrom = null, dateTo = null } = {}) {
-    const revenue = this.orders
-      .filter(o => {
-        if (o.paymentStatus !== 'PAID' || o.status === 'CANCELLED') return false;
-        const d = getDhakaDateParts(new Date(o.paidAt || o.createdAt)).dateStr;
-        return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
-      })
-      .reduce((s, o) => s + o.grandTotal, 0);
-    const expenses = this.expenses.filter(e => (!dateFrom || e.date >= dateFrom) && (!dateTo || e.date <= dateTo)).reduce((s, e) => s + e.amount, 0);
-    const purchases = this.purchases.filter(p => (!dateFrom || p.date >= dateFrom) && (!dateTo || p.date <= dateTo)).reduce((s, p) => s + p.amount, 0);
-    const netProfit = revenue - expenses - purchases;
-    return {
-      accounts: [
-        { name: 'Cash / Bank (Revenue Received)', debit: revenue, credit: 0 },
-        { name: 'Sales Revenue', debit: 0, credit: revenue },
-        { name: 'Operating Expenses', debit: expenses, credit: 0 },
-        { name: 'Purchases / COGS', debit: purchases, credit: 0 },
-        netProfit >= 0
-          ? { name: 'Retained Earnings (Net Profit)', debit: 0, credit: netProfit }
-          : { name: 'Net Loss', debit: Math.abs(netProfit), credit: 0 }
-      ].filter(a => a.debit > 0 || a.credit > 0),
-      totalDebits: revenue + expenses + purchases + (netProfit < 0 ? Math.abs(netProfit) : 0),
-      totalCredits: revenue + (netProfit >= 0 ? netProfit : 0),
-      dateFrom, dateTo
-    };
+    return this.journalEngine.getTrialBalance({ dateFrom, dateTo });
   }
 
-  getBalanceSheet() {
-    const totalRevenue = this.orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED').reduce((s, o) => s + o.grandTotal, 0);
-    const totalExpenses = this.expenses.reduce((s, e) => s + e.amount, 0);
-    const totalPurchases = this.purchases.reduce((s, p) => s + p.amount, 0);
-    const unpaidPurchases = this.purchases.filter(p => p.status !== 'PAID').reduce((s, p) => s + p.amount, 0);
-    const retainedEarnings = totalRevenue - totalExpenses - totalPurchases;
-    return {
-      assets: [{ name: 'Cash & Bank (from Sales)', amount: totalRevenue }],
-      totalAssets: totalRevenue,
-      liabilities: [{ name: 'Accounts Payable (Unpaid Purchases)', amount: unpaidPurchases }],
-      totalLiabilities: unpaidPurchases,
-      equity: [{ name: 'Retained Earnings', amount: retainedEarnings }],
-      totalEquity: retainedEarnings,
-      asOf: new Date().toISOString()
-    };
+  getBalanceSheet(asOfDate = null) {
+    return this.journalEngine.getBalanceSheet(asOfDate);
   }
 
   getDueReceivables() {
@@ -2694,6 +3656,7 @@ class Database {
       .map(o => ({
         orderId: o.id,
         token: o.token,
+        invoiceNo: o.invoiceNo || String(88000 + Number(o.token)),
         tableId: o.tableId,
         customerName: o.customerName || 'Guest',
         customerPhone: o.customerPhone || '',
@@ -2702,7 +3665,8 @@ class Database {
         grandTotal: o.grandTotal,
         paymentStatus: o.paymentStatus,
         paymentMethod: o.paymentMethod,
-        createdAt: o.createdAt
+        createdAt: o.createdAt,
+        daysOverdue: Math.max(0, Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 86400000))
       }));
   }
 
@@ -2710,8 +3674,8 @@ class Database {
   // EXPENSE MANAGEMENT
   // ========================================================
 
-  addExpense({ amount, date, category, notes = '', createdBy = 'Manager' }) {
-    const VALID_CATEGORIES = ['Food Cost', 'Labor', 'Utilities', 'Rent', 'Maintenance', 'Miscellaneous'];
+  addExpense({ amount, date, category, notes = '', supplier = '', payee = '', billNumber = '', dueDate = null, paymentStatus = 'PAID', paidAmount = null, paymentMethod = 'CASH', createdBy = 'Manager' }) {
+    const VALID_CATEGORIES = ['Food Cost', 'Labor', 'Utilities', 'Rent', 'Maintenance', 'Marketing', 'Cleaning', 'Packaging', 'Miscellaneous'];
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       throw new Error('Expense amount must be a positive number.');
     }
@@ -2725,13 +3689,26 @@ class Database {
     const nowIso = new Date().toISOString();
     const cleanAmount = Math.round(Number(amount));
     const cleanNotes = (notes || '').trim();
+    const cleanSupplier = (supplier || payee || '').trim();
+    const isPaid = paymentStatus === 'PAID';
+    const cleanPaid = paidAmount !== null && paidAmount !== undefined ? Math.round(Number(paidAmount)) : (isPaid ? cleanAmount : 0);
+    const dueAmount = Math.max(0, cleanAmount - cleanPaid);
+    const resolvedStatus = dueAmount === 0 ? 'PAID' : (cleanPaid > 0 ? 'PARTIALLY_PAID' : 'UNPAID');
 
     const expense = {
       id: 'exp-' + randomUUID().slice(0, 10),
       amount: cleanAmount,
       date,
+      dueDate: dueDate || date,
       category,
       notes: cleanNotes,
+      supplier: cleanSupplier,
+      payee: cleanSupplier,
+      billNumber: billNumber || `EXP-${randomUUID().slice(0, 6).toUpperCase()}`,
+      paymentMethod: paymentMethod || 'CASH',
+      paymentStatus: resolvedStatus,
+      paidAmount: cleanPaid,
+      dueAmount,
       createdBy,
       createdAt: nowIso,
       updatedAt: null,
@@ -2746,7 +3723,17 @@ class Database {
           modifiedAt: nowIso,
           action: 'CREATED'
         }
-      ]
+      ],
+      paymentHistory: cleanPaid > 0 ? [
+        {
+          id: 'pmt-' + randomUUID().slice(0, 8),
+          amount: cleanPaid,
+          date,
+          paymentMethod: paymentMethod || 'CASH',
+          recordedBy: createdBy,
+          createdAt: nowIso
+        }
+      ] : []
     };
 
     this.expenses.push(expense);
@@ -2754,6 +3741,184 @@ class Database {
     this.logAudit('EXPENSE_ADDED', `Expense of ৳${expense.amount} (${category}) added for ${date}`, { id: expense.id, amount: expense.amount }, createdBy);
     eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(date));
     return expense;
+  }
+
+  recordExpensePayment(id, { amount, paymentMethod = 'CASH', notes = '', recordedBy = 'Manager' }) {
+    const expense = this.expenses.find(e => e.id === id);
+    if (!expense) throw new Error('Expense record not found');
+
+    const numAmount = Math.round(Number(amount));
+    if (isNaN(numAmount) || numAmount <= 0) throw new Error('Payment amount must be positive');
+
+    const currentPaid = expense.paidAmount !== undefined ? Number(expense.paidAmount) : (expense.paymentStatus === 'UNPAID' ? 0 : expense.amount);
+    const newPaid = currentPaid + numAmount;
+    expense.paidAmount = newPaid;
+    expense.dueAmount = Math.max(0, expense.amount - newPaid);
+    expense.paymentStatus = expense.dueAmount === 0 ? 'PAID' : 'PARTIALLY_PAID';
+
+    if (!Array.isArray(expense.paymentHistory)) expense.paymentHistory = [];
+    expense.paymentHistory.push({
+      id: 'pmt-' + randomUUID().slice(0, 8),
+      amount: numAmount,
+      date: getDhakaDateParts(new Date()).dateStr,
+      paymentMethod,
+      notes: notes || '',
+      recordedBy,
+      createdAt: new Date().toISOString()
+    });
+
+    this.saveData();
+    this.logAudit('EXPENSE_PAYMENT_RECORDED', `Payment of ৳${numAmount} recorded for expense #${expense.billNumber || id} via ${paymentMethod} by ${recordedBy}`, { expenseId: id, amount: numAmount }, recordedBy);
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary(expense.date));
+    return expense;
+  }
+
+  recordInventoryWastage({ itemId, quantity, reason = 'Spoilage', unitCost = null, user = 'Kitchen Staff' }) {
+    const item = this.getMenuItem(itemId);
+    if (!item) throw new Error('Menu item not found');
+
+    const numQty = Number(quantity);
+    if (isNaN(numQty) || numQty <= 0) throw new Error('Wastage quantity must be positive');
+
+    const inv = this.inventory[itemId] || { preparedQty: 50, soldQty: 0, reservedQty: 0 };
+    const cost = unitCost !== null && !isNaN(Number(unitCost)) ? Number(unitCost) : (Number(inv.unitCost) || Math.round((Number(item.price) || 100) * 0.45));
+    const totalLoss = Math.round(numQty * cost);
+
+    const prevBal = Math.max(0, (inv.preparedQty || 50) - (inv.soldQty || 0));
+    inv.soldQty = (inv.soldQty || 0) + numQty; // Count as consumed/lost from prepared stock
+    const newBal = Math.max(0, (inv.preparedQty || 50) - (inv.soldQty || 0));
+    this.inventory[itemId] = inv;
+    this._saveInventory();
+
+    const movement = this.recordStockMovement({
+      menuItemId: itemId,
+      itemName: item.name,
+      stallId: item.stallId,
+      unit: item.unit || 'portion',
+      movementType: 'WASTAGE',
+      quantityIn: 0,
+      quantityOut: numQty,
+      previousBalance: prevBal,
+      newBalance: newBal,
+      unitCost: cost,
+      totalValue: totalLoss,
+      refNo: `WST-${randomUUID().slice(0, 6).toUpperCase()}`,
+      user,
+      notes: reason
+    });
+
+    this.logAudit('INVENTORY_WASTAGE', `Wastage of ${numQty} x "${item.name}" (Loss: ৳${totalLoss}) recorded by ${user}: ${reason}`, { itemId, quantity: numQty, loss: totalLoss }, user);
+    eventBus.broadcast('inventory_updated', { orderItems: [itemId] });
+    return movement;
+  }
+
+  removeInventoryWastage(movementId, { user = 'Manager', role = 'MANAGER', reason = 'Incorrect entry removal' } = {}) {
+    const ALLOWED = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'KITCHEN STAFF', 'KITCHEN'];
+    const normRole = (role || '').trim().toUpperCase();
+    if (role && !ALLOWED.includes(normRole)) {
+      throw new Error(`Unauthorized: Role "${role}" cannot remove wastage records.`);
+    }
+
+    if (!this.inventoryMovements) this.inventoryMovements = [];
+    const idx = this.inventoryMovements.findIndex(m => m.id === movementId || m.refNo === movementId);
+    if (idx === -1) {
+      throw new Error('Wastage record not found');
+    }
+
+    const mov = this.inventoryMovements[idx];
+    if (mov.movementType !== 'WASTAGE' && mov.movementType !== 'DAMAGE') {
+      throw new Error('Only wastage or damage records can be removed with this action');
+    }
+
+    // 1. Revert inventory consumption
+    const itemId = mov.menuItemId;
+    if (itemId && this.inventory[itemId]) {
+      const inv = this.inventory[itemId];
+      const qtyOut = Number(mov.quantityOut) || 0;
+      inv.soldQty = Math.max(0, (Number(inv.soldQty) || 0) - qtyOut);
+      this._saveInventory();
+    }
+
+    // 2. Track removed record in audit archive so history remains traceable
+    if (!this.removedWastage) this.removedWastage = [];
+    const removedRecord = {
+      id: 'del-wst-' + randomUUID().slice(0, 8),
+      originalMovement: { ...mov },
+      removedAt: new Date().toISOString(),
+      removedBy: user,
+      removerRole: normRole,
+      removalReason: reason
+    };
+    this.removedWastage.unshift(removedRecord);
+    this._saveRemovedWastage();
+
+    // 3. Remove movement from active movements list
+    this.inventoryMovements.splice(idx, 1);
+    this._saveMovements();
+
+    // 4. Log detailed audit event
+    this.logAudit(
+      'INVENTORY_WASTAGE_REMOVED',
+      `Wastage record #${mov.refNo || mov.id} for "${mov.itemName}" (Qty: ${mov.quantityOut}, Loss: ৳${mov.totalValue}) removed by ${user} (${normRole}): ${reason}`,
+      { movementId, itemName: mov.itemName, quantity: mov.quantityOut, totalValue: mov.totalValue, reason },
+      user
+    );
+
+    // 5. Broadcast real-time updates
+    eventBus.broadcast('inventory_updated', { orderItems: [itemId] });
+    eventBus.broadcast('financial_updated', this.getDailyFinancialSummary());
+
+    return {
+      success: true,
+      removedId: movementId,
+      restoredItem: mov.itemName,
+      restoredQuantity: mov.quantityOut,
+      reversedQuantity: mov.quantityOut,
+      removedRecord
+    };
+  }
+
+  recordStockAdjustment({ itemId, newQuantity, reason = 'Physical inventory count reconciliation', user = 'Manager' }) {
+    const item = this.getMenuItem(itemId);
+    if (!item) throw new Error('Menu item not found');
+
+    const numNewQty = Number(newQuantity);
+    if (isNaN(numNewQty) || numNewQty < 0) throw new Error('New stock quantity must be non-negative');
+
+    const inv = this.inventory[itemId] || { preparedQty: 50, soldQty: 0, reservedQty: 0 };
+    const prevStock = Math.max(0, (inv.preparedQty || 50) - (inv.soldQty || 0));
+    const diff = numNewQty - prevStock;
+
+    inv.preparedQty = numNewQty;
+    inv.soldQty = 0; // reset sold count for fresh baseline
+    inv.lastUpdatedAt = new Date().toISOString();
+    inv.updatedBy = user;
+    this.inventory[itemId] = inv;
+    this._saveInventory();
+
+    const cost = Number(inv.unitCost) || Math.round((Number(item.price) || 100) * 0.45);
+    const totalVariance = Math.abs(diff) * cost;
+
+    const movement = this.recordStockMovement({
+      menuItemId: itemId,
+      itemName: item.name,
+      stallId: item.stallId,
+      unit: item.unit || 'portion',
+      movementType: 'ADJUSTMENT',
+      quantityIn: diff > 0 ? diff : 0,
+      quantityOut: diff < 0 ? Math.abs(diff) : 0,
+      previousBalance: prevStock,
+      newBalance: numNewQty,
+      unitCost: cost,
+      totalValue: totalVariance,
+      refNo: `ADJ-${randomUUID().slice(0, 6).toUpperCase()}`,
+      user,
+      notes: reason
+    });
+
+    this.logAudit('INVENTORY_ADJUSTMENT', `Stock for "${item.name}" adjusted from ${prevStock} to ${numNewQty} (${diff >= 0 ? '+' : ''}${diff}) by ${user}: ${reason}`, { itemId, prevStock, numNewQty, diff }, user);
+    eventBus.broadcast('inventory_updated', { orderItems: [itemId] });
+    return movement;
   }
 
   updateExpense(id, { amount, date, category, notes }, updatedBy = 'Manager') {
@@ -2931,10 +4096,11 @@ class Database {
 
   // --- Reset Daily Revenue Summary ---
   resetDailyRevenue(user = 'Manager', role = 'MANAGER') {
-    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-    if (!ALLOWED_ROLES.includes(role)) {
+    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    const normRole = (role || '').trim().toUpperCase();
+    if (!ALLOWED_ROLES.includes(normRole)) {
       return { 
-        error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can reset daily revenue.',
+        error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can reset daily revenue.',
         code: 403
       };
     }
@@ -2946,7 +4112,7 @@ class Database {
       date: todayParts.dateStr,
       resetAt: new Date().toISOString(),
       user: user || 'Manager',
-      role: role || 'MANAGER'
+      role: normRole
     };
 
     this.revenueResets.push(entry);
@@ -2954,7 +4120,7 @@ class Database {
 
     this.logAudit(
       'DAILY_REVENUE_RESET',
-      `Daily revenue summary for ${todayParts.dateStr} reset to ৳0 by ${user} (${role}). Historical transactions preserved.`,
+      `Daily revenue summary for ${todayParts.dateStr} reset to ৳0 by ${user} (${normRole}). Historical transactions preserved.`,
       { resetId: entry.id, date: todayParts.dateStr, resetAt: entry.resetAt },
       user
     );
@@ -2968,10 +4134,11 @@ class Database {
 
   // --- Reset Monthly Revenue Summary ---
   resetMonthlyRevenue(user = 'Manager', role = 'MANAGER') {
-    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-    if (!ALLOWED_ROLES.includes(role)) {
+    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    const normRole = (role || '').trim().toUpperCase();
+    if (!ALLOWED_ROLES.includes(normRole)) {
       return { 
-        error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can reset monthly revenue.',
+        error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can reset monthly revenue.',
         code: 403
       };
     }
@@ -2983,7 +4150,7 @@ class Database {
       month: todayParts.monthStr,
       resetAt: new Date().toISOString(),
       user: user || 'Manager',
-      role: role || 'MANAGER'
+      role: normRole
     };
 
     this.revenueResets.push(entry);
@@ -2991,7 +4158,7 @@ class Database {
 
     this.logAudit(
       'MONTHLY_REVENUE_RESET',
-      `Monthly revenue summary for ${todayParts.monthStr} reset to ৳0 by ${user} (${role}). Historical transactions preserved.`,
+      `Monthly revenue summary for ${todayParts.monthStr} reset to ৳0 by ${user} (${normRole}). Historical transactions preserved.`,
       { resetId: entry.id, month: todayParts.monthStr, resetAt: entry.resetAt },
       user
     );
@@ -3005,10 +4172,11 @@ class Database {
 
   // --- Reset Yearly Revenue Summary ---
   resetYearlyRevenue(user = 'Manager', role = 'MANAGER') {
-    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-    if (!ALLOWED_ROLES.includes(role)) {
+    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    const normRole = (role || '').trim().toUpperCase();
+    if (!ALLOWED_ROLES.includes(normRole)) {
       return { 
-        error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can reset yearly revenue.',
+        error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can reset yearly revenue.',
         code: 403
       };
     }
@@ -3020,7 +4188,7 @@ class Database {
       year: todayParts.yearStr,
       resetAt: new Date().toISOString(),
       user: user || 'Manager',
-      role: role || 'MANAGER'
+      role: normRole
     };
 
     this.revenueResets.push(entry);
@@ -3028,7 +4196,7 @@ class Database {
 
     this.logAudit(
       'YEARLY_REVENUE_RESET',
-      `Yearly revenue summary for ${todayParts.yearStr} reset to ৳0 by ${user} (${role}). Historical transactions preserved.`,
+      `Yearly revenue summary for ${todayParts.yearStr} reset to ৳0 by ${user} (${normRole}). Historical transactions preserved.`,
       { resetId: entry.id, year: todayParts.yearStr, resetAt: entry.resetAt },
       user
     );
@@ -3042,10 +4210,11 @@ class Database {
 
   // --- Reset Tables & Active Sessions ---
   resetTables(user = 'Manager', role = 'MANAGER') {
-    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-    if (!ALLOWED_ROLES.includes(role)) {
+    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    const normRole = (role || '').trim().toUpperCase();
+    if (!ALLOWED_ROLES.includes(normRole)) {
       return { 
-        error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can reset tables.',
+        error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can reset tables.',
         code: 403
       };
     }
@@ -3065,7 +4234,7 @@ class Database {
     }
 
     this.saveData();
-    this.logAudit('TABLES_RESET', `All 55 tables and sessions reset to AVAILABLE by ${user} (${role}).`, {}, user);
+    this.logAudit('TABLES_RESET', `All 55 tables and sessions reset to AVAILABLE by ${user} (${normRole}).`, {}, user);
     eventBus.broadcast('tables_updated', this.tables);
     eventBus.broadcast('analytics_updated', this.getAnalyticsSummary());
 
@@ -3091,72 +4260,219 @@ class Database {
   }
 
   // --- One-Click Reset All & Delete Orders (Default ৳0) ---
-  clearAllOrdersAndReset(user = 'Manager', role = 'MANAGER') {
-    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-    if (!ALLOWED_ROLES.includes(role)) {
-      return {
-        error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can delete orders and perform full reset.',
-        code: 403
-      };
+  clearAllOrdersAndReset(userOrOptions = 'Manager', role = 'MANAGER', reason = 'Routine shift restart') {
+    let user = userOrOptions;
+    if (typeof userOrOptions === 'object' && userOrOptions !== null) {
+      user = userOrOptions.user || userOrOptions.name || 'Manager';
+      role = userOrOptions.role || 'MANAGER';
+      reason = userOrOptions.reason || 'Routine shift restart';
+    }
+    const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    const normRole = (role || '').trim().toUpperCase();
+    if (!ALLOWED_ROLES.includes(normRole)) {
+      throw new Error('Unauthorized: Only Manager or Chief Administrator can delete orders and perform full reset.');
     }
 
     const todayParts = getDhakaDateParts(new Date());
+    const nowIso = new Date().toISOString();
 
-    // 1. Delete all orders and active runner tasks
-    const deletedCount = this.orders.length;
+    // 1. Snapshot and archive all orders so data is never permanently lost
+    const ordersSnapshot = JSON.parse(JSON.stringify(this.orders || []));
+    const deletedCount = ordersSnapshot.length;
+    const financialSnapshot = this.getRevenueSummary();
+
+    if (!this.archivedOrders) this.archivedOrders = [];
+    this.archivedOrders.push(...ordersSnapshot);
+    this._saveArchivedOrders();
+
+    // 2. Record in Reset History Audit Log
+    const resetEntry = {
+      id: 'rst-' + randomUUID().slice(0, 8),
+      timestamp: nowIso,
+      date: todayParts.dateStr,
+      performedBy: user,
+      role: normRole,
+      reason: (reason || 'Operational shift restart / order board refresh').trim(),
+      ordersCount: deletedCount,
+      orderTokens: ordersSnapshot.map(o => o.token || o.id),
+      totalSalesValue: ordersSnapshot.reduce((sum, o) => sum + (Number(o.grandTotal) || 0), 0),
+      financialSnapshot: {
+        dailyRevenue: financialSnapshot.daily.revenue,
+        dailyOrders: financialSnapshot.daily.orders,
+        monthlyRevenue: financialSnapshot.monthly.revenue,
+        yearlyRevenue: financialSnapshot.yearly.revenue
+      },
+      ordersSnapshot
+    };
+    if (!this.resetHistory) this.resetHistory = [];
+    this.resetHistory.unshift(resetEntry);
+    this._saveResetHistory();
+
+    // 3. Clear active orders, runner tasks, and active void requests (archive them safely)
     this.orders = [];
     this.runnerTasks = [];
+    if (!this.archivedVoidRequests) this.archivedVoidRequests = [];
+    if (this.voidRequests && this.voidRequests.length > 0) {
+      this.archivedVoidRequests.push(...this.voidRequests);
+      this._saveArchivedVoidRequests();
+    }
+    this.voidRequests = [];
 
-    // 2. Reset token counters
+    // 4. Reset token counters
     this.tokenCounter = 1;
     this.parcelTokenCounter = 1;
 
-    // 3. Reset all 55 tables to AVAILABLE and close table sessions
-    for (const table of this.tables) {
-      table.status = 'AVAILABLE';
-      table.currentSessionId = null;
-      table.activeOrderToken = null;
-      table.totalSpentToday = 0;
-    }
-    for (const session of this.tableSessions) {
+    // 5. Reset all 55 tables to AVAILABLE and close table sessions
+    this.syncTablesWithOrders();
+    for (const session of (this.tableSessions || [])) {
       session.active = false;
-      session.endedAt = new Date().toISOString();
+      session.endedAt = nowIso;
     }
 
-    // 4. Record reset entries for daily, monthly, and yearly
-    const nowIso = new Date().toISOString();
+    // 6. Record reset entries for daily, monthly, and yearly
     this.revenueResets.push(
-      { id: 'rev-reset-day-' + randomUUID(), type: 'daily', date: todayParts.dateStr, resetAt: nowIso, user, role },
-      { id: 'rev-reset-month-' + randomUUID(), type: 'monthly', month: todayParts.monthStr, resetAt: nowIso, user, role },
-      { id: 'rev-reset-year-' + randomUUID(), type: 'yearly', year: todayParts.yearStr, resetAt: nowIso, user, role }
+      { id: 'rev-reset-day-' + randomUUID(), type: 'daily', date: todayParts.dateStr, resetAt: nowIso, user, role: normRole },
+      { id: 'rev-reset-month-' + randomUUID(), type: 'monthly', month: todayParts.monthStr, resetAt: nowIso, user, role: normRole },
+      { id: 'rev-reset-year-' + randomUUID(), type: 'yearly', year: todayParts.yearStr, resetAt: nowIso, user, role: normRole }
     );
 
-    // 5. Save state to disk immediately
+    // 7. Save state to disk immediately
     this.saveData();
 
-    // 6. Log audit event
+    // 8. Log audit event
     this.logAudit(
       'FULL_RESET_ORDERS_DELETED',
-      `One-click reset executed by ${user} (${role}): ${deletedCount} orders deleted, all 55 tables reset to AVAILABLE, all revenue metrics defaulted to ৳0.`,
-      { deletedOrdersCount: deletedCount, resetAt: nowIso },
+      `One-click restart executed by ${user} (${normRole}): ${deletedCount} orders archived and reset, all tables reset to AVAILABLE, all revenue metrics defaulted to ৳0. Reason: ${resetEntry.reason}`,
+      { resetId: resetEntry.id, deletedOrdersCount: deletedCount, reason: resetEntry.reason, resetAt: nowIso },
       user
     );
 
-    // 7. Broadcast real-time updates across all connected clients & dashboards
+    // 9. Broadcast real-time updates across all connected clients & dashboards
     const summary = this.getRevenueSummary();
     const analytics = this.getAnalyticsSummary();
+    // Broadcast all_orders_reset FIRST so dashboards can clear immediately
+    eventBus.broadcast('all_orders_reset', { resetId: resetEntry.id, timestamp: nowIso, performedBy: user, role: normRole });
     eventBus.broadcast('order_updated', null);
+    eventBus.broadcast('runner_task_updated', null);
     eventBus.broadcast('tables_updated', this.tables);
     eventBus.broadcast('revenue_updated', summary);
     eventBus.broadcast('financial_updated', this.getDailyFinancialSummary());
     eventBus.broadcast('analytics_updated', analytics);
+    eventBus.broadcast('void_request_updated', null);
 
     return {
       success: true,
       deletedCount,
-      message: `Successfully deleted all ${deletedCount} orders and reset all metrics (Daily, Monthly, Yearly revenue) to default ৳0.`,
+      resetEntry,
+      message: `Successfully reset and archived ${deletedCount} orders. All revenue metrics defaulted to ৳0.`,
       summary,
       tables: this.tables
+    };
+  }
+
+  // --- Void & Cancellation Reports (Accounting) ---
+  getVoidSummaryReport({ dateFrom = null, dateTo = null, search = '' } = {}) {
+    const all = [...(this.voidRequests || []), ...(this.archivedVoidRequests || [])];
+    const seen = new Set();
+    let requests = [];
+    for (const r of all) {
+      if (r && r.id && !seen.has(r.id)) {
+        seen.add(r.id);
+        requests.push(r);
+      }
+    }
+
+    if (dateFrom) {
+      requests = requests.filter(r => {
+        const d = (r.requestedAt || '').slice(0, 10);
+        return d >= dateFrom;
+      });
+    }
+    if (dateTo) {
+      requests = requests.filter(r => {
+        const d = (r.requestedAt || '').slice(0, 10);
+        return d <= dateTo;
+      });
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      requests = requests.filter(r =>
+        (r.token || '').toLowerCase().includes(q) ||
+        (r.invoiceNo || '').toLowerCase().includes(q) ||
+        (r.orderId || '').toLowerCase().includes(q) ||
+        (r.reason || '').toLowerCase().includes(q) ||
+        (r.cashierName || '').toLowerCase().includes(q) ||
+        (r.cashierId || '').toLowerCase().includes(q) ||
+        (r.resolvedBy || '').toLowerCase().includes(q) ||
+        (r.tableId || '').toLowerCase().includes(q)
+      );
+    }
+
+    requests.sort((a, b) => new Date(b.requestedAt || 0).getTime() - new Date(a.requestedAt || 0).getTime());
+
+    const totalRequests = requests.length;
+    const pendingRequests = requests.filter(r => r.status === 'PENDING').length;
+    const approvedVoids = requests.filter(r => r.status === 'APPROVED').length;
+    const rejectedRequests = requests.filter(r => r.status === 'REJECTED').length;
+
+    const fullOrderVoids = requests.filter(r => r.requestType === 'FULL_CANCELLATION').length;
+    const partialItemVoids = requests.filter(r => r.requestType === 'ITEM_CANCELLATION').length;
+    const quantityCorrections = requests.filter(r => r.requestType === 'QUANTITY_CORRECTION').length;
+
+    let totalVoidedSalesValue = 0;
+    let totalRefundsIssued = 0;
+
+    for (const r of requests) {
+      if (r.status === 'APPROVED') {
+        const diff = Number(r.proposedImpact?.differenceAmount) || Number(r.originalSnapshot?.grandTotal) || 0;
+        totalVoidedSalesValue += diff;
+        if (r.executionResult?.refundRecorded && r.executionResult?.refundAmount) {
+          totalRefundsIssued += Number(r.executionResult.refundAmount) || 0;
+        }
+      }
+    }
+
+    return {
+      totalRequests,
+      pendingRequests,
+      approvedVoids,
+      rejectedRequests,
+      fullOrderVoids,
+      partialItemVoids,
+      quantityCorrections,
+      totalVoidedSalesValue,
+      totalVoidedSales: totalVoidedSalesValue,
+      totalRefundsIssued,
+      requests
+    };
+  }
+
+  // --- Reset History Report (Accounting) ---
+  getResetHistoryReport({ dateFrom = null, dateTo = null, search = '' } = {}) {
+    let history = [...(this.resetHistory || [])];
+
+    if (dateFrom) {
+      history = history.filter(h => (h.date || h.timestamp.slice(0, 10)) >= dateFrom);
+    }
+    if (dateTo) {
+      history = history.filter(h => (h.date || h.timestamp.slice(0, 10)) <= dateTo);
+    }
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      history = history.filter(h =>
+        (h.performedBy || '').toLowerCase().includes(q) ||
+        (h.role || '').toLowerCase().includes(q) ||
+        (h.reason || '').toLowerCase().includes(q) ||
+        (h.id || '').toLowerCase().includes(q)
+      );
+    }
+
+    return {
+      totalResets: history.length,
+      totalOrdersArchived: history.reduce((s, h) => s + (h.ordersCount || 0), 0),
+      totalValueArchived: history.reduce((s, h) => s + (h.totalSalesValue || 0), 0),
+      history
     };
   }
 }

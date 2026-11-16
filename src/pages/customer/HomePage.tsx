@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useTableSession } from '../../context/TableSessionContext';
-import { useCart } from '../../context/CartContext';
 import { api } from '../../services/api';
 import { Stall } from '../../types';
 import { useLocation } from 'wouter';
-import { Utensils, Star, Clock, ChevronRight, Sparkles, QrCode, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Star, Clock, ChevronRight, QrCode, ShieldCheck } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
   const { tableId, activeOrders } = useTableSession();
   const [, setLocation] = useLocation();
   const [stalls, setStalls] = useState<Stall[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     api.getStalls()

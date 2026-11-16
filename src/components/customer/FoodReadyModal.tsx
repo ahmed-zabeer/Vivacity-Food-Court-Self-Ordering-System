@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../../services/sound';
 import { StallReadyConfirmedEvent } from '../../types';
-import { Bell, CheckCircle, ChevronRight, Store, VolumeX, UtensilsCrossed } from 'lucide-react';
+import { Bell, CheckCircle, Store, UtensilsCrossed } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { SwipeToStop } from './SwipeToStop';
 

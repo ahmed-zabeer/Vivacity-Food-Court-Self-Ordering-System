@@ -13,35 +13,16 @@ import {
   DueReceivable,
   Purchase
 } from '../../types';
-import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  BookOpen,
-  FileText,
-  BarChart3,
-  Scale,
-  Receipt,
-  ShoppingCart,
-  Plus,
-  Edit2,
-  Trash2,
-  History,
-  Search,
-  X,
-  Check,
-  AlertCircle,
-  Clock,
-  ArrowLeft,
-  Calendar,
-  RefreshCw,
-  PieChart,
-  ShieldAlert,
-  Wallet,
-  ArrowUpRight,
-  ArrowDownRight,
-  HelpCircle
-} from 'lucide-react';
+import { TrendingUp, BookOpen, FileText, BarChart3, Scale, Receipt, ShoppingCart, Plus, Edit2, Trash2, History, Search, X, ArrowLeft, Calendar, RefreshCw, PieChart, ShieldAlert, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+
+import { BusinessHealthBar } from '../../components/accounting/BusinessHealthBar';
+import { DailyClosingModal } from '../../components/accounting/DailyClosingModal';
+import { CategoryReportSelector, ReportCategoryKey } from '../../components/accounting/CategoryReportSelector';
+import { SalesReportViews } from '../../components/accounting/SalesReportViews';
+import { ExpenseReportViews } from '../../components/accounting/ExpenseReportViews';
+import { PurchaseReportViews } from '../../components/accounting/PurchaseReportViews';
+import { InventoryReportViews } from '../../components/accounting/InventoryReportViews';
+import { VoidReportViews } from '../../components/accounting/VoidReportViews';
 
 type TabKey =
   | 'overview'
@@ -64,6 +45,9 @@ export const AccountingPage: React.FC = () => {
   );
 
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [dailyClosingOpen, setDailyClosingOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<ReportCategoryKey | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
   // Date filters
   const getTodayDhaka = () => {
@@ -432,6 +416,7 @@ export const AccountingPage: React.FC = () => {
   });
 
   return (
+    <>
     <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6">
       {/* Top Header */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-zinc-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -563,6 +548,9 @@ export const AccountingPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Real-time Business Health & Intelligence Pulse */}
+      <BusinessHealthBar onOpenDailyClosing={() => setDailyClosingOpen(true)} />
+
       {/* 8 Module Navigation Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
         {[
@@ -576,11 +564,15 @@ export const AccountingPage: React.FC = () => {
           { key: 'expenses', label: 'Manage Expenses', icon: Receipt }
         ].map(t => {
           const Icon = t.icon;
-          const active = activeTab === t.key;
+          const active = !selectedCategory && activeTab === t.key;
           return (
             <button
               key={t.key}
-              onClick={() => setActiveTab(t.key as TabKey)}
+              onClick={() => {
+                setActiveTab(t.key as TabKey);
+                setSelectedCategory(null);
+                setSelectedReportId(null);
+              }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black shrink-0 transition-all cursor-pointer ${
                 active
                   ? 'bg-brand-500 text-white shadow-md shadow-brand-500/25 ring-2 ring-brand-500/20'
@@ -594,9 +586,69 @@ export const AccountingPage: React.FC = () => {
         })}
       </div>
 
+      {/* 4 Main Rounded Report Categories & Report Shelf */}
+      <CategoryReportSelector
+        selectedCategory={selectedCategory}
+        selectedReportId={selectedReportId}
+        onSelectCategory={cat => {
+          setSelectedCategory(cat);
+          if (!cat) setSelectedReportId(null);
+        }}
+        onSelectReport={repId => setSelectedReportId(repId)}
+      />
+
       {/* ======================================================== */}
-      {/* TAB 1: OVERVIEW */}
+      {/* DYNAMIC CATEGORY REPORT VIEWS (SALES / EXPENSE / PURCHASE / INVENTORY) */}
       {/* ======================================================== */}
+      {selectedCategory && selectedReportId && (
+        <div className="space-y-6">
+          {selectedCategory === 'ORDER_SALES' && (
+            <SalesReportViews
+              reportId={selectedReportId}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+            />
+          )}
+          {selectedCategory === 'EXPENSE' && (
+            <ExpenseReportViews
+              reportId={selectedReportId}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onRefreshParent={fetchAllData}
+            />
+          )}
+          {selectedCategory === 'PURCHASE' && (
+            <PurchaseReportViews
+              reportId={selectedReportId}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onRefreshParent={fetchAllData}
+            />
+          )}
+          {selectedCategory === 'INVENTORY' && (
+            <InventoryReportViews
+              reportId={selectedReportId}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onRefreshParent={fetchAllData}
+            />
+          )}
+          {selectedCategory === 'VOID' && (
+            <VoidReportViews
+              reportId={selectedReportId}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* CORE 8 PRESERVED ACCOUNTING TABS */}
+      {/* ======================================================== */}
+      {!selectedCategory && (
+        <>
+          {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* Key Metric Summary Cards */}
@@ -1364,6 +1416,8 @@ export const AccountingPage: React.FC = () => {
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* ======================================================== */}
       {/* EXPENSE ENTRY / EDIT MODAL */}
@@ -1639,5 +1693,12 @@ export const AccountingPage: React.FC = () => {
         </div>
       )}
     </div>
+
+    {/* Daily Closing Modal — rendered outside the main div so it covers the full viewport */}
+    <DailyClosingModal
+      isOpen={dailyClosingOpen}
+      onClose={() => setDailyClosingOpen(false)}
+    />
+    </>
   );
 };

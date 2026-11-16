@@ -2,29 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
-import { Order, OrderStatus, MenuItem } from '../../types';
+import { Order, MenuItem } from '../../types';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
+import { SubmitVoidRequestModal } from '../../components/admin/SubmitVoidRequestModal';
+import { VoidRequestsManager } from '../../components/admin/VoidRequestsManager';
 import { useAuth } from '../../context/AuthContext';
-import {
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Banknote,
-  Printer,
-  Receipt,
-  Clock,
-  Plus,
-  Search,
-  Filter,
-  Store,
-  ChefHat,
-  Bell,
-  RotateCcw,
-  Power,
-  Check,
-  X
-} from 'lucide-react';
+import { CheckCircle, XCircle, Banknote, Printer, Receipt, Plus, Search, Store, ChefHat, Bell, RotateCcw, ShieldAlert, FileText } from 'lucide-react';
 
 export const OrdersManager: React.FC = () => {
   const { currentUser } = useAuth();
@@ -68,7 +52,7 @@ export const OrdersManager: React.FC = () => {
   const [showKOT, setShowKOT] = useState<boolean>(false);
   const [rejectReason, setRejectReason] = useState<string>('Kitchen capacity reached');
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [, setLoading] = useState<boolean>(true);
 
   // Keep ref in sync with selected order
   useEffect(() => {
@@ -78,9 +62,11 @@ export const OrdersManager: React.FC = () => {
     }
   }, [selectedOrder?.id, selectedOrder?.status]);
 
-  // One-Button Reset & Delete Orders state
-  const isAuthorizedToReset = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'].includes(currentUser?.role || '');
+  // One-Button Reset & Delete Orders state (Manager & Chief Admin only)
+  const isAuthorizedToReset = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'].includes(currentUser?.role || '');
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+  const [resetStep, setResetStep] = useState<number>(1);
+  const [resetReason, setResetReason] = useState<string>('');
   const [resetting, setResetting] = useState<boolean>(false);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
 
@@ -97,6 +83,18 @@ export const OrdersManager: React.FC = () => {
   const [manualTable, setManualTable] = useState<string>('T17');
   const [manualType, setManualType] = useState<'DINE_IN' | 'PARCEL'>('DINE_IN');
   const [manualPayment, setManualPayment] = useState<string>('CASH');
+
+  // Void & Cancellation Request State
+  const [activeTab, setActiveTab] = useState<'ORDERS' | 'VOID_REQUESTS'>('ORDERS');
+  const [pendingVoidCount, setPendingVoidCount] = useState<number>(0);
+  const [showVoidModal, setShowVoidModal] = useState<boolean>(false);
+
+  const fetchVoidCount = async () => {
+    try {
+      const list = await api.getVoidRequests({ status: 'PENDING' });
+      setPendingVoidCount(list.length);
+    } catch {}
+  };
 
   const fetchMenuItems = async () => {
     try {
@@ -147,7 +145,13 @@ export const OrdersManager: React.FC = () => {
       const targetId = selectedOrderIdRef.current;
       if (targetId) {
         const refreshed = res.find(o => o.id === targetId);
-        if (refreshed) setSelectedOrder(refreshed);
+        if (refreshed) {
+          setSelectedOrder(refreshed);
+        } else {
+          // Order no longer exists (archived/reset) — clear the drawer
+          setSelectedOrder(null);
+          selectedOrderIdRef.current = null;
+        }
       }
     } catch (e) {
       console.error(e);
@@ -159,6 +163,7 @@ export const OrdersManager: React.FC = () => {
   useEffect(() => {
     fetchOrders();
     fetchMenuItems();
+    fetchVoidCount();
 
     const unsubCreated = realtime.on('order_created', (newOrder: Order) => {
       if (newOrder && (newOrder.status === 'NEW' || newOrder.status === 'UNDER REVIEW' || newOrder.paymentStatus === 'PAYMENT DUE')) {
@@ -178,10 +183,43 @@ export const OrdersManager: React.FC = () => {
       setMenuItemsMap(prev => ({ ...prev, [updatedItem.id]: updatedItem }));
     });
 
+    const unsubVoidCreated = realtime.on('void_request_created', () => {
+      fetchVoidCount();
+      fetchOrders();
+    });
+
+    const unsubVoidApproved = realtime.on('void_request_approved', () => {
+      fetchVoidCount();
+      fetchOrders();
+    });
+
+    const unsubVoidRejected = realtime.on('void_request_rejected', () => {
+      fetchVoidCount();
+      fetchOrders();
+    });
+
+    const unsubVoidUpdated = realtime.on('void_request_updated', () => {
+      fetchVoidCount();
+      fetchOrders();
+    });
+
+    const unsubReset = realtime.on('all_orders_reset', () => {
+      setOrders([]);
+      setSelectedOrder(null);
+      selectedOrderIdRef.current = null;
+      fetchVoidCount();
+      fetchOrders();
+    });
+
     return () => {
       unsubCreated();
       unsubUpdated();
       unsubMenu();
+      unsubVoidCreated();
+      unsubVoidApproved();
+      unsubVoidRejected();
+      unsubVoidUpdated();
+      unsubReset();
     };
   }, []);
 
@@ -208,6 +246,15 @@ export const OrdersManager: React.FC = () => {
   // Direct Status Update via OK / Confirm (keeps user on page without navigating or resetting)
   const handleConfirmStatusUpdate = async () => {
     if (!selectedOrder) return;
+
+    if (statusToUpdate === 'CANCELLED') {
+      const isManagerOrAdmin = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'].includes(currentUser?.role || '');
+      if (!isManagerOrAdmin) {
+        alert('Direct order cancellation is disabled for Cashiers and Stall staff. Please use "Request Void / Cancel" to submit a request for Manager approval.');
+        return;
+      }
+    }
+
     setStatusUpdating(true);
     setStatusFeedback(null);
     try {
@@ -236,6 +283,13 @@ export const OrdersManager: React.FC = () => {
   };
 
   const handleReject = async (orderId: string) => {
+    const isManagerOrAdmin = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'].includes(currentUser?.role || '');
+    if (!isManagerOrAdmin) {
+      setShowRejectModal(false);
+      alert('Direct rejection is disabled for Cashiers and Stall staff. Please use "Request Void / Cancel" to submit a request for Manager approval.');
+      return;
+    }
+
     try {
       const updated = await api.rejectOrder(orderId, rejectReason);
       setSelectedOrder(updated);
@@ -295,13 +349,23 @@ export const OrdersManager: React.FC = () => {
 
   const handleResetEverything = async () => {
     if (!isAuthorizedToReset) return;
+    if (!resetReason.trim()) {
+      alert('Please provide a reason for restarting/archiving all orders.');
+      return;
+    }
     setResetting(true);
     try {
-      const userPayload = { name: currentUser?.name || 'Cashier', role: currentUser?.role || 'CASHIER' };
+      const userPayload = {
+        name: currentUser?.name || 'Manager',
+        role: currentUser?.role || 'MANAGER',
+        reason: resetReason.trim()
+      };
       const res = await api.resetEverything(userPayload);
       setSelectedOrder(null);
-      setResetFeedback(res.message || 'All orders deleted & revenue defaulted to ৳0.');
+      setResetFeedback(res.message || 'All orders archived & revenue defaulted to ৳0.');
       setShowResetConfirm(false);
+      setResetStep(1);
+      setResetReason('');
       setTimeout(() => setResetFeedback(null), 6000);
       fetchOrders();
     } catch (e: any) {
@@ -382,12 +446,16 @@ export const OrdersManager: React.FC = () => {
 
           {isAuthorizedToReset && (
             <button
-              onClick={() => setShowResetConfirm(true)}
+              onClick={() => {
+                setResetStep(1);
+                setResetReason('');
+                setShowResetConfirm(true);
+              }}
               className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
-              title="Delete all orders & reset revenue to ৳0"
+              title="Delete all orders & reset revenue to ৳0 (Manager only)"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>⚡ One-Click Reset All &amp; Delete Orders</span>
+              <span>⚡ Reset All &amp; Archive Orders</span>
             </button>
           )}
 
@@ -400,6 +468,54 @@ export const OrdersManager: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Primary Navigation Tabs: Live Orders vs Void Requests */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('ORDERS')}
+          className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'ORDERS'
+              ? 'bg-brand-500 text-white shadow-md'
+              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+          }`}
+        >
+          <ChefHat className="w-4 h-4" />
+          <span>Live Orders &amp; Counter Release</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+            activeTab === 'ORDERS' ? 'bg-white/20 text-white' : 'bg-zinc-200 text-zinc-700'
+          }`}>
+            {orders.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('VOID_REQUESTS')}
+          className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'VOID_REQUESTS'
+              ? 'bg-rose-600 text-white shadow-md'
+              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4" />
+          <span>Void &amp; Cancellation Requests</span>
+          {pendingVoidCount > 0 ? (
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full font-black bg-white text-rose-700 animate-pulse shadow-xs">
+              {pendingVoidCount} PENDING
+            </span>
+          ) : (
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-zinc-200 text-zinc-700">
+              0
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'VOID_REQUESTS' ? (
+        <VoidRequestsManager onRefreshOrders={fetchOrders} />
+      ) : (
+        <>
 
       {/* Central Counter Stock Availability Control Drawer / Panel */}
       {showStockControl && (
@@ -670,7 +786,7 @@ export const OrdersManager: React.FC = () => {
                             ? 'bg-purple-100 text-purple-900 border-purple-300'
                             : 'bg-blue-100 text-blue-900 border-blue-300'
                         }`}>
-                          {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                          {(order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway' : 'Dine-in')).replace(/\s*→.*$/, '')}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
                           order.serviceType === 'TABLE_SERVICE'
@@ -770,7 +886,7 @@ export const OrdersManager: React.FC = () => {
                         ? 'bg-purple-100 text-purple-900 border-purple-300'
                         : 'bg-blue-100 text-blue-900 border-blue-300'
                     }`}>
-                      {selectedOrder.orderTypeDescription || ((selectedOrder.customerOrderType === 'TAKEAWAY' || selectedOrder.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                      {(selectedOrder.orderTypeDescription || ((selectedOrder.customerOrderType === 'TAKEAWAY' || selectedOrder.type === 'PARCEL') ? 'Takeaway' : 'Dine-in')).replace(/\s*→.*$/, '')}
                     </span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block border ${
                       selectedOrder.serviceType === 'TABLE_SERVICE'
@@ -988,67 +1104,99 @@ export const OrdersManager: React.FC = () => {
                 </div>
               )}
 
-              {/* Pipeline Decision Buttons */}
-              <div className="space-y-2 pt-2">
-                {/* Cashier: Confirm Cash Received */}
-                {selectedOrder.paymentStatus === 'PAYMENT DUE' && (
-                  <button
-                    onClick={() => handleConfirmCash(selectedOrder.id)}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Banknote className="w-4 h-4" />
-                    <span>CONFIRM CASH RECEIVED &amp; RELEASE TO KITCHEN</span>
-                  </button>
-                )}
-
-                {/* Manager: Accept or Reject Order */}
-                {(selectedOrder.status === 'NEW' || selectedOrder.status === 'UNDER REVIEW') && (
-                  <div className="grid grid-cols-2 gap-3">
+                {/* Pending Void Request Alert Banner */}
+                {selectedOrder.voidStatus === 'PENDING' && (
+                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                      <div>
+                        <p className="font-black">Void Request Pending Manager Approval</p>
+                        <p className="text-[10px] text-amber-700">Cashier has requested cancellation or correction.</p>
+                      </div>
+                    </div>
                     <button
-                      onClick={() => handleAccept(selectedOrder.id)}
-                      className="py-3 px-4 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      type="button"
+                      onClick={() => setActiveTab('VOID_REQUESTS')}
+                      className="px-2.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] cursor-pointer shrink-0"
                     >
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Accept Order</span>
-                    </button>
-
-                    <button
-                      onClick={() => setShowRejectModal(true)}
-                      className="py-3 px-4 rounded-2xl bg-zinc-100 hover:bg-red-50 text-red-600 border border-zinc-200 hover:border-red-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      <span>Reject Order</span>
+                      View Request →
                     </button>
                   </div>
                 )}
-              </div>
 
-              {/* Manager: Direct Status Override (stays on page, no navigation/reset) */}
-              <div className="pt-3 border-t border-zinc-100 space-y-2">
-                <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">Override Order Status</h4>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={statusToUpdate}
-                    onChange={(e) => setStatusToUpdate(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-zinc-200 rounded-xl text-xs text-zinc-800 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white cursor-pointer"
-                  >
-                    {['NEW','ACCEPTED','PAYMENT DUE','PREPARING','READY','OUT FOR DELIVERY','DELIVERED','COMPLETED','CANCELLED'].map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleConfirmStatusUpdate}
-                    disabled={statusUpdating}
-                    className="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    <span>{statusUpdating ? 'Updating…' : 'OK / Confirm'}</span>
-                  </button>
+                {/* Pipeline Decision Buttons */}
+                <div className="space-y-2 pt-2">
+                  {/* Cashier: Confirm Cash Received */}
+                  {selectedOrder.paymentStatus === 'PAYMENT DUE' && (
+                    <button
+                      onClick={() => handleConfirmCash(selectedOrder.id)}
+                      className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Banknote className="w-4 h-4" />
+                      <span>CONFIRM CASH RECEIVED &amp; RELEASE TO KITCHEN</span>
+                    </button>
+                  )}
+
+                  {/* Void / Cancellation Request Button (Cashier & Staff) */}
+                  {selectedOrder.status !== 'CANCELLED' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowVoidModal(true)}
+                      className="w-full py-3 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <ShieldAlert className="w-4 h-4 text-rose-600" />
+                      <span>Request Void / Cancellation (Manager Approval)</span>
+                    </button>
+                  )}
+
+                  {/* Manager: Accept or Reject Order */}
+                  {(selectedOrder.status === 'NEW' || selectedOrder.status === 'UNDER REVIEW') && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => handleAccept(selectedOrder.id)}
+                        className="py-3 px-4 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Accept Order</span>
+                      </button>
+
+                      <button
+                        onClick={() => setShowRejectModal(true)}
+                        className="py-3 px-4 rounded-2xl bg-zinc-100 hover:bg-red-50 text-red-600 border border-zinc-200 hover:border-red-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Reject Order</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {statusFeedback && (
-                  <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl">{statusFeedback}</p>
-                )}
-              </div>
+
+                {/* Manager: Direct Status Override (stays on page, no navigation/reset) */}
+                <div className="pt-3 border-t border-zinc-100 space-y-2">
+                  <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">Override Order Status</h4>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={statusToUpdate}
+                      onChange={(e) => setStatusToUpdate(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-zinc-200 rounded-xl text-xs text-zinc-800 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white cursor-pointer"
+                    >
+                      {['NEW','ACCEPTED','PAYMENT DUE','PREPARING','READY','OUT FOR DELIVERY','DELIVERED','COMPLETED', ...(['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'].includes(currentUser?.role || '') ? ['CANCELLED'] : [])].map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleConfirmStatusUpdate}
+                      disabled={statusUpdating}
+                      className="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>{statusUpdating ? 'Updating…' : 'OK / Confirm'}</span>
+                    </button>
+                  </div>
+                  {statusFeedback && (
+                    <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl">{statusFeedback}</p>
+                  )}
+                </div>
             </div>
 
           ) : (
@@ -1060,6 +1208,8 @@ export const OrdersManager: React.FC = () => {
           )}
         </div>
       </div>
+      </>
+      )}
 
       {/* Reject Modal */}
       {showRejectModal && selectedOrder && (
@@ -1169,7 +1319,7 @@ export const OrdersManager: React.FC = () => {
         </div>
       )}
 
-      {/* One-Click Reset All & Delete Orders Confirmation Modal */}
+      {/* Two-Step Reset All & Archive Orders Confirmation Modal */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white max-w-md w-full rounded-3xl p-6 shadow-2xl border border-zinc-200 space-y-4 animate-in zoom-in-95">
@@ -1179,40 +1329,75 @@ export const OrdersManager: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-black text-zinc-900">
-                  Delete All Orders &amp; Reset to ৳0?
+                  {resetStep === 1 ? 'Step 1 of 2: Confirm Reset Intent' : 'Step 2 of 2: Mandatory Audit Reason'}
                 </h3>
                 <span className="text-[11px] font-bold text-zinc-400 block uppercase tracking-wider">
-                  Authorized Role: {currentUser?.role || 'Staff'}
+                  Manager Action • User: {currentUser?.name || 'Staff'} ({currentUser?.role})
                 </span>
               </div>
             </div>
 
-            <div className="p-3.5 bg-zinc-50 rounded-2xl text-xs text-zinc-600 space-y-2 border border-zinc-100">
-              <p className="font-bold text-red-600">
-                This will delete ALL orders from the database, clear runner tasks, free all 55 tables to AVAILABLE, and reset all Daily, Monthly, and Yearly revenue cards to ৳0.
-              </p>
-              <p className="text-[11px] text-zinc-500">
-                This action is available for Counter Cashier, Food Court Manager, and Chief Administrator.
-              </p>
-            </div>
+            {resetStep === 1 ? (
+              <div className="p-3.5 bg-zinc-50 rounded-2xl text-xs text-zinc-600 space-y-2 border border-zinc-100">
+                <p className="font-bold text-red-600">
+                  Active orders will be safely ARCHIVED to historical audit storage, all 55 tables will be reset to AVAILABLE, and live dashboard counters will return to ৳0.
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  Financial records and past customer orders are NOT permanently erased; an immutable snapshot is preserved in the Delete Report / Reset History.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-3 bg-amber-50 rounded-2xl text-xs text-amber-800 border border-amber-200">
+                  Please specify why you are resetting/archiving all orders. This reason will be logged in the permanent audit trail.
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">
+                    Reset Reason <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="e.g. End of day shift closing, training session reset, new business cycle..."
+                    value={resetReason}
+                    onChange={(e) => setResetReason(e.target.value)}
+                    className="w-full p-2.5 text-xs rounded-xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 resize-none"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            )}
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
               <button
                 type="button"
-                onClick={() => setShowResetConfirm(false)}
+                onClick={() => {
+                  setShowResetConfirm(false);
+                  setResetStep(1);
+                  setResetReason('');
+                }}
                 disabled={resetting}
                 className="px-4 py-2 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-100 cursor-pointer"
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={handleResetEverything}
-                disabled={resetting}
-                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-sm cursor-pointer disabled:opacity-50"
-              >
-                {resetting ? 'Resetting...' : 'Yes, Delete & Default ৳0'}
-              </button>
+              {resetStep === 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setResetStep(2)}
+                  className="px-5 py-2 bg-zinc-900 hover:bg-black text-white rounded-xl text-xs font-black shadow-sm cursor-pointer"
+                >
+                  Proceed to Step 2 →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResetEverything}
+                  disabled={resetting || !resetReason.trim()}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {resetting ? 'Archiving...' : 'Confirm & Archive All Orders'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1224,6 +1409,19 @@ export const OrdersManager: React.FC = () => {
       )}
       {showKOT && selectedOrder && (
         <KOTPrintView order={selectedOrder} onClose={() => setShowKOT(false)} />
+      )}
+
+      {/* Void Request Submission Modal */}
+      {showVoidModal && selectedOrder && (
+        <SubmitVoidRequestModal
+          order={selectedOrder}
+          isOpen={showVoidModal}
+          onClose={() => setShowVoidModal(false)}
+          onSuccess={() => {
+            fetchOrders();
+            fetchVoidCount();
+          }}
+        />
       )}
     </div>
   );

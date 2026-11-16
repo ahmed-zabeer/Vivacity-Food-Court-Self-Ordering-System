@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { AuditLogEntry } from '../../types';
-import { Shield, Clock, UserCheck } from 'lucide-react';
+import { Shield } from 'lucide-react';
 
 export const AuditLogViewer: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   const fetchLogs = async () => {
     try {

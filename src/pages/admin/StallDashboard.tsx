@@ -4,7 +4,7 @@ import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
 import { Order, Stall, MenuItem } from '../../types';
 import { useRoute, useLocation } from 'wouter';
-import { Store, Clock, CheckCircle2, XCircle, ChefHat, Filter, Flame, Bell, Printer } from 'lucide-react';
+import { Store, CheckCircle2, ChefHat, Flame, Bell, Printer } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
 
@@ -57,12 +57,23 @@ export const StallDashboard: React.FC = () => {
       fetchStallData();
     });
 
+    const unsubCreated = realtime.on('order_created', () => {
+      fetchStallData();
+    });
+
+    const unsubReset = realtime.on('all_orders_reset', () => {
+      setOrders([]);
+      fetchStallData();
+    });
+
     const unsubMenu = realtime.on('menu_item_updated', (updatedItem: MenuItem) => {
       setStallItems(prev => prev.map(m => m.id === updatedItem.id ? updatedItem : m));
     });
 
     return () => {
       unsub();
+      unsubCreated();
+      unsubReset();
       unsubMenu();
     };
   }, [effectiveSlug]);
@@ -283,7 +294,7 @@ export const StallDashboard: React.FC = () => {
                               ? 'bg-purple-100 text-purple-900 border-purple-300'
                               : 'bg-blue-100 text-blue-900 border-blue-300'
                           }`}>
-                            {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                            {(order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway' : 'Dine-in')).replace(/\s*→.*$/, '')}
                           </span>
                           <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
                             order.serviceType === 'TABLE_SERVICE'
@@ -473,7 +484,7 @@ export const StallDashboard: React.FC = () => {
                             ? 'bg-purple-100 text-purple-900 border-purple-300'
                             : 'bg-blue-100 text-blue-900 border-blue-300'
                         }`}>
-                          {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                          {(order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway' : 'Dine-in')).replace(/\s*→.*$/, '')}
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
                           order.serviceType === 'TABLE_SERVICE'

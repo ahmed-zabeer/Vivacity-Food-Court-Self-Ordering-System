@@ -4,24 +4,7 @@ import { realtime } from '../../services/events';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from 'wouter';
 import { InventoryMenuItem, Stall } from '../../types';
-import {
-  Package,
-  Search,
-  Filter,
-  ArrowLeft,
-  RefreshCw,
-  Check,
-  X,
-  AlertTriangle,
-  Clock,
-  Store,
-  Layers,
-  ChefHat,
-  RotateCcw,
-  CheckCircle2,
-  Sliders,
-  ShieldAlert
-} from 'lucide-react';
+import { Package, Search, ArrowLeft, RefreshCw, Check, RotateCcw, Power, Play, Pause, AlertCircle, Clock, CheckCircle } from 'lucide-react';
 
 export const InventoryManager: React.FC = () => {
   const [, setLocation] = useLocation();
@@ -29,6 +12,7 @@ export const InventoryManager: React.FC = () => {
 
   const isStallManager = currentUser.role === 'STALL MANAGER';
   const assignedStallId = currentUser.stallId || null;
+  const canManageStalls = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'].includes(currentUser.role);
 
   const [items, setItems] = useState<InventoryMenuItem[]>([]);
   const [stalls, setStalls] = useState<Stall[]>([]);
@@ -43,6 +27,12 @@ export const InventoryManager: React.FC = () => {
   const [editingStock, setEditingStock] = useState<{ [id: string]: string }>({});
   const [savingItem, setSavingItem] = useState<{ [id: string]: boolean }>({});
   const [feedback, setFeedback] = useState<{ [id: string]: string }>({});
+
+  // Stall pause/resume modal state (moved from AdminDashboard)
+  const [pauseModalStall, setPauseModalStall] = useState<Stall | null>(null);
+  const [pauseReason, setPauseReason] = useState('');
+  const [pauseDuration, setPauseDuration] = useState<string>('30');
+  const [pauseSubmitting, setPauseSubmitting] = useState(false);
 
   const userContext = useMemo(
     () => ({
@@ -74,7 +64,7 @@ export const InventoryManager: React.FC = () => {
     fetchInventory();
   }, [fetchInventory]);
 
-  // Real-time listener for stock/menu changes
+  // Real-time listener for stock/menu/stall changes
   useEffect(() => {
     const unsubInv = realtime.on('inventory_updated', () => {
       fetchInventory();
@@ -82,9 +72,13 @@ export const InventoryManager: React.FC = () => {
     const unsubMenu = realtime.on('menu_item_updated', () => {
       fetchInventory();
     });
+    const unsubStall = realtime.on('stall_updated', () => {
+      fetchInventory();
+    });
     return () => {
       unsubInv();
       unsubMenu();
+      unsubStall();
     };
   }, [fetchInventory]);
 
@@ -143,6 +137,45 @@ export const InventoryManager: React.FC = () => {
       await fetchInventory();
     } catch (err: any) {
       alert(err.message || 'Failed to reset stock');
+    }
+  };
+
+  // Stall Pause / Resume Handlers (moved from AdminDashboard)
+  const handleOpenPauseModal = (stall: Stall) => {
+    setPauseModalStall(stall);
+    setPauseReason(stall.pauseReason || '');
+    setPauseDuration('30');
+  };
+
+  const handleConfirmPauseStall = async () => {
+    if (!pauseModalStall) return;
+    setPauseSubmitting(true);
+    try {
+      const dur = pauseDuration === 'manual' ? null : parseInt(pauseDuration, 10);
+      await api.pauseStall(
+        pauseModalStall.id,
+        pauseReason.trim(),
+        dur,
+        { name: currentUser.name, role: currentUser.role }
+      );
+      setPauseModalStall(null);
+      const updatedStalls = await api.getStalls().catch(() => []);
+      setStalls(updatedStalls);
+    } catch (err: any) {
+      alert(err.message || 'Failed to pause stall');
+    } finally {
+      setPauseSubmitting(false);
+    }
+  };
+
+  const handleResumeStall = async (stall: Stall) => {
+    if (!window.confirm(`Resume operations for "${stall.name}"? Customers will immediately be able to order again.`)) return;
+    try {
+      await api.resumeStall(stall.id, { name: currentUser.name, role: currentUser.role });
+      const updatedStalls = await api.getStalls().catch(() => []);
+      setStalls(updatedStalls);
+    } catch (err: any) {
+      alert(err.message || 'Failed to resume stall');
     }
   };
 
@@ -228,6 +261,110 @@ export const InventoryManager: React.FC = () => {
           <span>Sync Stock Status</span>
         </button>
       </div>
+
+      {/* ========================================================================= */}
+      {/* Stall Control & Temporary Availability (moved from Admin Dashboard)       */}
+      {/* ========================================================================= */}
+      <section className="bg-white rounded-3xl p-5 md:p-6 border border-zinc-200/90 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-black">
+              <Power className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-zinc-900 tracking-tight">
+                  Stall Control &amp; Temporary Availability
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 text-[10px] font-bold">
+                  {stalls.length > 0 ? `${stalls.length} Stalls` : '7 Stalls'}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500">
+                Pause any stall during peak rush or prep. Paused stalls display &ldquo;Temporarily Unavailable&rdquo; and reject new orders while other stalls remain open.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {stalls.map((s) => {
+            const isPaused = !!s.isPaused;
+            return (
+              <div
+                key={s.id}
+                className={`p-4 rounded-2xl border transition-all ${
+                  isPaused
+                    ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-200'
+                    : 'bg-zinc-50/60 border-zinc-200/80 hover:border-zinc-300'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-zinc-400 uppercase">{s.id}</span>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          isPaused
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${isPaused ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                        {isPaused ? 'Paused' : 'Active'}
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-black text-zinc-900 mt-1">{s.name}</h3>
+                  </div>
+                  {canManageStalls && (
+                    isPaused ? (
+                      <button
+                        type="button"
+                        onClick={() => handleResumeStall(s)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 shadow-xs transition-all active:scale-95 cursor-pointer"
+                        title="Resume stall operations"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Resume</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPauseModal(s)}
+                        className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-black flex items-center gap-1 shadow-xs transition-all active:scale-95 cursor-pointer"
+                        title="Temporarily pause stall"
+                      >
+                        <Pause className="w-3.5 h-3.5" />
+                        <span>Pause</span>
+                      </button>
+                    )
+                  )}
+                </div>
+
+                {isPaused ? (
+                  <div className="bg-amber-100/70 rounded-xl p-2.5 text-xs text-amber-900 space-y-1">
+                    <p className="font-semibold text-[11px] flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>{s.pauseReason || 'Temporarily Unavailable'}</span>
+                    </p>
+                    {s.pauseUntil && (
+                      <p className="text-[10px] text-amber-700 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        <span>Auto-resumes: {new Date(s.pauseUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Accepting orders &amp; cooking normally</span>
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       {/* KPI Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -557,6 +694,100 @@ export const InventoryManager: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* ================= STALL PAUSE MODAL (moved from Admin Dashboard) ================= */}
+      {pauseModalStall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-4 bg-zinc-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                  <Pause className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider">
+                    Pause Stall: {pauseModalStall.name}
+                  </h3>
+                  <span className="text-[10px] text-zinc-400">
+                    ID: {pauseModalStall.id} • Temporarily halt customer ordering
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPauseModalStall(null)}
+                className="text-zinc-400 hover:text-white p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-zinc-600 leading-relaxed">
+                When paused, customers will see <strong>&ldquo;Temporarily Unavailable&rdquo;</strong> for <strong>{pauseModalStall.name}</strong> and cannot place new orders for this stall. Other food court stalls remain unaffected.
+              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-800 mb-1.5">
+                  Pause Duration
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: '15 Minutes', val: '15' },
+                    { label: '30 Minutes', val: '30' },
+                    { label: '1 Hour', val: '60' },
+                    { label: 'Until Resumed', val: 'manual' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => setPauseDuration(opt.val)}
+                      className={`p-2.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${
+                        pauseDuration === opt.val
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-700 hover:bg-zinc-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-800 mb-1">
+                  Reason for Pause (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Kitchen deep clean, Peak order prep, Chef break..."
+                  value={pauseReason}
+                  onChange={(e) => setPauseReason(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-zinc-800 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setPauseModalStall(null)}
+                  className="px-4 py-2 rounded-xl border border-zinc-200 text-zinc-700 font-bold hover:bg-zinc-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPauseStall}
+                  disabled={pauseSubmitting}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  {pauseSubmitting ? 'Pausing...' : 'Confirm Pause'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

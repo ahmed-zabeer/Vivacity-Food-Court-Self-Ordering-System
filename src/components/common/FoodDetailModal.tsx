@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MenuItem } from '../../types';
-import { X, Plus, Minus, Check, Flame, Clock, Maximize2 } from 'lucide-react';
+import { X, Plus, Minus, Check, Maximize2 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
 interface FoodDetailModalProps {

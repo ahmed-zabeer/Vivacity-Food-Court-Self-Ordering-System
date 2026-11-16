@@ -1,4 +1,18 @@
+import { API_BASE } from '../config/api';
+
 type EventHandler = (data: any) => void;
+
+export const getClientId = (): string => {
+  if (typeof window === 'undefined') return 'server';
+  let cid = sessionStorage.getItem('vivacity_client_id');
+  if (!cid) {
+    cid = 'cli_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
+    try {
+      sessionStorage.setItem('vivacity_client_id', cid);
+    } catch {}
+  }
+  return cid;
+};
 
 class RealtimeEventsClient {
   private eventSource: EventSource | null = null;
@@ -25,14 +39,26 @@ class RealtimeEventsClient {
     'settings_updated',
     'inventory_updated',
     'stall_updated',
-    'review_submitted'
+    'review_submitted',
+    'all_orders_reset',
+    'void_request_created',
+    'void_request_approved',
+    'void_request_rejected',
+    'void_request_updated',
+    'wastage_removed'
   ];
 
   connect() {
     if (this.eventSource || typeof window === 'undefined') return;
 
     try {
-      this.eventSource = new EventSource('/api/events');
+      const cid = getClientId();
+      const tid = sessionStorage.getItem('vivacity_table_id') || localStorage.getItem('vivacity_table_id') || '';
+      const params = new URLSearchParams();
+      if (cid) params.append('clientId', cid);
+      if (tid) params.append('tableId', tid.trim().toUpperCase());
+      const url = `${API_BASE}/events${params.toString() ? '?' + params.toString() : ''}`;
+      this.eventSource = new EventSource(url);
     } catch (e) {
       this.isConnected = false;
       return;
@@ -68,6 +94,31 @@ class RealtimeEventsClient {
 
     // Register any already subscribed events
     this.listeners.forEach((_, name) => this.registerEvent(name));
+  }
+
+  subscribe(opts: { tableId?: string; orderId?: string; orderIds?: string[]; role?: string }) {
+    const cid = getClientId();
+    if (typeof window !== 'undefined' && 'fetch' in window) {
+      fetch(`${API_BASE}/events/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: cid,
+          ...opts
+        })
+      }).catch(() => {});
+    }
+  }
+
+  reconnectWithMetadata() {
+    if (this.eventSource) {
+      try {
+        this.eventSource.close();
+      } catch {}
+      this.eventSource = null;
+      this.registeredEvents.clear();
+    }
+    this.connect();
   }
 
   getConnectionStatus() {

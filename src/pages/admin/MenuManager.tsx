@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { MenuItem, Stall } from '../../types';
-import { Search, Plus, Filter, Edit2, Check, XCircle, Sliders, Utensils } from 'lucide-react';
+import { Search, Edit2, Sliders, Utensils } from 'lucide-react';
 
 export const MenuManager: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ITEMS' | 'CUSTOMIZATIONS'>('ITEMS');
@@ -16,7 +16,7 @@ export const MenuManager: React.FC = () => {
   // Customization editing state
   const [editingCustomKey, setEditingCustomKey] = useState<{ category: string; id: string } | null>(null);
   const [customPriceInput, setCustomPriceInput] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   const fetchMenu = async () => {
     try {

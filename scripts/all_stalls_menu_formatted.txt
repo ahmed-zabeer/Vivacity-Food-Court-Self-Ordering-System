@@ -1,0 +1,440 @@
+
+=================== STALL: fusion-cafe (150 items) ===================
+
+--- Category: STEAK (15 items) ---
+  [1] id: cb-stk-1 | name: "T Bone Steak (300+6M)" | sub: "Regular Steak" | ৳1450
+  [2] id: cb-stk-2 | name: "Tenderloin Steak (250+6M)" | sub: "Regular Steak" | ৳995
+  [3] id: cb-stk-3 | name: "Sirloin Steak (300+6M)" | sub: "Regular Steak" | ৳1195
+  [4] id: cb-stk-4 | name: "Texas Meat (Fusion Special)" | sub: "Premium Steak" | ৳1780
+  [5] id: cb-stk-5 | name: "Texas Prime (Fusion Special)" | sub: "Premium Steak" | ৳1999
+  [6] id: cb-stk-6 | name: "Mix Meat Luxury (Fusion Special)" | sub: "Premium Steak" | ৳3750
+  [7] id: cb-stk-c1 | name: "Steak Combo 1" | sub: "Steak Combo" | ৳699
+  [8] id: cb-stk-c2 | name: "Steak Combo 2" | sub: "Steak Combo" | ৳599
+  [9] id: cb-stk-c3 | name: "Steak Combo 3" | sub: "Steak Combo" | ৳599
+  [10] id: cb-stk-c4 | name: "Steak Combo 4" | sub: "Steak Combo" | ৳499
+  [11] id: cb-stk-c5 | name: "Steak Combo 5" | sub: "Steak Combo" | ৳699
+  [12] id: cb-stk-c6 | name: "Steak Combo 6" | sub: "Steak Combo" | ৳599
+  [13] id: cb-platter-couple | name: "Couple Platter" | sub: "Premium Mixed Platters" | ৳1000
+  [14] id: cb-platter-fm | name: "Fish & Meat" | sub: "Premium Mixed Platters" | ৳950
+  [15] id: cb-platter-cc | name: "Chicken Carnival" | sub: "Premium Mixed Platters" | ৳750
+
+--- Category: SEAFOOD (12 items) ---
+  [1] id: cb-sea-1 | name: "Grilled Dori Fish" | sub: "" | ৳480
+  [2] id: cb-sea-2 | name: "Cream Dori Fish" | sub: "" | ৳560
+  [3] id: cb-sea-3 | name: "Grilled Lobster" | sub: "" | ৳499
+  [4] id: cb-sea-4 | name: "BBQ Grilled Crab" | sub: "" | ৳499
+  [5] id: cb-sea-5 | name: "Grilled Rupchada (200+ Gram)" | sub: "" | ৳550
+  [6] id: cb-sea-6 | name: "Red Snapper (400+ Gram)" | sub: "" | ৳199
+  [7] id: cb-sea-7 | name: "Fish Fillet" | sub: "" | ৳460
+  [8] id: cb-sea-8 | name: "Fish & Chips (New York)" | sub: "" | ৳460
+  [9] id: cb-sea-9 | name: "All Fried Seafood" | sub: "" | ৳1180
+  [10] id: cb-sea-10 | name: "All Grilled Seafood" | sub: "" | ৳1280
+  [11] id: cb-sea-11 | name: "Fried & Grilled Mix" | sub: "" | ৳1250
+  [12] id: cb-sea-12 | name: "Surf & Turf" | sub: "" | ৳1150
+
+--- Category: PIZZA (11 items) ---
+  [1] id: cb-piz-1 | name: "Tandori Pizza" | sub: "" | ৳580
+  [2] id: cb-piz-2 | name: "Mexican Hot Pizza" | sub: "" | ৳570
+  [3] id: cb-piz-3 | name: "Pizza Barcelona" | sub: "" | ৳580
+  [4] id: cb-piz-4 | name: "Chick BBQ Pizza" | sub: "" | ৳550
+  [5] id: cb-piz-5 | name: "Sausage Carnival" | sub: "" | ৳550
+  [6] id: cb-piz-6 | name: "Beef Lover's Pizza" | sub: "" | ৳599
+  [7] id: cb-piz-7 | name: "Pizza Margarita" | sub: "" | ৳580
+  [8] id: cb-piz-8 | name: "Four Season Pizza" | sub: "" | ৳630
+  [9] id: cb-piz-9 | name: "Chick Pepperoni Pizza" | sub: "" | ৳699
+  [10] id: cb-piz-10 | name: "Mix Sea Food Pizza" | sub: "" | ৳699
+  [11] id: cb-piz-11 | name: "Fusion Special Comilla Pizza" | sub: "" | ৳799
+
+--- Category: COMBO MEAL (4 items) ---
+  [1] id: cb-cmb-1 | name: "Combo 1" | sub: "" | ৳799
+  [2] id: cb-cmb-2 | name: "Combo 2" | sub: "" | ৳699
+  [3] id: cb-cmb-3 | name: "Combo 3" | sub: "" | ৳699
+  [4] id: cb-cmb-4 | name: "Combo 4" | sub: "" | ৳599
+
+--- Category: CHEF SPECIAL (6 items) ---
+  [1] id: cb-chef-1 | name: "Fish Fantasy (Seafood)" | sub: "" | ৳1250
+  [2] id: cb-chef-2 | name: "Grilled Lovers" | sub: "" | ৳780
+  [3] id: cb-chef-3 | name: "Steak Lover's" | sub: "" | ৳1799
+  [4] id: cb-chef-4 | name: "Fried Lover's" | sub: "" | ৳780
+  [5] id: cb-chef-5 | name: "4 Ways Chicken (1:2)" | sub: "" | ৳1250
+  [6] id: cb-chef-6 | name: "6 Ways Chicken (1:3)" | sub: "" | ৳1750
+
+--- Category: STARTERS (19 items) ---
+  [1] id: cb-reg-st-1 | name: "Special Nachos" | sub: "Starter" | ৳260
+  [2] id: cb-reg-st-2 | name: "Special Naga Nachos" | sub: "Starter" | ৳280
+  [3] id: cb-reg-st-3 | name: "Mexican Tacos (2 pcs)" | sub: "Starter" | ৳200
+  [4] id: cb-reg-st-4 | name: "Mexican Tacos (3 pcs)" | sub: "Starter" | ৳280
+  [5] id: cb-reg-st-5 | name: "Wings Hot / Buffalo (6 pcs)" | sub: "Starter" | ৳250
+  [6] id: cb-reg-st-6 | name: "Fish & Chips (1:1)" | sub: "Starter" | ৳360
+  [7] id: cb-reg-st-7 | name: "Fried Calamari" | sub: "Starter" | ৳399
+  [8] id: cb-reg-st-8 | name: "Grilled Calamari" | sub: "Starter" | ৳399
+  [9] id: cb-reg-st-9 | name: "French Fries" | sub: "Starter" | ৳160
+  [10] id: cb-reg-st-10 | name: "Prawn Tempura (5 pcs)" | sub: "Starter" | ৳390
+  [11] id: cb-reg-st-11 | name: "Chicken Cheese Ball (6 pcs)" | sub: "Starter" | ৳350
+  [12] id: cb-reg-st-12 | name: "Fried Wonton (6 pcs)" | sub: "Starter" | ৳180
+  [13] id: cb-reg-st-13 | name: "Prawn / Chicken On Toast (4 pcs)" | sub: "Starter" | ৳350
+  [14] id: cb-reg-st-14 | name: "Potato Masala Wedges with Fried Chicken (2 pcs)" | sub: "Starter" | ৳220
+  [15] id: cb-reg-st-15 | name: "Thai Fried Chicken (6 pcs)" | sub: "Starter" | ৳320
+  [16] id: cb-reg-st-16 | name: "Chicken Nuggets with Fries (6 pcs)" | sub: "Starter" | ৳280
+  [17] id: cb-reg-st-17 | name: "Garlic Mushroom" | sub: "Starter" | ৳320
+  [18] id: cb-reg-st-18 | name: "Fish Finger (6 pcs)" | sub: "Starter" | ৳320
+  [19] id: cb-reg-st-19 | name: "Naga Drumsticks (2 pcs)" | sub: "Starter" | ৳280
+
+--- Category: PASTA & NOODLES (9 items) ---
+  [1] id: cb-pas-1 | name: "Chicken Spicy Pasta" | sub: "Pasta & Noodles" | ৳300
+  [2] id: cb-pas-2 | name: "Sweet Cream Pasta (Pan Baked)" | sub: "Pasta & Noodles" | ৳300
+  [3] id: cb-pas-3 | name: "Oven Baked Pasta (Red)" | sub: "Pasta & Noodles" | ৳380
+  [4] id: cb-pas-4 | name: "Oven Baked Hot & Spicy Pasta" | sub: "Pasta & Noodles" | ৳380
+  [5] id: cb-pas-5 | name: "Seafood Hakka Noodles" | sub: "Pasta & Noodles" | ৳350
+  [6] id: cb-pas-6 | name: "Prawn Special Chowmein" | sub: "Pasta & Noodles" | ৳370
+  [7] id: cb-pas-7 | name: "Seafood Pasta" | sub: "Pasta & Noodles" | ৳350
+  [8] id: cb-pas-8 | name: "Special Mixed Chowmein" | sub: "Pasta & Noodles" | ৳300
+  [9] id: cb-pas-9 | name: "Sweet Cream Pasta (Oven Baked)" | sub: "Pasta & Noodles" | ৳380
+
+--- Category: SOUP (6 items) ---
+  [1] id: cb-sop-1 | name: "Thai Soup (Thick)" | sub: "Soup" | ৳200
+  [2] id: cb-sop-2 | name: "Cream of Mushroom Soup" | sub: "Soup" | ৳220
+  [3] id: cb-sop-3 | name: "Seafood Clear Soup" | sub: "Soup" | ৳270
+  [4] id: cb-sop-4 | name: "Hot & Sour Veg / Corn Soup" | sub: "Soup" | ৳180
+  [5] id: cb-sop-5 | name: "Tom Yum Soup" | sub: "Soup" | ৳250
+  [6] id: cb-sop-6 | name: "Chicken Noodles Soup" | sub: "Soup" | ৳320
+
+--- Category: SALAD (4 items) ---
+  [1] id: cb-sal-1 | name: "Grilled Chicken Salad" | sub: "Salad" | ৳360
+  [2] id: cb-sal-2 | name: "Special Seafood Salad" | sub: "Salad" | ৳420
+  [3] id: cb-sal-3 | name: "Chicken Cashewnut Salad" | sub: "Salad" | ৳380
+  [4] id: cb-sal-4 | name: "Peanut & Corn Salad" | sub: "Salad" | ৳300
+
+--- Category: IMPROVED PLATTER (15 items) ---
+  [1] id: cb-imp-1 | name: "BBQ Chicken" | sub: "Improved Platter" | ৳360
+  [2] id: cb-imp-2 | name: "Mexican Chicken" | sub: "Improved Platter" | ৳360
+  [3] id: cb-imp-3 | name: "Peri Peri Chicken" | sub: "Improved Platter" | ৳390
+  [4] id: cb-imp-4 | name: "Tandoori Chicken" | sub: "Improved Platter" | ৳350
+  [5] id: cb-imp-5 | name: "Masala Chicken" | sub: "Improved Platter" | ৳360
+  [6] id: cb-imp-6 | name: "Garlic Chicken" | sub: "Improved Platter" | ৳360
+  [7] id: cb-imp-7 | name: "Thousands Chicken" | sub: "Improved Platter" | ৳390
+  [8] id: cb-imp-8 | name: "Chicken Steak" | sub: "Improved Platter" | ৳390
+  [9] id: cb-imp-9 | name: "King Prawn" | sub: "Improved Platter" | ৳490
+  [10] id: cb-imp-10 | name: "Kids Meal" | sub: "Improved Platter" | ৳370
+  [11] id: cb-imp-11 | name: "Smart Meal" | sub: "Improved Platter" | ৳360
+  [12] id: cb-imp-12 | name: "Roasted Garlic Chicken" | sub: "Improved Platter" | ৳390
+  [13] id: cb-imp-13 | name: "Mongolian Beef" | sub: "Improved Platter" | ৳399
+  [14] id: cb-imp-14 | name: "Beef Oyster" | sub: "Improved Platter" | ৳399
+  [15] id: cb-imp-15 | name: "Cheese Chicken" | sub: "Improved Platter" | ৳380
+
+--- Category: BOBA DRINK (17 items) ---
+  [1] id: cb-bob-1 | name: "Cold Milk Tea Regular" | sub: "Boba Milk Tea" | ৳160
+  [2] id: cb-bob-2 | name: "Boba Pearl Milk Tea" | sub: "Boba Milk Tea" | ৳190
+  [3] id: cb-bob-3 | name: "Boba Pearl Chocolate Fantasy" | sub: "Boba Milk Tea" | ৳220
+  [4] id: cb-bob-4 | name: "Cocoa Smoothie" | sub: "Smoothie" | ৳170
+  [5] id: cb-bob-5 | name: "Cocoa Pearl Smoothie" | sub: "Smoothie" | ৳200
+  [6] id: cb-bob-6 | name: "Strawberry Pearl Smoothie" | sub: "Smoothie" | ৳200
+  [7] id: cb-bob-7 | name: "Mango Pearl Smoothie" | sub: "Smoothie" | ৳220
+  [8] id: cb-bob-8 | name: "Boba Milk Tea QQ" | sub: "QQ Jelly" | ৳240
+  [9] id: cb-bob-9 | name: "Mango Pearl QQ" | sub: "QQ Jelly" | ৳240
+  [10] id: cb-bob-10 | name: "Chocolate Pearl Shake" | sub: "Shake (Boba)" | ৳220
+  [11] id: cb-bob-11 | name: "Strawberry Pearl Shake" | sub: "Shake (Boba)" | ৳220
+  [12] id: cb-bob-12 | name: "Vanilla Pearl Shake" | sub: "Shake (Boba)" | ৳200
+  [13] id: cb-bob-13 | name: "Mango Pearl Shake" | sub: "Shake (Boba)" | ৳200
+  [14] id: cb-bob-14 | name: "Banana Pearl Shake" | sub: "Shake (Boba)" | ৳180
+  [15] id: cb-bob-15 | name: "Coconut Pearl Milk Shake" | sub: "Shake (Boba)" | ৳220
+  [16] id: cb-bob-16 | name: "Oreo Shake" | sub: "Shake (Boba)" | ৳220
+  [17] id: cb-bob-17 | name: "Extra Pearl" | sub: "" | ৳50
+
+--- Category: ICE CRUSHED (8 items) ---
+  [1] id: cb-drk-1 | name: "Fresh Lemonade" | sub: "Ice Crushed" | ৳100
+  [2] id: cb-drk-2 | name: "Ginger Lemonade" | sub: "Ice Crushed" | ৳130
+  [3] id: cb-drk-3 | name: "Refreshing Coconut" | sub: "Ice Crushed" | ৳140
+  [4] id: cb-drk-4 | name: "Mint Lemonade" | sub: "Ice Crushed" | ৳140
+  [5] id: cb-drk-5 | name: "Pineapple Lemon Mint" | sub: "Ice Crushed" | ৳150
+  [6] id: cb-drk-6 | name: "Orange / Citrus Cooler" | sub: "Ice Crushed" | ৳180
+  [7] id: cb-drk-7 | name: "Lime Cooler" | sub: "Ice Crushed" | ৳160
+  [8] id: cb-drk-8 | name: "Mint Mojito" | sub: "Ice Crushed" | ৳150
+
+--- Category: HEALTHY DRINKS (6 items) ---
+  [1] id: cb-hlt-1 | name: "Dragon Seduction" | sub: "Healthy Drinks" | ৳190
+  [2] id: cb-hlt-2 | name: "Chilied Ginger" | sub: "Healthy Drinks" | ৳180
+  [3] id: cb-hlt-3 | name: "Fresh Orange Juice" | sub: "Healthy Drinks" | ৳199
+  [4] id: cb-hlt-4 | name: "Fresh Watermelon Juice" | sub: "Healthy Drinks" | ৳170
+  [5] id: cb-hlt-5 | name: "Pineapple Paradise" | sub: "Healthy Drinks" | ৳170
+  [6] id: cb-hlt-6 | name: "Papaya Seduction" | sub: "Healthy Drinks" | ৳150
+
+--- Category: SHAKE (8 items) ---
+  [1] id: cb-shk-1 | name: "Fusion Chocolate Shake" | sub: "Shake" | ৳180
+  [2] id: cb-shk-2 | name: "Strawberry Shake" | sub: "Shake" | ৳180
+  [3] id: cb-shk-3 | name: "Vanilla Milk Shake" | sub: "Shake" | ৳180
+  [4] id: cb-shk-4 | name: "Mango Shake" | sub: "Shake" | ৳180
+  [5] id: cb-shk-5 | name: "Wild Banana Shake" | sub: "Shake" | ৳150
+  [6] id: cb-shk-6 | name: "Papaya Shake" | sub: "Shake" | ৳180
+  [7] id: cb-shk-7 | name: "Coconut Milk Shake" | sub: "Shake" | ৳160
+  [8] id: cb-shk-8 | name: "Oreo Shake" | sub: "Shake" | ৳190
+
+--- Category: SPECIAL DRINKS (4 items) ---
+  [1] id: cb-spc-1 | name: "Dry Fruit Fantasy" | sub: "Special Drinks" | ৳220
+  [2] id: cb-spc-2 | name: "Blue Lagoon (Blue Legon)" | sub: "Special Drinks" | ৳190
+  [3] id: cb-spc-3 | name: "Water Melon Mojito" | sub: "Special Drinks" | ৳150
+  [4] id: cb-spc-4 | name: "Green Mango Merry" | sub: "Special Drinks" | ৳150
+
+--- Category: COFFEE (6 items) ---
+  [1] id: cb-cff-1 | name: "Fusion Regular Cold Coffee" | sub: "Coffee / Hot & Cold" | ৳150
+  [2] id: cb-cff-2 | name: "Chocolate Cold Coffee" | sub: "Coffee / Hot & Cold" | ৳170
+  [3] id: cb-cff-3 | name: "Peanut Cold Coffee" | sub: "Coffee / Hot & Cold" | ৳180
+  [4] id: cb-cff-4 | name: "Kitkat Cold Coffee" | sub: "Coffee / Hot & Cold" | ৳200
+  [5] id: cb-cff-5 | name: "Fusion Special Cold Coffee" | sub: "Coffee / Hot & Cold" | ৳220
+  [6] id: cb-cff-6 | name: "Fusion Hot Coffee (Espresso)" | sub: "Coffee / Hot & Cold" | ৳160
+
+=================== STALL: top-town (78 items) ===================
+
+--- Category: CHOWMEIN (2 items) ---
+  [1] id: tt-chw-1 | name: "Chicken Chowmein" | sub: "Chowmein" | ৳300
+  [2] id: tt-chw-2 | name: "House Special Chowmein" | sub: "Chowmein" | ৳350
+
+--- Category: COMBO PLATTERS (2 items) ---
+  [1] id: tt-cmb-1 | name: "Combo 1" | sub: "Combo Platters (1:3)" | ৳950
+  [2] id: tt-cmb-2 | name: "Combo 2" | sub: "Combo Platters (1:3)" | ৳1050
+
+--- Category: SOUP (4 items) ---
+  [1] id: tt-sop-1 | name: "Chicken Corn Soup" | sub: "" | ৳180
+  [2] id: tt-sop-2 | name: "Thai Soup Chick / Clear" | sub: "" | ৳200
+  [3] id: tt-sop-3 | name: "Cream Of Mushroom" | sub: "" | ৳220
+  [4] id: tt-sop-4 | name: "Hot & Sour" | sub: "" | ৳200
+
+--- Category: SNACKS (4 items) ---
+  [1] id: tt-snk-1 | name: "Chola Bhatora" | sub: "Snacks" | ৳180
+  [2] id: tt-snk-2 | name: "Chicken Chola Bhatora" | sub: "Snacks" | ৳250
+  [3] id: tt-snk-3 | name: "Chicken Wrapped Roll" | sub: "Snacks" | ৳180
+  [4] id: tt-snk-4 | name: "Luchi" | sub: "Snacks" | ৳50
+
+--- Category: DOSA (6 items) ---
+  [1] id: tt-dos-1 | name: "Plain Dosa" | sub: "Dosa" | ৳180
+  [2] id: tt-dos-2 | name: "Masala Dosa" | sub: "Dosa" | ৳200
+  [3] id: tt-dos-3 | name: "Butter Masala Dosa" | sub: "Dosa" | ৳220
+  [4] id: tt-dos-4 | name: "Cheese Masala Dosa" | sub: "Dosa" | ৳220
+  [5] id: tt-dos-5 | name: "Chicken Masala Dosa" | sub: "Dosa" | ৳240
+  [6] id: tt-dos-6 | name: "DosaWala Special Dosa" | sub: "Dosa" | ৳280
+
+--- Category: BIRIYANI (2 items) ---
+  [1] id: tt-bir-1 | name: "Hyderabadi Chicken Biriyani" | sub: "" | ৳250
+  [2] id: tt-bir-2 | name: "Hyderabadi Mutton Biriyani" | sub: "" | ৳280
+
+--- Category: CHAATS (4 items) ---
+  [1] id: tt-cht-1 | name: "Regular Fuchka" | sub: "" | ৳100
+  [2] id: tt-cht-2 | name: "Dahi Fuchka" | sub: "" | ৳120
+  [3] id: tt-cht-3 | name: "Papri Chaat" | sub: "" | ৳100
+  [4] id: tt-cht-4 | name: "Raj Kachori" | sub: "" | ৳150
+
+--- Category: NAN RUTI (3 items) ---
+  [1] id: tt-nan-1 | name: "Plain Nan" | sub: "" | ৳50
+  [2] id: tt-nan-2 | name: "Butter Nan" | sub: "" | ৳70
+  [3] id: tt-nan-3 | name: "Garlic Nan" | sub: "" | ৳80
+
+--- Category: DRINKS (3 items) ---
+  [1] id: tt-drk-1 | name: "Sweet Lassi" | sub: "" | ৳120
+  [2] id: tt-drk-2 | name: "Salted Lassi" | sub: "" | ৳100
+  [3] id: tt-drk-3 | name: "Jeera Pani" | sub: "" | ৳80
+
+--- Category: COUPLE PLATTERS (2 items) ---
+  [1] id: tt-cpl-1 | name: "Couple 1" | sub: "" | ৳799
+  [2] id: tt-cpl-2 | name: "Couple 2" | sub: "" | ৳750
+
+--- Category: FRIED RICE (5 items) ---
+  [1] id: tt-frc-1 | name: "Vegetables Fried Rice" | sub: "" | ৳200
+  [2] id: tt-frc-2 | name: "Chicken Fried Rice" | sub: "" | ৳260
+  [3] id: tt-frc-3 | name: "Prawn Fried Rice" | sub: "" | ৳300
+  [4] id: tt-frc-4 | name: "Special Fried Rice" | sub: "" | ৳360
+  [5] id: tt-frc-5 | name: "1 Person Rice" | sub: "" | ৳120
+
+--- Category: SIZZLING (8 items) ---
+  [1] id: tt-siz-1 | name: "Chicken Sizzling" | sub: "" | ৳360
+  [2] id: tt-siz-2 | name: "Prawn Sizzling" | sub: "" | ৳390
+  [3] id: tt-siz-3 | name: "Seafood Sizzling" | sub: "" | ৳450
+  [4] id: tt-siz-4 | name: "Beef Sizzling" | sub: "" | ৳450
+  [5] id: tt-siz-5 | name: "Masala Crab Sizzling" | sub: "" | ৳420
+  [6] id: tt-siz-6 | name: "Shrimp Thermidor" | sub: "" | ৳520
+  [7] id: tt-siz-7 | name: "Deep Fried BBQ Coral (Whole Fish)" | sub: "" | ৳199
+  [8] id: tt-siz-8 | name: "Steam Coral (Whole Fish)" | sub: "" | ৳199
+
+--- Category: GRAVY (7 items) ---
+  [1] id: tt-grv-1 | name: "Masala Chicken" | sub: "" | ৳360
+  [2] id: tt-grv-2 | name: "Manchurian Chicken" | sub: "" | ৳360
+  [3] id: tt-grv-3 | name: "Red Chili Onion" | sub: "" | ৳360
+  [4] id: tt-grv-4 | name: "Prawn Chili Onion" | sub: "" | ৳420
+  [5] id: tt-grv-5 | name: "Garlic Prawn" | sub: "" | ৳420
+  [6] id: tt-grv-6 | name: "Beef Chili Onion" | sub: "" | ৳430
+  [7] id: tt-grv-7 | name: "Beef With Ginger" | sub: "" | ৳440
+
+--- Category: APPETIZER (14 items) ---
+  [1] id: tt-app-1 | name: "Thai Fried Chicken (6pcs)" | sub: "" | ৳300
+  [2] id: tt-app-2 | name: "Chicken Basket With Fries" | sub: "" | ৳280
+  [3] id: tt-app-3 | name: "Chicken Wonthon (6pcs)" | sub: "" | ৳180
+  [4] id: tt-app-4 | name: "French Fries" | sub: "" | ৳150
+  [5] id: tt-app-5 | name: "Garlic Mushroom" | sub: "" | ৳300
+  [6] id: tt-app-6 | name: "Masala Wedges" | sub: "" | ৳150
+  [7] id: tt-app-7 | name: "BBQ Drumsticks" | sub: "" | ৳450
+  [8] id: tt-app-8 | name: "Naga Wings" | sub: "" | ৳240
+  [9] id: tt-app-9 | name: "Prawn Fry" | sub: "" | ৳380
+  [10] id: tt-app-10 | name: "Chicken Lolipop" | sub: "" | ৳350
+  [11] id: tt-app-11 | name: "Fish Finger" | sub: "" | ৳350
+  [12] id: tt-app-12 | name: "Naga Drums" | sub: "" | ৳270
+  [13] id: tt-app-13 | name: "Chrispy Fried Chicken" | sub: "" | ৳320
+  [14] id: tt-app-14 | name: "Chicken Popos" | sub: "" | ৳200
+
+--- Category: SET MENU (7 items) ---
+  [1] id: tt-set-1 | name: "Set Menu 1" | sub: "" | ৳340
+  [2] id: tt-set-2 | name: "Set Menu 2" | sub: "" | ৳320
+  [3] id: tt-set-3 | name: "Set Menu 3" | sub: "" | ৳380
+  [4] id: tt-set-4 | name: "Set Menu 4" | sub: "" | ৳350
+  [5] id: tt-set-5 | name: "Set Menu 5" | sub: "" | ৳380
+  [6] id: tt-set-6 | name: "Set Menu 6" | sub: "" | ৳420
+  [7] id: tt-set-7 | name: "Set Menu 7" | sub: "" | ৳380
+
+--- Category: RICE BOWL (5 items) ---
+  [1] id: tt-rb-1 | name: "Chili Chicken Rice Bowl" | sub: "" | ৳299
+  [2] id: tt-rb-2 | name: "Chicken Sizzling Rice Bowl" | sub: "" | ৳299
+  [3] id: tt-rb-3 | name: "BBQ Chicken Rice Bowl" | sub: "" | ৳299
+  [4] id: tt-rb-4 | name: "Chicken Strip Rice Bowl" | sub: "" | ৳299
+  [5] id: tt-rb-5 | name: "Masala Chicken Rice Bowl" | sub: "" | ৳299
+
+=================== STALL: burger-bar (39 items) ===================
+
+--- Category: BURGER (5 items) ---
+  [1] id: bb-bgr-1 | name: "Chicken Burger (Reg)" | sub: "" | ৳199
+  [2] id: bb-bgr-2 | name: "Chicken Crispy Burger" | sub: "" | ৳225
+  [3] id: bb-bgr-3 | name: "Chicken Cheese Delight" | sub: "" | ৳249
+  [4] id: bb-bgr-4 | name: "Naga Chicken Burger" | sub: "" | ৳220
+  [5] id: bb-bgr-5 | name: "Beef Cheese Burger" | sub: "" | ৳330
+
+--- Category: SANDWICH (4 items) ---
+  [1] id: bb-sdw-1 | name: "Sub Sandwich (Regular)" | sub: "" | ৳220
+  [2] id: bb-sdw-2 | name: "BBQ Cheese Sub" | sub: "" | ৳259
+  [3] id: bb-sdw-3 | name: "Grilled Chicken Sandwich" | sub: "" | ৳180
+  [4] id: bb-sdw-4 | name: "Club Sandwich (4pcs) with French fries" | sub: "" | ৳349
+
+--- Category: MEAT BOX (3 items) ---
+  [1] id: bb-mbx-1 | name: "Meat Box (Regular)" | sub: "" | ৳260
+  [2] id: bb-mbx-2 | name: "BBQ Cheese Meat Box" | sub: "" | ৳290
+  [3] id: bb-mbx-3 | name: "Naga Meat Box" | sub: "" | ৳280
+
+--- Category: CRISPY CHICKEN (7 items) ---
+  [1] id: bb-chk-1 | name: "Thai" | sub: "" | ৳170
+  [2] id: bb-chk-2 | name: "Breast Piece" | sub: "" | ৳170
+  [3] id: bb-chk-3 | name: "Chest Piece" | sub: "" | ৳160
+  [4] id: bb-chk-4 | name: "Leg Piece" | sub: "" | ৳170
+  [5] id: bb-chk-5 | name: "Whole Wings" | sub: "" | ৳120
+  [6] id: bb-chk-6 | name: "Chicken Strips (6pcs)" | sub: "" | ৳249
+  [7] id: bb-chk-7 | name: "Pops Chicken (8pcs)" | sub: "" | ৳260
+
+--- Category: WRAP ROLL (4 items) ---
+  [1] id: bb-wrp-1 | name: "Chicken Wrap" | sub: "" | ৳200
+  [2] id: bb-wrp-2 | name: "Chicken Shawarma" | sub: "" | ৳220
+  [3] id: bb-wrp-3 | name: "Beef Wrap" | sub: "" | ৳320
+  [4] id: bb-wrp-4 | name: "Beef Shawarma" | sub: "" | ৳300
+
+--- Category: FRENCH FRIES (3 items) ---
+  [1] id: bb-ff-1 | name: "French Fries Regular" | sub: "" | ৳130
+  [2] id: bb-ff-2 | name: "Mayo French Fries" | sub: "" | ৳150
+  [3] id: bb-ff-3 | name: "Masala French Fries" | sub: "" | ৳150
+
+--- Category: ADD ONS (7 items) ---
+  [1] id: bb-ado-1 | name: "Bun" | sub: "" | ৳35
+  [2] id: bb-ado-2 | name: "Patty" | sub: "" | ৳99
+  [3] id: bb-ado-3 | name: "Cheese" | sub: "" | ৳35
+  [4] id: bb-ado-4 | name: "Sauce" | sub: "" | ৳8
+  [5] id: bb-ado-5 | name: "Coleslaw" | sub: "" | ৳35
+  [6] id: bb-ado-6 | name: "Naga Sauce" | sub: "" | ৳20
+  [7] id: bb-ado-7 | name: "Mayo" | sub: "" | ৳35
+
+--- Category: COMBO (6 items) ---
+  [1] id: bb-cmb-1 | name: "Burger Combo 1" | sub: "" | ৳320
+  [2] id: bb-cmb-2 | name: "Burger Combo 2" | sub: "" | ৳500
+  [3] id: bb-cmb-3 | name: "Crispy Chicken Combo 1" | sub: "" | ৳460
+  [4] id: bb-cmb-4 | name: "Crispy Chicken Combo Couple" | sub: "" | ৳750
+  [5] id: bb-cmb-5 | name: "Crispy Chicken Combo Family" | sub: "" | ৳1750
+  [6] id: bb-cmb-6 | name: "Kids Meal" | sub: "" | ৳350
+
+=================== STALL: momo-buzz (22 items) ===================
+
+--- Category: MOMO (9 items) ---
+  [1] id: mb-mom-1 | name: "Chicken Momo" | sub: "" | ৳150
+  [2] id: mb-mom-2 | name: "Mushroom Momo" | sub: "" | ৳180
+  [3] id: mb-mom-3 | name: "Naga Momo" | sub: "" | ৳180
+  [4] id: mb-mom-4 | name: "Cheese Momo" | sub: "" | ৳200
+  [5] id: mb-mom-5 | name: "BBQ Momo" | sub: "" | ৳200
+  [6] id: mb-mom-6 | name: "Sausage Momo" | sub: "" | ৳200
+  [7] id: mb-mom-7 | name: "Cheese N' Corn Momo" | sub: "" | ৳270
+  [8] id: mb-mom-8 | name: "Cheese Explode" | sub: "" | ৳270
+  [9] id: mb-mom-9 | name: "BBQ Mushroom" | sub: "" | ৳270
+
+--- Category: MOMOCOLA (4 items) ---
+  [1] id: mb-mcl-1 | name: "Chicken Momocola" | sub: "" | ৳210
+  [2] id: mb-mcl-2 | name: "Naga Mushroom Momocola" | sub: "" | ৳240
+  [3] id: mb-mcl-3 | name: "Cheese Explode Momocola" | sub: "" | ৳270
+  [4] id: mb-mcl-4 | name: "BBQ Squash Momocola" | sub: "" | ৳270
+
+--- Category: COMBO & OTHERS (2 items) ---
+  [1] id: mb-cmb-1 | name: "Momo Buzz Combo" | sub: "" | ৳500
+  [2] id: mb-oth-2 | name: "Momo in Chilli Oil" | sub: "" | ৳200
+
+--- Category: FUCHKA BUZZ (7 items) ---
+  [1] id: mb-fuc-1 | name: "Regular Fuchka (12pcs)" | sub: "" | ৳130
+  [2] id: mb-fuc-2 | name: "Doi Fuchka (12pcs)" | sub: "" | ৳150
+  [3] id: mb-fuc-3 | name: "Naga Fuchka (12pcs)" | sub: "" | ৳140
+  [4] id: mb-fuc-4 | name: "Cocktail Fuchka (12pcs)" | sub: "" | ৳180
+  [5] id: mb-fuc-5 | name: "Regular Chotpoti" | sub: "" | ৳120
+  [6] id: mb-fuc-6 | name: "Naga Chotpoti" | sub: "" | ৳130
+  [7] id: mb-fuc-7 | name: "Fuchka Buzz Special" | sub: "" | ৳160
+
+=================== STALL: waffle-city (19 items) ===================
+
+--- Category: WAFFLE (13 items) ---
+  [1] id: wc-waf-1 | name: "Nutella" | sub: "" | ৳160
+  [2] id: wc-waf-2 | name: "Banana Nuts With Chocolate" | sub: "" | ৳170
+  [3] id: wc-waf-3 | name: "Red Velvet With Cream Chocolate" | sub: "" | ৳170
+  [4] id: wc-waf-4 | name: "Chocolate With Nuts" | sub: "" | ৳170
+  [5] id: wc-waf-5 | name: "Cream With Chocolate" | sub: "" | ৳170
+  [6] id: wc-waf-6 | name: "Chocolate Blast" | sub: "" | ৳180
+  [7] id: wc-waf-7 | name: "Truti Fruti Waffle" | sub: "" | ৳180
+  [8] id: wc-waf-8 | name: "Cream With Strawberry" | sub: "" | ৳200
+  [9] id: wc-waf-9 | name: "Cream With Blueberry" | sub: "" | ৳200
+  [10] id: wc-waf-10 | name: "Nutella With Ice-Cream" | sub: "" | ৳220
+  [11] id: wc-waf-11 | name: "Kitkat With Chocolate Chips" | sub: "" | ৳220
+  [12] id: wc-waf-12 | name: "Creamy Oreo" | sub: "" | ৳220
+  [13] id: wc-waf-13 | name: "Crazy Bliss" | sub: "" | ৳280
+
+--- Category: ADD ONS (6 items) ---
+  [1] id: wc-ado-1 | name: "Ice Cream" | sub: "" | ৳60
+  [2] id: wc-ado-2 | name: "Whipped Cream" | sub: "" | ৳40
+  [3] id: wc-ado-3 | name: "Chocolate Chips" | sub: "" | ৳30
+  [4] id: wc-ado-4 | name: "Extra Nuts" | sub: "" | ৳20
+  [5] id: wc-ado-5 | name: "Cream Cheese" | sub: "" | ৳40
+  [6] id: wc-ado-6 | name: "Extra Nutella" | sub: "" | ৳50
+
+=================== STALL: live-station (24 items) ===================
+
+--- Category: BBQ & KABAB (18 items) ---
+  [1] id: ls-bbq-1 | name: "Chicken Tandoori Kabab" | sub: "" | ৳220
+  [2] id: ls-bbq-2 | name: "Chicken BBQ" | sub: "" | ৳230
+  [3] id: ls-bbq-3 | name: "Tandoori Chicken" | sub: "" | ৳220
+  [4] id: ls-bbq-4 | name: "Chicken Chap Masala" | sub: "" | ৳230
+  [5] id: ls-bbq-5 | name: "Chicken Boti Kabab" | sub: "" | ৳220
+  [6] id: ls-bbq-6 | name: "Naga Chicken Kabab" | sub: "" | ৳230
+  [7] id: ls-bbq-7 | name: "Chicken Achari Kabab" | sub: "" | ৳220
+  [8] id: ls-bbq-8 | name: "Chicken Reshmi Kabab" | sub: "" | ৳240
+  [9] id: ls-bbq-9 | name: "Chicken Malai Kabab" | sub: "" | ৳250
+  [10] id: ls-bbq-10 | name: "Chicken Hariyali Kabab" | sub: "" | ৳220
+  [11] id: ls-bbq-11 | name: "Afghani Chicken Kabab" | sub: "" | ৳250
+  [12] id: ls-bbq-12 | name: "Chicken Drumstick / Naga" | sub: "" | ৳299
+  [13] id: ls-bbq-13 | name: "Chicken Lollipop (Badshahi)" | sub: "" | ৳299
+  [14] id: ls-bbq-14 | name: "Chicken Tikka (Sonali)" | sub: "" | ৳290
+  [15] id: ls-bbq-15 | name: "Beef Seek Kabab" | sub: "" | ৳280
+  [16] id: ls-bbq-16 | name: "Beef Boti Kabab" | sub: "" | ৳280
+  [17] id: ls-bbq-17 | name: "Whole Koral Fish" | sub: "" | ৳199
+  [18] id: ls-bbq-18 | name: "Luchi" | sub: "" | ৳30
+
+--- Category: PLATTERS (6 items) ---
+  [1] id: ls-plt-1 | name: "Platter 1 (1:2)" | sub: "" | ৳915
+  [2] id: ls-plt-2 | name: "Platter 2 (1:2)" | sub: "" | ৳745
+  [3] id: ls-plt-3 | name: "Platter 3 (1:4)" | sub: "" | ৳1290
+  [4] id: ls-plt-4 | name: "Platter 4 (1:4)" | sub: "" | ৳970
+  [5] id: ls-plt-5 | name: "Premium (1:4)" | sub: "" | ৳2250
+  [6] id: ls-plt-6 | name: "Luxury (1:4)" | sub: "" | ৳2350

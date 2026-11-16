@@ -4460,7 +4460,89 @@ export const menuItemsData = [
     "description": "Pop Chicken (4pcs), Chicken Fry (1), Bun (2pcs), French Fries (1) & Sauce (2)",
     "isAvailable": true,
     "image": "/assets/Barger%20Bar/Asset%2049@4x.png"
-  }
+  },
+
+  // ==========================================
+  // NEW ITEMS — Added from photo shoot assets
+  // ==========================================
+
+  // --- Top Town: Fried Rice variants ---
+  { id: "tt-fr-new-1", stallId: "top-town", category: "FRIED RICE", name: "Sweet & Sour Chicken Fried Rice", price: 280, description: "Fried rice with crispy sweet & sour chicken, pickled vegetables.", image: "/assets/menu/toptown-fried-rice-sweet-sour.jpg", isAvailable: true, prepTime: "12 min", isPopular: true },
+  { id: "tt-fr-new-2", stallId: "top-town", category: "FRIED RICE", name: "Fried Chicken Fried Rice", price: 260, description: "Golden fried chicken pieces with fragrant fried rice and pickled vegetables.", image: "/assets/menu/toptown-fried-chicken-rice.jpg", isAvailable: true, prepTime: "12 min" },
+  { id: "tt-fr-new-3", stallId: "top-town", category: "FRIED RICE", name: "Mushroom Beef Fried Rice", price: 290, description: "Stir-fried mushroom & beef with fried rice and cucumber garnish.", image: "/assets/menu/toptown-mushroom-beef-rice.jpg", isAvailable: true, prepTime: "14 min" },
+  { id: "tt-fr-new-4", stallId: "top-town", category: "FRIED RICE", name: "Spicy Crispy Chicken Fried Rice", price: 280, description: "Dark-spiced crispy fried chicken with fried rice and sweet & sour sauce.", image: "/assets/menu/toptown-spicy-chicken-rice.jpg", isAvailable: true, prepTime: "14 min", isPopular: true },
+  { id: "tt-fr-new-5", stallId: "top-town", category: "FRIED RICE", name: "Beef Bamboo Fried Rice", price: 290, description: "Stir-fried beef with bamboo shoots and fragrant fried rice.", image: "/assets/menu/toptown-beef-bamboo-rice.jpg", isAvailable: true, prepTime: "14 min" },
+
+  // --- Top Town: Noodles ---
+  { id: "tt-noodle-new-1", stallId: "top-town", category: "CHOWMEIN", name: "Stir-Fried Udon Noodles", price: 260, description: "Thick udon-style noodles wok-tossed with chicken and vegetables.", image: "/assets/menu/toptown-stir-fried-noodles.jpg", isAvailable: true, prepTime: "12 min", isPopular: true },
+  { id: "tt-noodle-new-2", stallId: "top-town", category: "CHOWMEIN", name: "Spicy Egg Fried Noodles", price: 240, description: "Golden spicy fried noodles with egg, stir-fried in wok.", image: "/assets/menu/toptown-spicy-fried-noodles.jpg", isAvailable: true, prepTime: "10 min" },
+
+  // --- Top Town: Sizzler ---
+  { id: "tt-siz-new-1", stallId: "top-town", category: "SIZZLING", name: "Chicken Capsicum Sizzler", price: 350, description: "Chicken and shrimp stir-fry with capsicum on a sizzling iron plate.", image: "/assets/menu/toptown-chicken-sizzler.jpg", isAvailable: true, prepTime: "18 min", isPopular: true },
+
+  // --- Top Town: Gravy ---
+  { id: "tt-gravy-new-1", stallId: "top-town", category: "GRAVY", name: "Cashew Nut Chicken", price: 310, description: "Classic Thai-style cashew nut chicken stir-fry with vegetables.", image: "/assets/menu/toptown-cashew-chicken.jpg", isAvailable: true, prepTime: "15 min", isPopular: true },
+  { id: "tt-gravy-new-2", stallId: "top-town", category: "GRAVY", name: "Prawn Mee Goreng", price: 350, description: "Malaysian-style prawn noodle stir-fry with spicy sauce.", image: "/assets/menu/prawn-mee-goreng.jpg", isAvailable: true, prepTime: "15 min" },
+  { id: "tt-gravy-new-3", stallId: "top-town", category: "GRAVY", name: "Spicy Keema Stir-Fry", price: 280, description: "Spicy minced chicken stir-fried with red onion, capsicum and cilantro.", image: "/assets/menu/spicy-keema-stir-fry.jpg", isAvailable: true, prepTime: "15 min" },
+  { id: "tt-gravy-new-4", stallId: "top-town", category: "GRAVY", name: "Stir-Fried Mushroom", price: 260, description: "Tender mushrooms wok-fried with garlic and savory sauce.", image: "/assets/menu/stir-fried-mushroom.jpg", isAvailable: true, prepTime: "12 min" },
+
+  // --- Top Town: Dosa ---
+  { id: "tt-dosa-new-1", stallId: "top-town", category: "DOSA", name: "Dosa Platter (4 Chutneys)", price: 290, description: "Crispy dosa served with 4 chutneys and 4 curry accompaniments.", image: "/assets/menu/toptown-dosa-platter.jpg", isAvailable: true, prepTime: "12 min", isPopular: true },
+
+  // --- Top Town: Chaats ---
+  { id: "tt-chaat-new-1", stallId: "top-town", category: "CHAATS", name: "Dahi Puri Chaat", price: 150, description: "Crispy puri shells filled with chaat, yogurt and cheese.", image: "/assets/menu/toptown-chaat-dahi.jpg", isAvailable: true, prepTime: "8 min" },
+  { id: "tt-chaat-new-2", stallId: "top-town", category: "CHAATS", name: "Halim Chaat Bowl", price: 180, description: "Rich halim-style chaat served in a clay bowl with garnish.", image: "/assets/menu/toptown-chaat-halim.jpg", isAvailable: true, prepTime: "10 min" },
+
+  // --- Top Town: Combo Platters ---
+  { id: "tt-bbq-new-1", stallId: "top-town", category: "COMBO PLATTERS", name: "BBQ Chicken Tomato Rice Platter", price: 380, description: "Grilled BBQ chicken with tomato fried rice and 3 sauces.", image: "/assets/menu/bbq-chicken-tomato-rice-platter.jpg", isAvailable: true, prepTime: "18 min", isPopular: true },
+  { id: "tt-bbq-new-2", stallId: "top-town", category: "COMBO PLATTERS", name: "Combo Sharing Platter", price: 650, description: "Tomato fried rice, breaded fish fillet, grilled prawn and sesame chicken on a wooden board.", image: "/assets/menu/combo-sharing-platter.jpg", isAvailable: true, prepTime: "25 min", isPopular: true },
+  { id: "tt-bbq-new-3", stallId: "top-town", category: "COMBO PLATTERS", name: "Seafood Platter Board", price: 750, description: "Shrimp, crab, fish, squid and tomato rice on a sharing board.", image: "/assets/menu/seafood-platter-board.jpg", isAvailable: true, prepTime: "25 min" },
+  { id: "tt-salad-new-1", stallId: "top-town", category: "SNACKS", name: "Macaroni Salad", price: 200, description: "Creamy macaroni pasta salad on oval plate with garden garnish.", image: "/assets/menu/macaroni-salad.jpg", isAvailable: true, prepTime: "8 min" },
+
+  // --- Fusion Cafe: Starters ---
+  { id: "cb-stk-new-1", stallId: "fusion-cafe", category: "STARTERS", name: "Loaded Nachos", price: 280, description: "Crispy tortilla chips loaded with cheese, ketchup and jalapeños.", image: "/assets/menu/fusion-starter-nachos-loaded.jpg", isAvailable: true, prepTime: "10 min", isPopular: true },
+  { id: "cb-stk-new-2", stallId: "fusion-cafe", category: "STARTERS", name: "Fresh Tacos (3 pcs)", price: 320, description: "3 soft tacos with corn salsa, cheese, lettuce and dipping sauce.", image: "/assets/menu/fusion-starter-tacos-fresh.jpg", isAvailable: true, prepTime: "12 min", isPopular: true },
+  { id: "cb-stk-new-3", stallId: "fusion-cafe", category: "STARTERS", name: "Cheese Toast", price: 220, description: "Toasted bread topped with cheese sauce, purple cabbage and carrots.", image: "/assets/menu/fusion-starter-cheese-toast.jpg", isAvailable: true, prepTime: "8 min" },
+  { id: "cb-stk-new-4", stallId: "fusion-cafe", category: "STARTERS", name: "Loaded Cheese Fries", price: 220, description: "Crispy fries topped with melted cheese sauce and jalapeños.", image: "/assets/menu/loaded-fries-cheese.jpg", isAvailable: true, prepTime: "10 min", isPopular: true },
+  { id: "cb-stk-new-5", stallId: "fusion-cafe", category: "STARTERS", name: "Loaded Chicken Fries", price: 260, description: "Fries loaded with crispy chicken, cheese sauce, jalapeños and red onion.", image: "/assets/menu/loaded-fries-chicken.jpg", isAvailable: true, prepTime: "12 min", isPopular: true },
+  { id: "cb-stk-new-6", stallId: "fusion-cafe", category: "STARTERS", name: "Spicy Paprika Fries", price: 200, description: "Seasoned fries with paprika spice blend and dipping sauce.", image: "/assets/menu/spicy-paprika-fries.jpg", isAvailable: true, prepTime: "8 min" },
+
+  // --- Fusion Cafe: Steak / Grill ---
+  { id: "cb-stk-new-7", stallId: "fusion-cafe", category: "STEAK", name: "Grilled Meat Platter", price: 1200, description: "Grilled steak with tomato rice, mashed potato and mixed vegetables on a wooden board.", image: "/assets/menu/grilled-meat-platter.jpg", isAvailable: true, prepTime: "25 min", isPopular: true },
+  { id: "cb-stk-new-8", stallId: "fusion-cafe", category: "SEAFOOD", name: "BBQ Chicken Fried Rice Platter", price: 380, description: "Teriyaki BBQ chicken with fried rice and side dishes.", image: "/assets/menu/bbq-chicken-fried-rice.jpg", isAvailable: true, prepTime: "18 min" },
+
+  // --- Fusion Cafe: Desserts / Chef Special ---
+  { id: "cb-dss-new-1", stallId: "fusion-cafe", category: "CHEF SPECIAL", name: "Ice Cream Brownie Bowl", price: 320, description: "Creamy ice cream served in a crispy waffle cone bowl with brownie pieces.", image: "/assets/menu/dessert-ice-cream-brownie.jpg", isAvailable: true, prepTime: "5 min", isPopular: true },
+  { id: "cb-dss-new-2", stallId: "fusion-cafe", category: "CHEF SPECIAL", name: "Mini Waffle with Chocolate", price: 250, description: "Mini waffles drizzled with rich chocolate sauce and toasted almonds.", image: "/assets/menu/dessert-mini-waffle-choco.jpg", isAvailable: true, prepTime: "8 min" },
+
+  // --- Momo Buzz: Momo ---
+  { id: "mb-momo-new-1", stallId: "momo-buzz", category: "MOMO", name: "Momo Box (Steamed)", price: 180, description: "6 pcs steamed momo in box with spicy red and green chutney.", image: "/assets/menu/momo-steamed-box.jpg", isAvailable: true, prepTime: "10 min", isPopular: true },
+
+  // --- Momo Buzz: Fuchka ---
+  { id: "mb-fuchka-new-1", stallId: "momo-buzz", category: "FUCHKA BUZZ", name: "Loaded Fuchka Puri", price: 120, description: "Crispy fuchka pani puri loaded on plate with tamarind water.", image: "/assets/menu/loaded-fuchka-puri.jpg", isAvailable: true, prepTime: "5 min", isPopular: true },
+  { id: "mb-fuchka-new-2", stallId: "momo-buzz", category: "FUCHKA BUZZ", name: "Premium Crispy Fuchka", price: 100, description: "Premium quality crispy golden puri shells.", image: "/assets/menu/momo-fuchka-crispy.jpg", isAvailable: true, prepTime: "5 min" },
+
+  // --- Burger Bar: Chicken Burger ---
+  { id: "bb-chk-new-1", stallId: "burger-bar", category: "CHICKEN", name: "Chicken Cheese Burger (Premium)", price: 320, description: "Juicy fried chicken burger with melted cheese — house special.", image: "/assets/menu/burger-chicken-cheese.jpg", isAvailable: true, prepTime: "12 min", isPopular: true },
+
+  // --- Drinks & Beverage: Coffee ---
+  { id: "db-coff-new-1", stallId: "drinks-beverage", category: "COFFEE", name: "Iced Coffee (Coffee Buzz)", price: 200, description: "Signature Coffee Buzz Cafe style iced coffee in branded cup.", image: "/assets/menu/coffee-buzz-iced-coffee.jpg", isAvailable: true, prepTime: "5 min", isPopular: true },
+  { id: "db-coff-new-2", stallId: "drinks-beverage", category: "COFFEE", name: "Strawberry Iced Coffee", price: 220, description: "Coffee Buzz Cafe strawberry-peach iced coffee — a fruity refresher.", image: "/assets/menu/coffee-buzz-strawberry.jpg", isAvailable: true, prepTime: "5 min" },
+  { id: "db-coff-new-3", stallId: "drinks-beverage", category: "COFFEE", name: "Cappuccino", price: 160, description: "Classic hot cappuccino with creamy milk foam.", image: "/assets/menu/drinks-cappuccino-hot.jpg", isAvailable: true, prepTime: "5 min" },
+
+  // --- Drinks & Beverage: Shake ---
+  { id: "db-shk-new-1", stallId: "drinks-beverage", category: "SHAKE", name: "KitKat Milkshake", price: 220, description: "Creamy milkshake blended with KitKat chocolate pieces.", image: "/assets/menu/drinks-kitkat-milkshake.jpg", isAvailable: true, prepTime: "5 min", isPopular: true },
+  { id: "db-shk-new-2", stallId: "drinks-beverage", category: "SHAKE", name: "Caramel Chocolate Shake", price: 240, description: "Rich chocolate shake with caramel drizzle and marshmallows.", image: "/assets/menu/drinks-caramel-choco-shake.jpg", isAvailable: true, prepTime: "5 min" },
+  { id: "db-shk-new-3", stallId: "drinks-beverage", category: "SHAKE", name: "Coffee Jelly Pearl Shake", price: 230, description: "Blended shake with coffee jelly pearls and boba.", image: "/assets/menu/drinks-coffee-jelly-shake.jpg", isAvailable: true, prepTime: "5 min", isPopular: true },
+
+  // --- Drinks & Beverage: Boba ---
+  { id: "db-boba-new-1", stallId: "drinks-beverage", category: "BOBA MILK TEA", name: "Strawberry Bubble Tea", price: 200, description: "Classic strawberry bubble tea with tapioca pearls.", image: "/assets/menu/drinks-strawberry-bubble-tea.jpg", isAvailable: true, prepTime: "5 min", isPopular: true },
+
+  // --- Drinks & Beverage: Special Drinks ---
+  { id: "db-spc-new-1", stallId: "drinks-beverage", category: "SPECIAL DRINKS", name: "Blue Lagoon Mocktail", price: 180, description: "Vibrant blue lagoon mocktail — refreshing and eye-catching.", image: "/assets/menu/blue-lagoon-mocktail.jpg", isAvailable: true, prepTime: "5 min", isPopular: true },
+  { id: "db-spc-new-2", stallId: "drinks-beverage", category: "SPECIAL DRINKS", name: "Mint Lime Cooler", price: 160, description: "Fresh mint and lime drink — cool and refreshing.", image: "/assets/menu/mint-lime-drink.jpg", isAvailable: true, prepTime: "5 min" },
+  { id: "db-spc-new-3", stallId: "drinks-beverage", category: "SPECIAL DRINKS", name: "Watermelon Fruit Cocktail", price: 170, description: "Vibrant red watermelon and mixed fruit cocktail drink.", image: "/assets/menu/fruit-cocktail-drink.jpg", isAvailable: true, prepTime: "5 min" }
+
 ];
 
 // 55 Tables with Zones
@@ -4477,10 +4559,10 @@ export const tablesData = Array.from({ length: 55 }, (_, i) => {
     name: `Table ${tableId}`,
     zone,
     seats: num % 4 === 0 ? 6 : num % 2 === 0 ? 4 : 2,
-    status: num === 17 ? "ACTIVE" : num === 5 ? "PAYMENT DUE" : num === 12 ? "PREPARING" : "AVAILABLE",
-    currentSessionId: num === 17 ? "sess-t17-active" : null,
-    activeOrderToken: num === 17 ? "0047" : null,
-    totalSpentToday: num === 17 ? 1999 : num === 5 ? 1450 : 0
+    status: "AVAILABLE",
+    currentSessionId: null,
+    activeOrderToken: null,
+    totalSpentToday: 0
   };
 });
 
@@ -4729,10 +4811,10 @@ const menuImageOverrides = {
   "bb-cmb-4": "/assets/menu/burger-bar-crispy-chicken.jpg",
   "bb-cmb-5": "/assets/menu/burger-bar-crispy-chicken.jpg",
   "bb-cmb-6": "/assets/menu/burger-bar-crispy-chicken.jpg",
-  "db-coke": "/assets/Drinks/Cocacola.jpg",
-  "db-sprite": "/assets/Drinks/Sprite.jpg",
-  "db-fanta": "/assets/Drinks/Fanta.jpg",
-  "db-water": "/assets/Drinks/Kinley.jpg"
+  "db-coke": "/assets/Drinks/Cocacola.png",
+  "db-sprite": "/assets/Drinks/Sprite.png",
+  "db-fanta": "/assets/Drinks/Fanta.png",
+  "db-water": "/assets/Drinks/Kinley.png"
 };
 
 for (const item of menuItemsData) {

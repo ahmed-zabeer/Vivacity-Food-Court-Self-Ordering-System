@@ -127,13 +127,15 @@ export const BrandSplash: React.FC<BrandSplashProps> = ({
 
       <div
         className={`fixed inset-0 z-[9999] w-full max-w-full h-full min-h-screen bg-[#08090b] text-white
-          flex flex-col justify-between items-center px-4 sm:px-6 py-6 sm:py-8 md:py-10
+          grid grid-cols-1 grid-rows-[auto_1fr_auto] justify-items-center px-4 sm:px-6 py-6 sm:py-8 md:py-10
           overflow-x-hidden overflow-y-auto select-none ${fading ? 'vc-splash-exit' : ''}`}
       >
-        {/* ── Ambient glow ── */}
-        <div className="vc-glow" />
-        <div className="pointer-events-none absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-600/10 blur-[110px]" />
-        <div className="pointer-events-none absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-orange-700/10 blur-[110px]" />
+        {/* ── Ambient glow (clipped so decorative blur cannot create scroll) ── */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="vc-glow" />
+          <div className="pointer-events-none absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-600/10 blur-[110px]" />
+          <div className="pointer-events-none absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-orange-700/10 blur-[110px]" />
+        </div>
 
         {/* ── Top bar ── */}
         <header className="relative z-10 w-full max-w-4xl flex items-center justify-between px-1 sm:px-2">
@@ -158,21 +160,21 @@ export const BrandSplash: React.FC<BrandSplashProps> = ({
         </header>
 
         {/* ── Centrepiece ── */}
-        <main className="relative z-10 flex flex-col items-center text-center my-auto px-2 sm:px-4 max-w-xl md:max-w-2xl w-full">
-          <div className="flex flex-col items-center text-center w-full gap-2">
-            {/* Vivacity Food Court Logo — Noticeably larger, properly centered & responsive */}
-            <div className="vc-logo-fade relative flex items-center justify-center">
+        <main className="relative z-10 row-start-2 self-center flex flex-col items-center text-center px-2 sm:px-4 max-w-xl md:max-w-2xl w-full min-w-0 pb-6 sm:pb-0">
+          <div className="flex flex-col items-center text-center w-full min-w-0 gap-1">
+            {/* Vivacity Food Court Logo — Responsive, aspect-ratio preserved */}
+            <div className="vc-logo-fade relative flex items-center justify-center w-64 sm:w-72 md:w-80 lg:w-[22rem] max-w-[min(85vw,50vh)] mb-4">
               <div className="absolute -inset-4 sm:-inset-6 rounded-full bg-gradient-to-r from-orange-600/30 via-red-600/35 to-amber-500/20 blur-2xl opacity-75 pointer-events-none" />
 
               <img
                 src="/assets/vivacity-logo1.png"
                 alt="Vivacity Food Court"
-                className="relative w-64 sm:w-80 md:w-96 lg:w-[26rem] max-w-[85vw] h-auto object-contain drop-shadow-2xl"
+                className="relative w-full h-auto object-contain drop-shadow-2xl"
               />
             </div>
 
             {/* powered by [NEW OFFICIAL KIWEE LOGO] — Compact, cohesive, centered */}
-            <div className="vc-sub-reveal inline-flex items-center justify-center gap-2 sm:gap-2.5 flex-nowrap">
+            <div className="vc-sub-reveal inline-flex items-center justify-center gap-2 sm:gap-2.5 flex-nowrap mb-3">
               <span className="text-xs sm:text-sm font-medium text-zinc-400 tracking-wider lowercase select-none">
                 powered by
               </span>
@@ -186,7 +188,7 @@ export const BrandSplash: React.FC<BrandSplashProps> = ({
             </div>
 
             {/* Tagline: Premium Food Court Experience */}
-            <div className="vc-tagline-reveal flex items-center justify-center gap-2 sm:gap-3 px-2 w-full">
+            <div className="vc-tagline-reveal flex items-center justify-center gap-2 sm:gap-3 px-2 w-full mb-3">
               <div className="h-px flex-1 max-w-[36px] sm:max-w-[60px] md:max-w-[80px] bg-gradient-to-r from-transparent to-amber-500/60" />
               <div
                 className="flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full

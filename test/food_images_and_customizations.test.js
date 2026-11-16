@@ -40,10 +40,10 @@ test('1. Three new food images are mapped and exist in public/assets/menu', () =
 
 test('2. Coke, Sprite, Fanta and Water bottle images exist in public/assets/Drinks', () => {
   const drinks = [
-    { id: 'db-coke', name: 'Fountain Coke (250ml Glass)', file: '/assets/Drinks/Cocacola.jpg' },
-    { id: 'db-sprite', name: 'Sprite (250ml Glass)', file: '/assets/Drinks/Sprite.jpg' },
-    { id: 'db-fanta', name: 'Fanta (250ml Glass)', file: '/assets/Drinks/Fanta.jpg' },
-    { id: 'db-water', name: 'Water (500ml Bottle)', file: '/assets/Drinks/Kinley.jpg' }
+    { id: 'db-coke', name: 'Fountain Coke (250ml Glass)', file: '/assets/Drinks/Cocacola.png' },
+    { id: 'db-sprite', name: 'Sprite (250ml Glass)', file: '/assets/Drinks/Sprite.png' },
+    { id: 'db-fanta', name: 'Fanta (250ml Glass)', file: '/assets/Drinks/Fanta.png' },
+    { id: 'db-water', name: 'Water (500ml Bottle)', file: '/assets/Drinks/Kinley.png' }
   ];
 
   for (const d of drinks) {

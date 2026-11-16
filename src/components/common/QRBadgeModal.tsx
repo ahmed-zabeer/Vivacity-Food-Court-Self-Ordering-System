@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { X, Download, Printer, Copy, Check, Wifi } from 'lucide-react';
+import { X, Download, Printer, Copy, Check } from 'lucide-react';
 import { api } from '../../services/api';
 
 interface QRBadgeModalProps {
@@ -11,7 +11,7 @@ interface QRBadgeModalProps {
   onClose: () => void;
 }
 
-export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, tableName, zone, baseUrl, onClose }) => {
+export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, zone, baseUrl, onClose }) => {
   const isLocalHostClient = typeof window !== 'undefined' && 
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 

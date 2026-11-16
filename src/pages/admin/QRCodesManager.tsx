@@ -3,14 +3,14 @@ import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { Table } from '../../types';
 import { QRBadgeModal } from '../../components/common/QRBadgeModal';
-import { QrCode, Printer, Download, Copy, Check, Search, Filter, Wifi, RefreshCw, AlertTriangle, Smartphone, Laptop, Info } from 'lucide-react';
+import { QrCode, Printer, Copy, Check, Search, Wifi, RefreshCw, AlertTriangle, Smartphone, Laptop, Info } from 'lucide-react';
 
 export const QRCodesManager: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedQRTable, setSelectedQRTable] = useState<Table | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [search, setSearch] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [networkInfo, setNetworkInfo] = useState<{
     lanIps: Array<{ interface: string; address: string; mac: string }>;
     primaryIp: string;

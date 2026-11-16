@@ -7,7 +7,7 @@ import { Star, Clock, ArrowRight } from 'lucide-react';
 export const AllStallsPage: React.FC = () => {
   const [, setLocation] = useLocation();
   const [stalls, setStalls] = useState<Stall[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     api.getStalls()

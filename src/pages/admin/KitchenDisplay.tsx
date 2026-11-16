@@ -4,14 +4,14 @@ import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
 import { Order, Stall } from '../../types';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
-import { ChefHat, Clock, CheckCircle, Printer, Filter, AlertCircle, Flame, Bell } from 'lucide-react';
+import { ChefHat, CheckCircle, Printer, Flame, Bell } from 'lucide-react';
 
 export const KitchenDisplay: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [activeStallFilter, setActiveStallFilter] = useState<string>('ALL');
   const [printKOTOrder, setPrintKOTOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   const fetchKDS = async () => {
     try {
@@ -31,7 +31,7 @@ export const KitchenDisplay: React.FC = () => {
   useEffect(() => {
     fetchKDS();
 
-    const unsubKOT = realtime.on('kot_generated', (kotOrder: Order) => {
+    const unsubKOT = realtime.on('kot_generated', () => {
       sound.playKitchenBell();
       fetchKDS();
     });
@@ -40,9 +40,15 @@ export const KitchenDisplay: React.FC = () => {
       fetchKDS();
     });
 
+    const unsubReset = realtime.on('all_orders_reset', () => {
+      setOrders([]);
+      fetchKDS();
+    });
+
     return () => {
       unsubKOT();
       unsubUpdated();
+      unsubReset();
     };
   }, []);
 
@@ -166,7 +172,7 @@ export const KitchenDisplay: React.FC = () => {
                         {order.tableId ? `TABLE ${order.tableId}` : 'PARCEL TAKEAWAY'}
                       </span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-400 text-zinc-950">
-                        {order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining')}
+                        {(order.orderTypeDescription || ((order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL') ? 'Takeaway' : 'Dine-in')).replace(/\s*→.*$/, '')}
                       </span>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                         order.serviceType === 'TABLE_SERVICE'

@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "installCommand": "node -e \"delete process.env.npm_config_cache_dir; const cp = require('child_process'); process.exit(cp.spawnSync('npm', ['install', '--legacy-peer-deps'], { stdio: 'inherit', shell: true }).status || 0);\"",
+  "buildCommand": "node -e \"delete process.env.npm_config_cache_dir; const cp = require('child_process'); process.exit(cp.spawnSync('npm', ['run', 'build'], { stdio: 'inherit', shell: true }).status || 0);\"",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

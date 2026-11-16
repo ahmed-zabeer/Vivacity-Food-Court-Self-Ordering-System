@@ -138,9 +138,16 @@ db.createOrder({
 });
 assert.ok(db.orders.length > 0, "Orders must exist prior to full reset test");
 
-// Test Cashier role execution
-const fullResetResult = db.clearAllOrdersAndReset("Cashier Hasan", "CASHIER");
-assert.strictEqual(fullResetResult.success, true, "Cashier must be authorized to perform full reset");
+// Verify Cashier role is rejected from executing restart
+assert.throws(
+  () => db.clearAllOrdersAndReset("Cashier Hasan", "CASHIER", "Test restart"),
+  /Unauthorized/i,
+  "Cashier must be blocked from executing full reset"
+);
+
+// Verify Manager role is authorized to perform full reset
+const fullResetResult = db.clearAllOrdersAndReset("Manager Sajib", "MANAGER", "Operational shift restart");
+assert.strictEqual(fullResetResult.success, true, "Manager must be authorized to perform full reset");
 assert.strictEqual(db.orders.length, 0, "All orders must be emptied");
 assert.strictEqual(db.runnerTasks.length, 0, "All runner tasks must be cleared");
 

@@ -1,0 +1,1909 @@
+{
+  "fusion-cafe": [
+    {
+      "id": "cb-stk-1",
+      "name": "T Bone Steak (300+6M)",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-2",
+      "name": "Tenderloin Steak (250+6M)",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1558030006-450675393462?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-3",
+      "name": "Sirloin Steak (300+6M)",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-4",
+      "name": "Texas Meat (Fusion Special)",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-5",
+      "name": "Texas Prime (Fusion Special)",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-6",
+      "name": "Mix Meat Luxury (Fusion Special)",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-c1",
+      "name": "Steak Combo 1",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-c2",
+      "name": "Steak Combo 2",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-c3",
+      "name": "Steak Combo 3",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1621996346565-e3d5d6281788?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-c4",
+      "name": "Steak Combo 4",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-c5",
+      "name": "Steak Combo 5",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "cb-stk-c6",
+      "name": "Steak Combo 6",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "cb-platter-couple",
+      "name": "Couple Platter",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-platter-fm",
+      "name": "Fish & Meat",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&q=80"
+    },
+    {
+      "id": "cb-platter-cc",
+      "name": "Chicken Carnival",
+      "category": "STEAK",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-1",
+      "name": "Grilled Dori Fish",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-2",
+      "name": "Cream Dori Fish",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1534939561126-855b8675edd7?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-3",
+      "name": "Grilled Lobster",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-4",
+      "name": "BBQ Grilled Crab",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-5",
+      "name": "Grilled Rupchada (200+ Gram)",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-6",
+      "name": "Red Snapper (400+ Gram)",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1534939561126-855b8675edd7?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-7",
+      "name": "Fish Fillet",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-8",
+      "name": "Fish & Chips (New York)",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-9",
+      "name": "All Fried Seafood",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-10",
+      "name": "All Grilled Seafood",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-11",
+      "name": "Fried & Grilled Mix",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "cb-sea-12",
+      "name": "Surf & Turf",
+      "category": "SEAFOOD",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-1",
+      "name": "Tandori Pizza",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-2",
+      "name": "Mexican Hot Pizza",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-3",
+      "name": "Pizza Barcelona",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-4",
+      "name": "Chick BBQ Pizza",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-5",
+      "name": "Sausage Carnival",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-6",
+      "name": "Beef Lover's Pizza",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-7",
+      "name": "Pizza Margarita",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-8",
+      "name": "Four Season Pizza",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-9",
+      "name": "Chick Pepperoni Pizza",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-10",
+      "name": "Mix Sea Food Pizza",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80"
+    },
+    {
+      "id": "cb-piz-11",
+      "name": "Fusion Special Comilla Pizza",
+      "category": "PIZZA",
+      "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80"
+    },
+    {
+      "id": "cb-cmb-1",
+      "name": "Combo 1",
+      "category": "COMBO MEAL",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-cmb-2",
+      "name": "Combo 2",
+      "category": "COMBO MEAL",
+      "image": "https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&q=80"
+    },
+    {
+      "id": "cb-cmb-3",
+      "name": "Combo 3",
+      "category": "COMBO MEAL",
+      "image": "https://images.unsplash.com/photo-1621996346565-e3d5d6281788?w=600&q=80"
+    },
+    {
+      "id": "cb-cmb-4",
+      "name": "Combo 4",
+      "category": "COMBO MEAL",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-chef-1",
+      "name": "Fish Fantasy (Seafood)",
+      "category": "CHEF SPECIAL",
+      "image": "https://images.unsplash.com/photo-1534939561126-855b8675edd7?w=600&q=80"
+    },
+    {
+      "id": "cb-chef-2",
+      "name": "Grilled Lovers",
+      "category": "CHEF SPECIAL",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-chef-3",
+      "name": "Steak Lover's",
+      "category": "CHEF SPECIAL",
+      "image": "https://images.unsplash.com/photo-1558030006-450675393462?w=600&q=80"
+    },
+    {
+      "id": "cb-chef-4",
+      "name": "Fried Lover's",
+      "category": "CHEF SPECIAL",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "cb-chef-5",
+      "name": "4 Ways Chicken (1:2)",
+      "category": "CHEF SPECIAL",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-chef-6",
+      "name": "6 Ways Chicken (1:3)",
+      "category": "CHEF SPECIAL",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-1",
+      "name": "Special Nachos",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-2",
+      "name": "Special Naga Nachos",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-3",
+      "name": "Mexican Tacos (2 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-4",
+      "name": "Mexican Tacos (3 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-5",
+      "name": "Wings Hot / Buffalo (6 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-6",
+      "name": "Fish & Chips (1:1)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-7",
+      "name": "Fried Calamari",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-8",
+      "name": "Grilled Calamari",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-9",
+      "name": "French Fries",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-10",
+      "name": "Prawn Tempura (5 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-11",
+      "name": "Chicken Cheese Ball (6 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-12",
+      "name": "Fried Wonton (6 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-13",
+      "name": "Prawn / Chicken On Toast (4 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-14",
+      "name": "Potato Masala Wedges with Fried Chicken (2 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-15",
+      "name": "Thai Fried Chicken (6 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-16",
+      "name": "Chicken Nuggets with Fries (6 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-17",
+      "name": "Garlic Mushroom",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1541544741938-0af808871cc0?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-18",
+      "name": "Fish Finger (6 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80"
+    },
+    {
+      "id": "cb-reg-st-19",
+      "name": "Naga Drumsticks (2 pcs)",
+      "category": "STARTERS",
+      "image": "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-1",
+      "name": "Chicken Spicy Pasta",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1621996346565-e3d5d6281788?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-2",
+      "name": "Sweet Cream Pasta (Pan Baked)",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-3",
+      "name": "Oven Baked Pasta (Red)",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-4",
+      "name": "Oven Baked Hot & Spicy Pasta",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-5",
+      "name": "Seafood Hakka Noodles",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-6",
+      "name": "Prawn Special Chowmein",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1585032226651-759b368d7246?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-7",
+      "name": "Seafood Pasta",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-8",
+      "name": "Special Mixed Chowmein",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&q=80"
+    },
+    {
+      "id": "cb-pas-9",
+      "name": "Sweet Cream Pasta (Oven Baked)",
+      "category": "PASTA & NOODLES",
+      "image": "https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?w=600&q=80"
+    },
+    {
+      "id": "cb-sop-1",
+      "name": "Thai Soup (Thick)",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "cb-sop-2",
+      "name": "Cream of Mushroom Soup",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "cb-sop-3",
+      "name": "Seafood Clear Soup",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "cb-sop-4",
+      "name": "Hot & Sour Veg / Corn Soup",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "cb-sop-5",
+      "name": "Tom Yum Soup",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "cb-sop-6",
+      "name": "Chicken Noodles Soup",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "cb-sal-1",
+      "name": "Grilled Chicken Salad",
+      "category": "SALAD",
+      "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80"
+    },
+    {
+      "id": "cb-sal-2",
+      "name": "Special Seafood Salad",
+      "category": "SALAD",
+      "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80"
+    },
+    {
+      "id": "cb-sal-3",
+      "name": "Chicken Cashewnut Salad",
+      "category": "SALAD",
+      "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80"
+    },
+    {
+      "id": "cb-sal-4",
+      "name": "Peanut & Corn Salad",
+      "category": "SALAD",
+      "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-1",
+      "name": "BBQ Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-2",
+      "name": "Mexican Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-3",
+      "name": "Peri Peri Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-4",
+      "name": "Tandoori Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-5",
+      "name": "Masala Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-6",
+      "name": "Garlic Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-7",
+      "name": "Thousands Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-8",
+      "name": "Chicken Steak",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-9",
+      "name": "King Prawn",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-10",
+      "name": "Kids Meal",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-11",
+      "name": "Smart Meal",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-12",
+      "name": "Roasted Garlic Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-13",
+      "name": "Mongolian Beef",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-14",
+      "name": "Beef Oyster",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "cb-imp-15",
+      "name": "Cheese Chicken",
+      "category": "IMPROVED PLATTER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-1",
+      "name": "Cold Milk Tea Regular",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1558857563-b37cf52b2f67?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-2",
+      "name": "Boba Pearl Milk Tea",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1558857563-b37cf52b2f67?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-3",
+      "name": "Boba Pearl Chocolate Fantasy",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1558857563-b37cf52b2f67?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-4",
+      "name": "Cocoa Smoothie",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-5",
+      "name": "Cocoa Pearl Smoothie",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-6",
+      "name": "Strawberry Pearl Smoothie",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-7",
+      "name": "Mango Pearl Smoothie",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1546173159-315724a31696?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-8",
+      "name": "Boba Milk Tea QQ",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1558857563-b37cf52b2f67?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-9",
+      "name": "Mango Pearl QQ",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1546173159-315724a31696?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-10",
+      "name": "Chocolate Pearl Shake",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-11",
+      "name": "Strawberry Pearl Shake",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-12",
+      "name": "Vanilla Pearl Shake",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-13",
+      "name": "Mango Pearl Shake",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1546173159-315724a31696?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-14",
+      "name": "Banana Pearl Shake",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-15",
+      "name": "Coconut Pearl Milk Shake",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1558857563-b37cf52b2f67?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-16",
+      "name": "Oreo Shake",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-bob-17",
+      "name": "Extra Pearl",
+      "category": "BOBA DRINK",
+      "image": "https://images.unsplash.com/photo-1558857563-b37cf52b2f67?w=600&q=80"
+    },
+    {
+      "id": "cb-drk-1",
+      "name": "Fresh Lemonade",
+      "category": "ICE CRUSHED",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-drk-2",
+      "name": "Ginger Lemonade",
+      "category": "ICE CRUSHED",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-drk-3",
+      "name": "Refreshing Coconut",
+      "category": "ICE CRUSHED",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-drk-4",
+      "name": "Mint Lemonade",
+      "category": "ICE CRUSHED",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-drk-5",
+      "name": "Pineapple Lemon Mint",
+      "category": "ICE CRUSHED",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-drk-6",
+      "name": "Orange / Citrus Cooler",
+      "category": "ICE CRUSHED",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-drk-7",
+      "name": "Lime Cooler",
+      "category": "ICE CRUSHED",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-drk-8",
+      "name": "Mint Mojito",
+      "category": "ICE CRUSHED",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-hlt-1",
+      "name": "Dragon Seduction",
+      "category": "HEALTHY DRINKS",
+      "image": "https://images.unsplash.com/photo-1546173159-315724a31696?w=600&q=80"
+    },
+    {
+      "id": "cb-hlt-2",
+      "name": "Chilied Ginger",
+      "category": "HEALTHY DRINKS",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-hlt-3",
+      "name": "Fresh Orange Juice",
+      "category": "HEALTHY DRINKS",
+      "image": "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=600&q=80"
+    },
+    {
+      "id": "cb-hlt-4",
+      "name": "Fresh Watermelon Juice",
+      "category": "HEALTHY DRINKS",
+      "image": "https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?w=600&q=80"
+    },
+    {
+      "id": "cb-hlt-5",
+      "name": "Pineapple Paradise",
+      "category": "HEALTHY DRINKS",
+      "image": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=600&q=80"
+    },
+    {
+      "id": "cb-hlt-6",
+      "name": "Papaya Seduction",
+      "category": "HEALTHY DRINKS",
+      "image": "https://images.unsplash.com/photo-1546173159-315724a31696?w=600&q=80"
+    },
+    {
+      "id": "cb-shk-1",
+      "name": "Fusion Chocolate Shake",
+      "category": "SHAKE",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-shk-2",
+      "name": "Strawberry Shake",
+      "category": "SHAKE",
+      "image": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&q=80"
+    },
+    {
+      "id": "cb-shk-3",
+      "name": "Vanilla Milk Shake",
+      "category": "SHAKE",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-shk-4",
+      "name": "Mango Shake",
+      "category": "SHAKE",
+      "image": "https://images.unsplash.com/photo-1546173159-315724a31696?w=600&q=80"
+    },
+    {
+      "id": "cb-shk-5",
+      "name": "Wild Banana Shake",
+      "category": "SHAKE",
+      "image": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&q=80"
+    },
+    {
+      "id": "cb-shk-6",
+      "name": "Papaya Shake",
+      "category": "SHAKE",
+      "image": "https://images.unsplash.com/photo-1546173159-315724a31696?w=600&q=80"
+    },
+    {
+      "id": "cb-shk-7",
+      "name": "Coconut Milk Shake",
+      "category": "SHAKE",
+      "image": "https://images.unsplash.com/photo-1558857563-b37cf52b2f67?w=600&q=80"
+    },
+    {
+      "id": "cb-shk-8",
+      "name": "Oreo Shake",
+      "category": "SHAKE",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-spc-1",
+      "name": "Dry Fruit Fantasy",
+      "category": "SPECIAL DRINKS",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-spc-2",
+      "name": "Blue Lagoon (Blue Legon)",
+      "category": "SPECIAL DRINKS",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-spc-3",
+      "name": "Water Melon Mojito",
+      "category": "SPECIAL DRINKS",
+      "image": "https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?w=600&q=80"
+    },
+    {
+      "id": "cb-spc-4",
+      "name": "Green Mango Merry",
+      "category": "SPECIAL DRINKS",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "cb-cff-1",
+      "name": "Fusion Regular Cold Coffee",
+      "category": "COFFEE",
+      "image": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=600&q=80"
+    },
+    {
+      "id": "cb-cff-2",
+      "name": "Chocolate Cold Coffee",
+      "category": "COFFEE",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-cff-3",
+      "name": "Peanut Cold Coffee",
+      "category": "COFFEE",
+      "image": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=600&q=80"
+    },
+    {
+      "id": "cb-cff-4",
+      "name": "Kitkat Cold Coffee",
+      "category": "COFFEE",
+      "image": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&q=80"
+    },
+    {
+      "id": "cb-cff-5",
+      "name": "Fusion Special Cold Coffee",
+      "category": "COFFEE",
+      "image": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=600&q=80"
+    },
+    {
+      "id": "cb-cff-6",
+      "name": "Fusion Hot Coffee (Espresso)",
+      "category": "COFFEE",
+      "image": "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&q=80"
+    }
+  ],
+  "top-town": [
+    {
+      "id": "tt-chw-1",
+      "name": "Chicken Chowmein",
+      "category": "CHOWMEIN",
+      "image": "https://images.unsplash.com/photo-1585032226651-759b368d7246?w=600&q=80"
+    },
+    {
+      "id": "tt-chw-2",
+      "name": "House Special Chowmein",
+      "category": "CHOWMEIN",
+      "image": "https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&q=80"
+    },
+    {
+      "id": "tt-cmb-1",
+      "name": "Combo 1",
+      "category": "COMBO PLATTERS",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-cmb-2",
+      "name": "Combo 2",
+      "category": "COMBO PLATTERS",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    },
+    {
+      "id": "tt-sop-1",
+      "name": "Chicken Corn Soup",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "tt-sop-2",
+      "name": "Thai Soup Chick / Clear",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "tt-sop-3",
+      "name": "Cream Of Mushroom",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "tt-sop-4",
+      "name": "Hot & Sour",
+      "category": "SOUP",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80"
+    },
+    {
+      "id": "tt-snk-1",
+      "name": "Chola Bhatora",
+      "category": "SNACKS",
+      "image": "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&q=80"
+    },
+    {
+      "id": "tt-snk-2",
+      "name": "Chicken Chola Bhatora",
+      "category": "SNACKS",
+      "image": "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&q=80"
+    },
+    {
+      "id": "tt-snk-3",
+      "name": "Chicken Wrapped Roll",
+      "category": "SNACKS",
+      "image": "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&q=80"
+    },
+    {
+      "id": "tt-snk-4",
+      "name": "Luchi",
+      "category": "SNACKS",
+      "image": "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=600&q=80"
+    },
+    {
+      "id": "tt-dos-1",
+      "name": "Plain Dosa",
+      "category": "DOSA",
+      "image": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&q=80"
+    },
+    {
+      "id": "tt-dos-2",
+      "name": "Masala Dosa",
+      "category": "DOSA",
+      "image": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&q=80"
+    },
+    {
+      "id": "tt-dos-3",
+      "name": "Butter Masala Dosa",
+      "category": "DOSA",
+      "image": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&q=80"
+    },
+    {
+      "id": "tt-dos-4",
+      "name": "Cheese Masala Dosa",
+      "category": "DOSA",
+      "image": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&q=80"
+    },
+    {
+      "id": "tt-dos-5",
+      "name": "Chicken Masala Dosa",
+      "category": "DOSA",
+      "image": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&q=80"
+    },
+    {
+      "id": "tt-dos-6",
+      "name": "DosaWala Special Dosa",
+      "category": "DOSA",
+      "image": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&q=80"
+    },
+    {
+      "id": "tt-bir-1",
+      "name": "Hyderabadi Chicken Biriyani",
+      "category": "BIRIYANI",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "tt-bir-2",
+      "name": "Hyderabadi Mutton Biriyani",
+      "category": "BIRIYANI",
+      "image": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&q=80"
+    },
+    {
+      "id": "tt-cht-1",
+      "name": "Regular Fuchka",
+      "category": "CHAATS",
+      "image": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&q=80"
+    },
+    {
+      "id": "tt-cht-2",
+      "name": "Dahi Fuchka",
+      "category": "CHAATS",
+      "image": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&q=80"
+    },
+    {
+      "id": "tt-cht-3",
+      "name": "Papri Chaat",
+      "category": "CHAATS",
+      "image": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&q=80"
+    },
+    {
+      "id": "tt-cht-4",
+      "name": "Raj Kachori",
+      "category": "CHAATS",
+      "image": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&q=80"
+    },
+    {
+      "id": "tt-nan-1",
+      "name": "Plain Nan",
+      "category": "NAN RUTI",
+      "image": "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&q=80"
+    },
+    {
+      "id": "tt-nan-2",
+      "name": "Butter Nan",
+      "category": "NAN RUTI",
+      "image": "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&q=80"
+    },
+    {
+      "id": "tt-nan-3",
+      "name": "Garlic Nan",
+      "category": "NAN RUTI",
+      "image": "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&q=80"
+    },
+    {
+      "id": "tt-drk-1",
+      "name": "Sweet Lassi",
+      "category": "DRINKS",
+      "image": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&q=80"
+    },
+    {
+      "id": "tt-drk-2",
+      "name": "Salted Lassi",
+      "category": "DRINKS",
+      "image": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&q=80"
+    },
+    {
+      "id": "tt-drk-3",
+      "name": "Jeera Pani",
+      "category": "DRINKS",
+      "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&q=80"
+    },
+    {
+      "id": "tt-cpl-1",
+      "name": "Couple 1",
+      "category": "COUPLE PLATTERS",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-cpl-2",
+      "name": "Couple 2",
+      "category": "COUPLE PLATTERS",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "tt-frc-1",
+      "name": "Vegetables Fried Rice",
+      "category": "FRIED RICE",
+      "image": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80"
+    },
+    {
+      "id": "tt-frc-2",
+      "name": "Chicken Fried Rice",
+      "category": "FRIED RICE",
+      "image": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80"
+    },
+    {
+      "id": "tt-frc-3",
+      "name": "Prawn Fried Rice",
+      "category": "FRIED RICE",
+      "image": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80"
+    },
+    {
+      "id": "tt-frc-4",
+      "name": "Special Fried Rice",
+      "category": "FRIED RICE",
+      "image": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80"
+    },
+    {
+      "id": "tt-frc-5",
+      "name": "1 Person Rice",
+      "category": "FRIED RICE",
+      "image": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&q=80"
+    },
+    {
+      "id": "tt-siz-1",
+      "name": "Chicken Sizzling",
+      "category": "SIZZLING",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-siz-2",
+      "name": "Prawn Sizzling",
+      "category": "SIZZLING",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "tt-siz-3",
+      "name": "Seafood Sizzling",
+      "category": "SIZZLING",
+      "image": "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=600&q=80"
+    },
+    {
+      "id": "tt-siz-4",
+      "name": "Beef Sizzling",
+      "category": "SIZZLING",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    },
+    {
+      "id": "tt-siz-5",
+      "name": "Masala Crab Sizzling",
+      "category": "SIZZLING",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "tt-siz-6",
+      "name": "Shrimp Thermidor",
+      "category": "SIZZLING",
+      "image": "https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=600&q=80"
+    },
+    {
+      "id": "tt-siz-7",
+      "name": "Deep Fried BBQ Coral (Whole Fish)",
+      "category": "SIZZLING",
+      "image": "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&q=80"
+    },
+    {
+      "id": "tt-siz-8",
+      "name": "Steam Coral (Whole Fish)",
+      "category": "SIZZLING",
+      "image": "https://images.unsplash.com/photo-1534939561126-855b8675edd7?w=600&q=80"
+    },
+    {
+      "id": "tt-grv-1",
+      "name": "Masala Chicken",
+      "category": "GRAVY",
+      "image": "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&q=80"
+    },
+    {
+      "id": "tt-grv-2",
+      "name": "Manchurian Chicken",
+      "category": "GRAVY",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "tt-grv-3",
+      "name": "Red Chili Onion",
+      "category": "GRAVY",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    },
+    {
+      "id": "tt-grv-4",
+      "name": "Prawn Chili Onion",
+      "category": "GRAVY",
+      "image": "https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&q=80"
+    },
+    {
+      "id": "tt-grv-5",
+      "name": "Garlic Prawn",
+      "category": "GRAVY",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "tt-grv-6",
+      "name": "Beef Chili Onion",
+      "category": "GRAVY",
+      "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80"
+    },
+    {
+      "id": "tt-grv-7",
+      "name": "Beef With Ginger",
+      "category": "GRAVY",
+      "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80"
+    },
+    {
+      "id": "tt-app-1",
+      "name": "Thai Fried Chicken (6pcs)",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=600&q=80"
+    },
+    {
+      "id": "tt-app-2",
+      "name": "Chicken Basket With Fries",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "tt-app-3",
+      "name": "Chicken Wonthon (6pcs)",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=600&q=80"
+    },
+    {
+      "id": "tt-app-4",
+      "name": "French Fries",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&q=80"
+    },
+    {
+      "id": "tt-app-5",
+      "name": "Garlic Mushroom",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1541544741938-0af808871cc0?w=600&q=80"
+    },
+    {
+      "id": "tt-app-6",
+      "name": "Masala Wedges",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "tt-app-7",
+      "name": "BBQ Drumsticks",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&q=80"
+    },
+    {
+      "id": "tt-app-8",
+      "name": "Naga Wings",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&q=80"
+    },
+    {
+      "id": "tt-app-9",
+      "name": "Prawn Fry",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "tt-app-10",
+      "name": "Chicken Lolipop",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&q=80"
+    },
+    {
+      "id": "tt-app-11",
+      "name": "Fish Finger",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80"
+    },
+    {
+      "id": "tt-app-12",
+      "name": "Naga Drums",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&q=80"
+    },
+    {
+      "id": "tt-app-13",
+      "name": "Chrispy Fried Chicken",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=600&q=80"
+    },
+    {
+      "id": "tt-app-14",
+      "name": "Chicken Popos",
+      "category": "APPETIZER",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "tt-set-1",
+      "name": "Set Menu 1",
+      "category": "SET MENU",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-set-2",
+      "name": "Set Menu 2",
+      "category": "SET MENU",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-set-3",
+      "name": "Set Menu 3",
+      "category": "SET MENU",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-set-4",
+      "name": "Set Menu 4",
+      "category": "SET MENU",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-set-5",
+      "name": "Set Menu 5",
+      "category": "SET MENU",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-set-6",
+      "name": "Set Menu 6",
+      "category": "SET MENU",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-set-7",
+      "name": "Set Menu 7",
+      "category": "SET MENU",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "tt-rb-1",
+      "name": "Chili Chicken Rice Bowl",
+      "category": "RICE BOWL",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "tt-rb-2",
+      "name": "Chicken Sizzling Rice Bowl",
+      "category": "RICE BOWL",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "tt-rb-3",
+      "name": "BBQ Chicken Rice Bowl",
+      "category": "RICE BOWL",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "tt-rb-4",
+      "name": "Chicken Strip Rice Bowl",
+      "category": "RICE BOWL",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    },
+    {
+      "id": "tt-rb-5",
+      "name": "Masala Chicken Rice Bowl",
+      "category": "RICE BOWL",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&q=80"
+    }
+  ],
+  "momo-buzz": [
+    {
+      "id": "mb-mom-1",
+      "name": "Chicken Momo",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mom-2",
+      "name": "Mushroom Momo",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mom-3",
+      "name": "Naga Momo",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mom-4",
+      "name": "Cheese Momo",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mom-5",
+      "name": "BBQ Momo",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mom-6",
+      "name": "Sausage Momo",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mom-7",
+      "name": "Cheese N' Corn Momo",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mom-8",
+      "name": "Cheese Explode",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mom-9",
+      "name": "BBQ Mushroom",
+      "category": "MOMO"
+    },
+    {
+      "id": "mb-mcl-1",
+      "name": "Chicken Momocola",
+      "category": "MOMOCOLA"
+    },
+    {
+      "id": "mb-mcl-2",
+      "name": "Naga Mushroom Momocola",
+      "category": "MOMOCOLA"
+    },
+    {
+      "id": "mb-mcl-3",
+      "name": "Cheese Explode Momocola",
+      "category": "MOMOCOLA"
+    },
+    {
+      "id": "mb-mcl-4",
+      "name": "BBQ Squash Momocola",
+      "category": "MOMOCOLA"
+    },
+    {
+      "id": "mb-cmb-1",
+      "name": "Momo Buzz Combo",
+      "category": "COMBO & OTHERS",
+      "image": "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&q=80"
+    },
+    {
+      "id": "mb-oth-2",
+      "name": "Momo in Chilli Oil",
+      "category": "COMBO & OTHERS"
+    },
+    {
+      "id": "mb-fuc-1",
+      "name": "Regular Fuchka (12pcs)",
+      "category": "FUCHKA BUZZ"
+    },
+    {
+      "id": "mb-fuc-2",
+      "name": "Doi Fuchka (12pcs)",
+      "category": "FUCHKA BUZZ"
+    },
+    {
+      "id": "mb-fuc-3",
+      "name": "Naga Fuchka (12pcs)",
+      "category": "FUCHKA BUZZ"
+    },
+    {
+      "id": "mb-fuc-4",
+      "name": "Cocktail Fuchka (12pcs)",
+      "category": "FUCHKA BUZZ"
+    },
+    {
+      "id": "mb-fuc-5",
+      "name": "Regular Chotpoti",
+      "category": "FUCHKA BUZZ"
+    },
+    {
+      "id": "mb-fuc-6",
+      "name": "Naga Chotpoti",
+      "category": "FUCHKA BUZZ"
+    },
+    {
+      "id": "mb-fuc-7",
+      "name": "Fuchka Buzz Special",
+      "category": "FUCHKA BUZZ"
+    }
+  ],
+  "waffle-city": [
+    {
+      "id": "wc-waf-1",
+      "name": "Nutella",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-2",
+      "name": "Banana Nuts With Chocolate",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-3",
+      "name": "Red Velvet With Cream Chocolate",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-4",
+      "name": "Chocolate With Nuts",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-5",
+      "name": "Cream With Chocolate",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-6",
+      "name": "Chocolate Blast",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-7",
+      "name": "Truti Fruti Waffle",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-8",
+      "name": "Cream With Strawberry",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-9",
+      "name": "Cream With Blueberry",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-10",
+      "name": "Nutella With Ice-Cream",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-11",
+      "name": "Kitkat With Chocolate Chips",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-12",
+      "name": "Creamy Oreo",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-waf-13",
+      "name": "Crazy Bliss",
+      "category": "WAFFLE"
+    },
+    {
+      "id": "wc-ado-1",
+      "name": "Ice Cream",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "wc-ado-2",
+      "name": "Whipped Cream",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "wc-ado-3",
+      "name": "Chocolate Chips",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "wc-ado-4",
+      "name": "Extra Nuts",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "wc-ado-5",
+      "name": "Cream Cheese",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "wc-ado-6",
+      "name": "Extra Nutella",
+      "category": "ADD ONS"
+    }
+  ],
+  "live-station": [
+    {
+      "id": "ls-bbq-1",
+      "name": "Chicken Tandoori Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-2",
+      "name": "Chicken BBQ",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-3",
+      "name": "Tandoori Chicken",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-4",
+      "name": "Chicken Chap Masala",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-5",
+      "name": "Chicken Boti Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-6",
+      "name": "Naga Chicken Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-7",
+      "name": "Chicken Achari Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-8",
+      "name": "Chicken Reshmi Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-9",
+      "name": "Chicken Malai Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-10",
+      "name": "Chicken Hariyali Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-11",
+      "name": "Afghani Chicken Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-12",
+      "name": "Chicken Drumstick / Naga",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-13",
+      "name": "Chicken Lollipop (Badshahi)",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-14",
+      "name": "Chicken Tikka (Sonali)",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-15",
+      "name": "Beef Seek Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-16",
+      "name": "Beef Boti Kabab",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-17",
+      "name": "Whole Koral Fish",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-bbq-18",
+      "name": "Luchi",
+      "category": "BBQ & KABAB"
+    },
+    {
+      "id": "ls-plt-1",
+      "name": "Platter 1 (1:2)",
+      "category": "PLATTERS",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    },
+    {
+      "id": "ls-plt-2",
+      "name": "Platter 2 (1:2)",
+      "category": "PLATTERS",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80"
+    },
+    {
+      "id": "ls-plt-3",
+      "name": "Platter 3 (1:4)",
+      "category": "PLATTERS",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    },
+    {
+      "id": "ls-plt-4",
+      "name": "Platter 4 (1:4)",
+      "category": "PLATTERS",
+      "image": "https://images.unsplash.com/photo-1562967914-608f82629710?w=600&q=80"
+    },
+    {
+      "id": "ls-plt-5",
+      "name": "Premium (1:4)",
+      "category": "PLATTERS",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    },
+    {
+      "id": "ls-plt-6",
+      "name": "Luxury (1:4)",
+      "category": "PLATTERS",
+      "image": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80"
+    }
+  ],
+  "burger-bar": [
+    {
+      "id": "bb-bgr-1",
+      "name": "Chicken Burger (Reg)",
+      "category": "BURGER"
+    },
+    {
+      "id": "bb-bgr-2",
+      "name": "Chicken Crispy Burger",
+      "category": "BURGER"
+    },
+    {
+      "id": "bb-bgr-3",
+      "name": "Chicken Cheese Delight",
+      "category": "BURGER"
+    },
+    {
+      "id": "bb-bgr-4",
+      "name": "Naga Chicken Burger",
+      "category": "BURGER"
+    },
+    {
+      "id": "bb-bgr-5",
+      "name": "Beef Cheese Burger",
+      "category": "BURGER"
+    },
+    {
+      "id": "bb-sdw-1",
+      "name": "Sub Sandwich (Regular)",
+      "category": "SANDWICH"
+    },
+    {
+      "id": "bb-sdw-2",
+      "name": "BBQ Cheese Sub",
+      "category": "SANDWICH"
+    },
+    {
+      "id": "bb-sdw-3",
+      "name": "Grilled Chicken Sandwich",
+      "category": "SANDWICH"
+    },
+    {
+      "id": "bb-sdw-4",
+      "name": "Club Sandwich (4pcs) with French fries",
+      "category": "SANDWICH"
+    },
+    {
+      "id": "bb-mbx-1",
+      "name": "Meat Box (Regular)",
+      "category": "MEAT BOX"
+    },
+    {
+      "id": "bb-mbx-2",
+      "name": "BBQ Cheese Meat Box",
+      "category": "MEAT BOX"
+    },
+    {
+      "id": "bb-mbx-3",
+      "name": "Naga Meat Box",
+      "category": "MEAT BOX"
+    },
+    {
+      "id": "bb-chk-1",
+      "name": "Thai",
+      "category": "CRISPY CHICKEN"
+    },
+    {
+      "id": "bb-chk-2",
+      "name": "Breast Piece",
+      "category": "CRISPY CHICKEN"
+    },
+    {
+      "id": "bb-chk-3",
+      "name": "Chest Piece",
+      "category": "CRISPY CHICKEN"
+    },
+    {
+      "id": "bb-chk-4",
+      "name": "Leg Piece",
+      "category": "CRISPY CHICKEN"
+    },
+    {
+      "id": "bb-chk-5",
+      "name": "Whole Wings",
+      "category": "CRISPY CHICKEN"
+    },
+    {
+      "id": "bb-chk-6",
+      "name": "Chicken Strips (6pcs)",
+      "category": "CRISPY CHICKEN"
+    },
+    {
+      "id": "bb-chk-7",
+      "name": "Pops Chicken (8pcs)",
+      "category": "CRISPY CHICKEN"
+    },
+    {
+      "id": "bb-wrp-1",
+      "name": "Chicken Wrap",
+      "category": "WRAP ROLL"
+    },
+    {
+      "id": "bb-wrp-2",
+      "name": "Chicken Shawarma",
+      "category": "WRAP ROLL"
+    },
+    {
+      "id": "bb-wrp-3",
+      "name": "Beef Wrap",
+      "category": "WRAP ROLL"
+    },
+    {
+      "id": "bb-wrp-4",
+      "name": "Beef Shawarma",
+      "category": "WRAP ROLL"
+    },
+    {
+      "id": "bb-ff-1",
+      "name": "French Fries Regular",
+      "category": "FRENCH FRIES"
+    },
+    {
+      "id": "bb-ff-2",
+      "name": "Mayo French Fries",
+      "category": "FRENCH FRIES"
+    },
+    {
+      "id": "bb-ff-3",
+      "name": "Masala French Fries",
+      "category": "FRENCH FRIES"
+    },
+    {
+      "id": "bb-ado-1",
+      "name": "Bun",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "bb-ado-2",
+      "name": "Patty",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "bb-ado-3",
+      "name": "Cheese",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "bb-ado-4",
+      "name": "Sauce",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "bb-ado-5",
+      "name": "Coleslaw",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "bb-ado-6",
+      "name": "Naga Sauce",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "bb-ado-7",
+      "name": "Mayo",
+      "category": "ADD ONS"
+    },
+    {
+      "id": "bb-cmb-1",
+      "name": "Burger Combo 1",
+      "category": "COMBO"
+    },
+    {
+      "id": "bb-cmb-2",
+      "name": "Burger Combo 2",
+      "category": "COMBO"
+    },
+    {
+      "id": "bb-cmb-3",
+      "name": "Crispy Chicken Combo 1",
+      "category": "COMBO"
+    },
+    {
+      "id": "bb-cmb-4",
+      "name": "Crispy Chicken Combo Couple",
+      "category": "COMBO"
+    },
+    {
+      "id": "bb-cmb-5",
+      "name": "Crispy Chicken Combo Family",
+      "category": "COMBO"
+    },
+    {
+      "id": "bb-cmb-6",
+      "name": "Kids Meal",
+      "category": "COMBO"
+    }
+  ]
+}

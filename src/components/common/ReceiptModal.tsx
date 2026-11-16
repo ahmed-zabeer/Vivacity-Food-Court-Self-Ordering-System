@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { Order } from '../../types';
 import { X, Printer, CheckCircle2, Clock } from 'lucide-react';
 import {
@@ -17,6 +18,20 @@ interface ReceiptModalProps {
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) => {
+  const [fbQrDataUrl, setFbQrDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (FOOD_COURT_INFO.facebook) {
+      QRCode.toDataURL(FOOD_COURT_INFO.facebook, {
+        width: 72,
+        margin: 1,
+        color: { dark: '#000000', light: '#ffffff' }
+      })
+        .then(url => setFbQrDataUrl(url))
+        .catch(err => console.error('Failed to generate Facebook QR code:', err));
+    }
+  }, []);
+
   if (!order) return null;
 
   const isPaid = order.paymentStatus === 'PAID';
@@ -109,15 +124,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
               <div className="text-[16px] font-black tracking-wide leading-tight pt-0.5">
                 Token No:{order.token}
               </div>
-              <div className="flex items-start justify-between gap-2 pt-0.5">
-                <span>{tableLabel}</span>
-                <span className="text-right">{serviceLabel}</span>
+              <div className="flex items-center justify-between gap-2 pt-0.5">
+                <span className="text-[13px] font-black">{tableLabel}</span>
+                <span className="text-[10.5px] text-right font-bold">{serviceLabel}</span>
               </div>
-              <div className="text-[9.5px] break-words">
+              <div className="text-[11px] font-black break-words mt-0.5">
                 Order Type: {orderTypeLabel(order)}
               </div>
               {(order.customerName || order.customerPhone) && (
-                <div className="text-[9.5px] break-words">
+                <div className="text-[12px] font-black break-words mt-0.5">
                   Guest: {order.customerName || 'Guest'}
                   {order.customerPhone ? ` • ${order.customerPhone}` : ''}
                 </div>
@@ -127,8 +142,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
             <Dash />
 
             {/* Column headings */}
-            <div className="flex items-end gap-1 text-[9.5px] font-bold">
-              <span className="w-5 shrink-0">Qty</span>
+            <div className="flex items-end gap-1 text-[10.5px] font-black">
+              <span className="w-6 shrink-0">Qty</span>
               <span className="flex-1 min-w-0">Item Name</span>
               <span className="w-12 text-right shrink-0">Price</span>
               <span className="w-12 text-right shrink-0">T.Price</span>
@@ -140,7 +155,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
               {order.stalls.map((stall) => (
                 <div key={stall.stallId} className="space-y-0.5">
                   {order.stalls.length > 1 && (
-                    <div className="text-[9px] font-bold uppercase tracking-wide">
+                    <div className="text-[10px] font-black uppercase tracking-wide">
                       {stall.stallName}
                     </div>
                   )}
@@ -154,20 +169,20 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
                         : null,
                     ].filter(Boolean) as string[];
                     return (
-                      <div key={`${stall.stallId}-${idx}`} className="text-[10.5px]">
+                      <div key={`${stall.stallId}-${idx}`} className="text-[11.5px] font-semibold">
                         <div className="flex items-start gap-1">
-                          <span className="w-5 shrink-0">-{item.quantity}</span>
-                          <span className="flex-1 min-w-0 break-words">{item.name}</span>
+                          <span className="w-6 shrink-0 font-black">-{item.quantity}</span>
+                          <span className="flex-1 min-w-0 break-words font-bold">{item.name}</span>
                           <span className="w-12 text-right shrink-0">{money(unit)}</span>
-                          <span className="w-12 text-right shrink-0">{money(lineTotal)}</span>
+                          <span className="w-12 text-right shrink-0 font-black">{money(lineTotal)}</span>
                         </div>
                         {extras.length > 0 && (
-                          <div className="pl-5 text-[8.5px] leading-snug break-words">
+                          <div className="pl-6 text-[9px] leading-snug break-words font-normal">
                             {extras.join(' • ')}
                           </div>
                         )}
                         {item.notes && (
-                          <div className="pl-5 text-[8.5px] leading-snug break-words">
+                          <div className="pl-6 text-[9px] leading-snug break-words font-normal italic">
                             Note: {item.notes}
                           </div>
                         )}
@@ -180,43 +195,31 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
 
             <Dash />
 
-            {/* Totals */}
-            <div className="flex justify-between gap-2 font-bold">
-              <span>Ticket Total:</span>
-              <span>{money(order.subtotal)}</span>
-            </div>
-            <Dash />
-
-            <div className="text-[10px] font-bold">Included:</div>
-            {(order.discount > 0 ||
-              order.serviceCharge > 0 ||
-              order.tax > 0) && (
-              <div className="space-y-0.5 text-[9.5px]">
-                {order.discount > 0 && (
-                  <div className="flex justify-between gap-2">
-                    <span>Discount:</span>
-                    <span>-{money(order.discount)}</span>
-                  </div>
-                )}
-                {order.serviceCharge > 0 && (
-                  <div className="flex justify-between gap-2">
-                    <span>Service Charge:</span>
-                    <span>{money(order.serviceCharge)}</span>
-                  </div>
-                )}
-                {order.tax > 0 && (
-                  <div className="flex justify-between gap-2">
-                    <span>VAT / Tax:</span>
-                    <span>{money(order.tax)}</span>
-                  </div>
-                )}
+            {/* Financial breakdown: Subtotal -> Service Charge -> Discount -> VAT -> Net Total */}
+            <div className="space-y-0.5 text-[10.5px]">
+              <div className="flex justify-between gap-2 font-bold">
+                <span>Subtotal:</span>
+                <span>৳{money(order.subtotal)}</span>
               </div>
-            )}
+              <div className="flex justify-between gap-2">
+                <span>Service Charge:</span>
+                <span>৳{money(order.serviceCharge || 0)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span>Discount:</span>
+                <span>-৳{money(order.discount || 0)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span>VAT:</span>
+                <span>৳{money(order.tax || 0)}</span>
+              </div>
+            </div>
+
             <Dash />
 
-            <div className="flex justify-between gap-2 font-black text-[11.5px]">
-              <span>Gross Total:</span>
-              <span>{money(order.grandTotal)}</span>
+            <div className="flex justify-between gap-2 font-black text-[13px]">
+              <span>Net Total:</span>
+              <span>৳{money(order.grandTotal)}</span>
             </div>
 
             <DoubleDash />
@@ -264,17 +267,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
                 />
               </div>
               <div className="text-[10px] font-bold tracking-wide">{FOOD_COURT_INFO.phone}</div>
-              <div className="text-[8.5px] leading-snug">
-                Facebook Page:
-                <br />
-                <a
-                  href={FOOD_COURT_INFO.facebook}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline break-all"
-                >
-                  {FOOD_COURT_INFO.facebook}
-                </a>
+              <div className="flex flex-col items-center justify-center my-1.5 space-y-0.5">
+                <span className="text-[8.5px] font-bold uppercase tracking-wider text-zinc-600">
+                  Follow Us on Facebook
+                </span>
+                {fbQrDataUrl ? (
+                  <img
+                    src={fbQrDataUrl}
+                    alt="Official Facebook QR Code"
+                    className="w-12 h-12 object-contain"
+                  />
+                ) : (
+                  <div className="w-12 h-12 border border-dashed border-zinc-300 flex items-center justify-center text-[8px] text-zinc-400">
+                    QR Code
+                  </div>
+                )}
               </div>
               <div className="text-[8px] flex items-center justify-center gap-1 pt-0.5">
                 {isPaid ? (

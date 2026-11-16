@@ -3,17 +3,7 @@ import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { Table, TableStatus } from '../../types';
 import { QRBadgeModal } from '../../components/common/QRBadgeModal';
-import {
-  Grid,
-  MapPin,
-  Clock,
-  QrCode,
-  Users,
-  CheckCircle,
-  XCircle,
-  RotateCcw,
-  Printer
-} from 'lucide-react';
+import { QrCode, CheckCircle, XCircle } from 'lucide-react';
 
 export const TableManager: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
@@ -21,7 +11,7 @@ export const TableManager: React.FC = () => {
   const [qrModalTableId, setQrModalTableId] = useState<string | null>(null);
   const [activeZone, setActiveZone] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [confirmAvailableModal, setConfirmAvailableModal] = useState<any | null>(null);
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);

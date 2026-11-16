@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useTableSession } from '../../context/TableSessionContext';
 import { useLocation } from 'wouter';
-import { ShoppingBag, ArrowRight, Package } from 'lucide-react';
+import { ArrowRight, Package } from 'lucide-react';
 
 export const ParcelOrderPage: React.FC = () => {
   const { setIsTakeaway, setTableId } = useTableSession();

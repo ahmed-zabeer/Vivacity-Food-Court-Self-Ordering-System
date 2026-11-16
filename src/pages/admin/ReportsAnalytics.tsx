@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Download, TrendingUp, DollarSign, Calendar, FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet } from 'lucide-react';
 
 export const ReportsAnalytics: React.FC = () => {
   const [analytics, setAnalytics] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     api.getAnalytics()

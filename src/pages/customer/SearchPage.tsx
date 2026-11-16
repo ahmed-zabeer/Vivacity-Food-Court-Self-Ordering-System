@@ -12,7 +12,7 @@ export const SearchPage: React.FC = () => {
   const [query, setQuery] = useState<string>('Chicken');
   const [selectedStallFilter, setSelectedStallFilter] = useState<string>('ALL');
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   const { items: cartItems } = useCart();
 

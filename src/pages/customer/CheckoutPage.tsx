@@ -3,27 +3,10 @@ import { useCart } from '../../context/CartContext';
 import { useTableSession } from '../../context/TableSessionContext';
 import { api } from '../../services/api';
 import { sound } from '../../services/sound';
-import { PaymentMethod, Order, ServiceType, CustomerOrderType } from '../../types';
+import { getClientId, realtime } from '../../services/events';
+import { PaymentMethod, Order, ServiceType } from '../../types';
 import { useLocation } from 'wouter';
-import {
-  CreditCard,
-  Banknote,
-  Smartphone,
-  Wifi,
-  ShieldCheck,
-  CheckCircle2,
-  AlertCircle,
-  ArrowRight,
-  Clock,
-  Sparkles,
-  Lock,
-  User,
-  Phone,
-  MapPin,
-  UtensilsCrossed,
-  Store,
-  Package
-} from 'lucide-react';
+import { CreditCard, Banknote, Wifi, ShieldCheck, AlertCircle, ArrowRight, Lock, User, Phone, MapPin, UtensilsCrossed, Store, Package } from 'lucide-react';
 
 export const CheckoutPage: React.FC = () => {
   const {
@@ -74,6 +57,13 @@ export const CheckoutPage: React.FC = () => {
   const [pendingOrder, setPendingOrder] = useState<Order | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState<boolean>(false);
   const [bkashPin, setBkashPin] = useState<string>('12345');
+
+  // Calculated Values & scroll to top on page open
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, []);
 
   // Preserve selected service type across reloads
   useEffect(() => {
@@ -206,8 +196,9 @@ export const CheckoutPage: React.FC = () => {
         quantity: i.quantity
       }));
 
+      const cid = getClientId();
       const newOrder = await api.createOrder({
-        tableId: isTakeaway ? null : (tableId || 'T17'),
+        tableId: isTakeaway ? null : (tableId || null),
         type: orderType === 'TAKEAWAY' ? 'PARCEL' : 'DINE_IN',
         customerOrderType: orderType!,
         rawItems,
@@ -218,12 +209,27 @@ export const CheckoutPage: React.FC = () => {
         customerNotes,
         paymentMethod: paymentMethod!,
         couponCode,
-        cartSessionId: sessionId
+        cartSessionId: sessionId,
+        clientId: cid
       });
 
       setPendingOrder(newOrder);
 
-      // Track this device's placed order IDs
+      // Subscribe SSE to this new order immediately
+      realtime.subscribe({
+        orderId: newOrder.id,
+        tableId: newOrder.tableId || undefined
+      });
+
+      // Track this device's per-session and local placed order IDs
+      try {
+        const sessionOrders = JSON.parse(sessionStorage.getItem('vivacity_session_orders') || '[]');
+        if (!sessionOrders.includes(newOrder.id)) {
+          sessionOrders.push(newOrder.id);
+          sessionStorage.setItem('vivacity_session_orders', JSON.stringify(sessionOrders));
+        }
+      } catch {}
+
       try {
         const existing = JSON.parse(localStorage.getItem('vivacity_customer_orders') || '[]');
         if (!existing.includes(newOrder.id)) {
@@ -241,6 +247,9 @@ export const CheckoutPage: React.FC = () => {
         clearCustomerDetails();
         sessionStorage.removeItem('vivacity_selected_service_type');
         sessionStorage.removeItem('vivacity_customer_notes');
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
         setLocation(`/orders/${newOrder.id}`);
       } else {
         // Online payment (bKash / Card / NFC) opens secure simulation modal
@@ -274,6 +283,9 @@ export const CheckoutPage: React.FC = () => {
       sessionStorage.removeItem('vivacity_selected_service_type');
       sessionStorage.removeItem('vivacity_customer_notes');
       setShowPaymentModal(false);
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
       setLocation(`/orders/${updated.id}`);
     } catch (e: any) {
       alert('Payment processing failed. Please try again.');
@@ -300,7 +312,7 @@ export const CheckoutPage: React.FC = () => {
             Delivery Location
           </span>
           <h2 className="text-base font-black text-zinc-900">
-            {isTakeaway ? 'Takeaway / Parcel Counter' : `Table ${tableId || 'T17'} (Dine-in)`}
+            {isTakeaway ? 'Takeaway / Parcel Counter' : tableId ? `Table ${tableId} (Dine-in)` : 'Dine-in (Hall Seating)'}
           </h2>
           <p className="text-[11px] text-zinc-500 mt-0.5">
             Your dishes will be prepared hot across our 6 food hall kitchens.

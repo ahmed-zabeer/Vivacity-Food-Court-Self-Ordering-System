@@ -15,17 +15,24 @@ interface TableSessionContextType {
 const TableSessionContext = createContext<TableSessionContextType | null>(null);
 
 export const TableSessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Check URL pathname for /t/TXX or default to T17 for demo experience
+  // Check URL pathname for /t/TXX or retrieve stored table session
   const getInitialTable = (): string | null => {
     if (typeof window !== 'undefined') {
       const match = window.location.pathname.match(/\/t\/([A-Za-z0-9]+)/i);
       if (match && match[1]) {
-        return match[1].toUpperCase();
+        const scanned = match[1].toUpperCase();
+        try {
+          sessionStorage.setItem('vivacity_table_id', scanned);
+          localStorage.setItem('vivacity_table_id', scanned);
+        } catch {}
+        return scanned;
       }
-      const saved = localStorage.getItem('vivacity_table_id');
-      if (saved) return saved;
+      const sessionSaved = sessionStorage.getItem('vivacity_table_id');
+      if (sessionSaved) return sessionSaved.toUpperCase();
+      const localSaved = localStorage.getItem('vivacity_table_id');
+      if (localSaved) return localSaved.toUpperCase();
     }
-    return 'T17'; // Default food hall table for showcase
+    return null;
   };
 
   const [tableId, setTableState] = useState<string | null>(getInitialTable);
@@ -33,13 +40,24 @@ export const TableSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
 
   const setTableId = (id: string | null) => {
-    setTableState(id);
-    if (id) {
-      setIsTakeaway(false);
-      localStorage.setItem('vivacity_table_id', id);
-    } else {
-      localStorage.removeItem('vivacity_table_id');
+    const formatted = id ? id.trim().toUpperCase() : null;
+    setTableState(formatted);
+    if (typeof window !== 'undefined') {
+      if (formatted) {
+        setIsTakeaway(false);
+        try {
+          sessionStorage.setItem('vivacity_table_id', formatted);
+          localStorage.setItem('vivacity_table_id', formatted);
+        } catch {}
+      } else {
+        try {
+          sessionStorage.removeItem('vivacity_table_id');
+          localStorage.removeItem('vivacity_table_id');
+        } catch {}
+      }
     }
+    // Update real-time connection subscription
+    realtime.subscribe({ tableId: formatted || undefined });
   };
 
   const refreshActiveOrders = async () => {
@@ -59,13 +77,21 @@ export const TableSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     refreshActiveOrders();
 
-    const unsub = realtime.on('order_updated', (updated: Order) => {
-      if (updated.tableId === tableId) {
+    const unsubUpdated = realtime.on('order_updated', (updated?: Order | null) => {
+      if (!updated || updated.tableId === tableId) {
         refreshActiveOrders();
       }
     });
 
-    return () => unsub();
+    const unsubReset = realtime.on('all_orders_reset', () => {
+      setActiveOrders([]);
+      refreshActiveOrders();
+    });
+
+    return () => {
+      unsubUpdated();
+      unsubReset();
+    };
   }, [tableId]);
 
   return (

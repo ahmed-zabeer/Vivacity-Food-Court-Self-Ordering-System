@@ -1,7 +1,15 @@
 import assert from 'assert';
 import http from 'http';
+import { once } from 'node:events';
+import express from 'express';
+import apiRouter from '../server/routes.js';
 
-const BASE_URL = 'http://localhost:3000';
+const app = express();
+app.use(express.json());
+app.use('/api', apiRouter);
+const server = app.listen(0, '127.0.0.1');
+await once(server, 'listening');
+const BASE_URL = `http://127.0.0.1:${server.address().port}`;
 
 function request(method, path, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -322,7 +330,13 @@ async function runTests() {
   console.log('==================================================================');
 }
 
-runTests().catch(err => {
+try {
+  await runTests();
+} catch (err) {
   console.error('❌ Test failed:', err);
-  process.exit(1);
-});
+  process.exitCode = 1;
+} finally {
+  await new Promise((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve());
+  });
+}

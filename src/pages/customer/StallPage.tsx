@@ -4,7 +4,7 @@ import { realtime } from '../../services/events';
 import { Stall, MenuItem } from '../../types';
 import { useRoute, useLocation } from 'wouter';
 import { FoodDetailModal } from '../../components/common/FoodDetailModal';
-import { Search, Star, Clock, ArrowLeft, Plus, Check, AlertTriangle, X, Maximize2, Flame } from 'lucide-react';
+import { Search, Star, ArrowLeft, Plus, Check, AlertTriangle, X, Maximize2, Flame } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
 export const StallPage: React.FC = () => {
@@ -21,7 +21,7 @@ export const StallPage: React.FC = () => {
   const [lightboxImage, setLightboxImage] = useState<{ src: string; title: string } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const { items: cartItems, addItem } = useCart();
+  const { items: cartItems } = useCart();
 
   const loadStallData = useCallback(async () => {
     try {

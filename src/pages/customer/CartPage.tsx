@@ -7,27 +7,7 @@ import { realtime } from '../../services/events';
 import { Plus, Minus, Trash2, ArrowRight, Tag, Store, ShoppingBag, UtensilsCrossed, Package, AlertTriangle } from 'lucide-react';
 
 export const CartPage: React.FC = () => {
-  const {
-    items,
-    groupedByStall,
-    updateQuantity,
-    removeItem,
-    clearCart,
-    subtotal,
-    discount,
-    couponCode,
-    applyCoupon,
-    removeCoupon,
-    grandTotal,
-    itemCount,
-    orderType,
-    setOrderType,
-    unavailableCartItems,
-    hasUnavailableItems,
-    removeUnavailableItems,
-    isMenuItemAvailable,
-    isCartItemOutOfStock
-  } = useCart();
+  const { items, groupedByStall, updateQuantity, removeItem, clearCart, subtotal, discount, couponCode, applyCoupon, removeCoupon, grandTotal, itemCount, orderType, setOrderType, unavailableCartItems, hasUnavailableItems, removeUnavailableItems, isCartItemOutOfStock } = useCart();
 
   const { tableId, isTakeaway } = useTableSession();
   const [, setLocation] = useLocation();
@@ -35,6 +15,12 @@ export const CartPage: React.FC = () => {
   const [couponInput, setCouponInput] = useState('');
   const [couponMsg, setCouponMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [pausedStallNames, setPausedStallNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, []);
 
   useEffect(() => {
     const checkStalls = async () => {
@@ -435,6 +421,9 @@ export const CartPage: React.FC = () => {
           disabled={hasUnavailableItems || pausedStallNames.length > 0}
           onClick={() => {
             if (hasUnavailableItems || pausedStallNames.length > 0) return;
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            if (document.documentElement) document.documentElement.scrollTop = 0;
+            if (document.body) document.body.scrollTop = 0;
             setLocation('/checkout');
           }}
           className={`w-full py-4 px-6 rounded-2xl font-extrabold text-sm flex items-center justify-between transition-all ${

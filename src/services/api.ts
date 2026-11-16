@@ -2,10 +2,10 @@ import {
   Table, Stall, MenuItem, Order, RunnerTask, AuditLogEntry,
   CounterReadyItem, StallReadyConfirmedEvent, StallSubOrder, Expense,
   DailyFinancialSummary, CustomerOrderType, InventoryMenuItem, OrderReview,
-  Purchase, LedgerEntry, IncomeStatement, TrialBalance, BalanceSheet, DueReceivable
+  Purchase, LedgerEntry, IncomeStatement, TrialBalance, BalanceSheet, DueReceivable,
+  VoidRequest, VoidRequestType
 } from '../types';
-
-const API_BASE = '/api';
+import { API_BASE } from '../config/api';
 
 export const api = {
   // Tables
@@ -143,6 +143,7 @@ export const api = {
     paymentMethod?: string;
     couponCode?: string | null;
     cartSessionId?: string | null;
+    clientId?: string | null;
   }): Promise<Order> {
     const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
@@ -497,7 +498,7 @@ export const api = {
     return res.json();
   },
 
-  async resetEverything(user: { name: string; role: string }): Promise<any> {
+  async resetEverything(user: { name: string; role: string; reason?: string }): Promise<any> {
     const res = await fetch(`${API_BASE}/revenue/reset-everything`, {
       method: 'POST',
       headers: {
@@ -507,7 +508,8 @@ export const api = {
       },
       body: JSON.stringify({
         userName: user.name,
-        userRole: user.role
+        userRole: user.role,
+        reason: user.reason
       })
     });
     if (!res.ok) {
@@ -982,6 +984,676 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to delete purchase');
+    }
+    return res.json();
+  },
+
+  // ======================================================
+  // REPORTING & BUSINESS INTELLIGENCE API METHODS
+  // ======================================================
+
+  async getTopSellingItems(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.stallId) q.append('stallId', params.stallId);
+    if (params.category) q.append('category', params.category);
+    if (params.sortBy) q.append('sortBy', params.sortBy);
+    if (params.limit) q.append('limit', params.limit);
+    if (params.search) q.append('search', params.search);
+
+    const res = await fetch(`${API_BASE}/reports/sales/top-selling?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return { items: [] };
+    return res.json();
+  },
+
+  async getSalesSummary(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.stallId) q.append('stallId', params.stallId);
+
+    const res = await fetch(`${API_BASE}/reports/sales/summary?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  async getSalesDetails(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.stallId) q.append('stallId', params.stallId);
+    if (params.paymentMethod) q.append('paymentMethod', params.paymentMethod);
+    if (params.search) q.append('search', params.search);
+    if (params.page) q.append('page', params.page);
+    if (params.limit) q.append('limit', params.limit);
+
+    const res = await fetch(`${API_BASE}/reports/sales/details?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return { transactions: [], totalCount: 0 };
+    return res.json();
+  },
+
+  async getSalesByUser(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/sales/by-user?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getOrderTypeSummary(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/sales/order-type?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getStallWiseSales(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/sales/stall-wise?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getCategoryWiseSales(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.stallId) q.append('stallId', params.stallId);
+
+    const res = await fetch(`${API_BASE}/reports/sales/category-wise?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getHourlySales(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.stallId) q.append('stallId', params.stallId);
+
+    const res = await fetch(`${API_BASE}/reports/sales/hourly?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return { hours: [] };
+    return res.json();
+  },
+
+  async getPaymentMethodReport(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/sales/payment-methods?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return { methods: [], totalCollections: 0 };
+    return res.json();
+  },
+
+  async getDiscountsRefundsReport(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/sales/discounts-refunds?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  // --- Expense Reports ---
+  async getExpenseByCategory(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/expenses/by-category?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getExpenseBySupplier(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/expenses/by-supplier?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getDueExpenses(user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/expenses/dues`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return { dueExpenses: [], totalDueOverall: 0 };
+    return res.json();
+  },
+
+  async recordExpensePayment(id: string, data: any, user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/expenses/${id}/pay`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': user.role,
+        'x-user-name': user.name
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to record expense payment');
+    }
+    return res.json();
+  },
+
+  async getExpenseList(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.category) q.append('category', params.category);
+    if (params.search) q.append('search', params.search);
+    if (params.page) q.append('page', params.page);
+    if (params.limit) q.append('limit', params.limit);
+
+    const res = await fetch(`${API_BASE}/reports/expenses/list?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return { expenses: [], totalCount: 0 };
+    return res.json();
+  },
+
+  async getExpenseSummary(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/expenses/summary?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  // --- Purchase Reports ---
+  async getPurchaseOrders(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.supplier) q.append('supplier', params.supplier);
+    if (params.status) q.append('status', params.status);
+    if (params.search) q.append('search', params.search);
+    if (params.page) q.append('page', params.page);
+    if (params.limit) q.append('limit', params.limit);
+
+    const res = await fetch(`${API_BASE}/reports/purchases/orders?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return { orders: [], totalCount: 0 };
+    return res.json();
+  },
+
+  async getPurchaseBySupplier(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/purchases/by-supplier?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getPurchaseItemDetails(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.supplier) q.append('supplier', params.supplier);
+    if (params.search) q.append('search', params.search);
+
+    const res = await fetch(`${API_BASE}/reports/purchases/items?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getPurchaseSummary(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/purchases/summary?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  async recordPurchasePayment(id: string, data: any, user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/purchases/${id}/pay`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': user.role,
+        'x-user-name': user.name
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to record purchase payment');
+    }
+    return res.json();
+  },
+
+  async recordGoodsReceipt(id: string, data: any, user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/purchases/${id}/receive`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': user.role,
+        'x-user-name': user.name
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to record goods receipt');
+    }
+    return res.json();
+  },
+
+  // --- Inventory Reports ---
+  async getInventoryValuation(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.stallId) q.append('stallId', params.stallId);
+    if (params.category) q.append('category', params.category);
+    if (params.search) q.append('search', params.search);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/valuation?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return { items: [], totalValuation: 0 };
+    return res.json();
+  },
+
+  async getStockSummary(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.stallId) q.append('stallId', params.stallId);
+    if (params.status) q.append('status', params.status);
+    if (params.search) q.append('search', params.search);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/stock-summary?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return { items: [], counts: {} };
+    return res.json();
+  },
+
+  async getStockMovements(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.itemId) q.append('itemId', params.itemId);
+    if (params.movementType) q.append('movementType', params.movementType);
+    if (params.search) q.append('search', params.search);
+    if (params.page) q.append('page', params.page);
+    if (params.limit) q.append('limit', params.limit);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/movements?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return { movements: [], totalCount: 0 };
+    return res.json();
+  },
+
+  async getStockInReport(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.supplier) q.append('supplier', params.supplier);
+    if (params.search) q.append('search', params.search);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/stock-in?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getStockOutReport(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.reason) q.append('reason', params.reason);
+    if (params.search) q.append('search', params.search);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/stock-out?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getLowStockReport(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.stallId) q.append('stallId', params.stallId);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/low-stock?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return { lowStockItems: [], totalLowStockCount: 0 };
+    return res.json();
+  },
+
+  async getWastageReport(params: any, user: { name: string; role: string }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/wastage?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return { wastageRecords: [], totalLossValue: 0 };
+    return res.json();
+  },
+
+  async recordWastage(data: any, user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/inventory/wastage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': user.role,
+        'x-user-name': user.name
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to record wastage');
+    }
+    return res.json();
+  },
+
+  async removeWastage(movementId: string, reason: string, user: { name: string; role: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/reports/inventory/wastage/${movementId}/remove`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': user.role,
+        'x-user-name': user.name
+      },
+      body: JSON.stringify({ reason, userRole: user.role, userName: user.name })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to remove wastage');
+    }
+    return res.json();
+  },
+
+  async getVoidSummaryReport(params: { dateFrom?: string; dateTo?: string; search?: string }, user: { name: string; role: string }): Promise<any> {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.search) q.append('search', params.search);
+    const res = await fetch(`${API_BASE}/reports/accounting/void-summary?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return { totalRequests: 0, pendingRequests: 0, approvedVoids: 0, rejectedRequests: 0, fullOrderVoids: 0, partialItemVoids: 0, quantityCorrections: 0, totalVoidedSales: 0, totalRefundsIssued: 0, requests: [] };
+    return res.json();
+  },
+
+  async getResetHistoryReport(params: { dateFrom?: string; dateTo?: string; search?: string }, user: { name: string; role: string }): Promise<any> {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.search) q.append('search', params.search);
+    const res = await fetch(`${API_BASE}/reports/accounting/reset-history?${q.toString()}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return { totalResets: 0, history: [] };
+    return res.json();
+  },
+
+  async recordStockAdjustment(data: any, user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/inventory/adjustment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': user.role,
+        'x-user-name': user.name
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to record stock adjustment');
+    }
+    return res.json();
+  },
+
+  async getIngredientConsumption(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.append('dateFrom', params.dateFrom);
+    if (params.dateTo) q.append('dateTo', params.dateTo);
+    if (params.stallId) q.append('stallId', params.stallId);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/consumption?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return { consumption: [] };
+    return res.json();
+  },
+
+  async getInventoryForecast(params: any, user: { name: string; role: string; stallId?: string | null }) {
+    const q = new URLSearchParams();
+    if (params.days) q.append('days', params.days);
+    if (params.stallId) q.append('stallId', params.stallId);
+
+    const res = await fetch(`${API_BASE}/reports/inventory/forecast?${q.toString()}`, {
+      headers: {
+        'x-user-role': user.role,
+        'x-user-name': user.name,
+        'x-user-stall': user.stallId || ''
+      }
+    });
+    if (!res.ok) return { forecasts: [] };
+    return res.json();
+  },
+
+  // --- Daily Closing & Cash Management ---
+  async getDailyClosing(date: string, user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/daily-closing?date=${date}`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  async recordCashReconciliation(data: any, user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/daily-closing/reconcile-cash`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': user.role,
+        'x-user-name': user.name
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to record cash reconciliation');
+    }
+    return res.json();
+  },
+
+  // --- Business Intelligence ---
+  async getBusinessHealth(user: { name: string; role: string }) {
+    const res = await fetch(`${API_BASE}/reports/bi/health`, {
+      headers: { 'x-user-role': user.role, 'x-user-name': user.name }
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  // --- Void / Order Cancellation Approval System ---
+  async createVoidRequest(payload: {
+    orderId: string;
+    requestType: VoidRequestType;
+    reason: string;
+    cashierId?: string;
+    cashierName?: string;
+    cashierRole?: string;
+    requestDetails?: any;
+  }): Promise<VoidRequest> {
+    const res = await fetch(`${API_BASE}/void-requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': payload.cashierRole || 'CASHIER',
+        'x-user-name': payload.cashierName || 'Cashier'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to submit void request');
+    }
+    return res.json();
+  },
+
+  async getVoidRequests(params?: { status?: string; orderId?: string }): Promise<VoidRequest[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.orderId) query.append('orderId', params.orderId);
+    const res = await fetch(`${API_BASE}/void-requests${query.toString() ? '?' + query.toString() : ''}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to fetch void requests');
+    }
+    return res.json();
+  },
+
+  async getVoidRequest(id: string): Promise<VoidRequest> {
+    const res = await fetch(`${API_BASE}/void-requests/${id}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to fetch void request');
+    }
+    return res.json();
+  },
+
+  async approveVoidRequest(id: string, payload: {
+    resolverId?: string;
+    resolverName?: string;
+    resolverRole?: string;
+    approvalNote?: string;
+  }): Promise<{ success: boolean; voidRequest: VoidRequest; order: Order }> {
+    const res = await fetch(`${API_BASE}/void-requests/${id}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': payload.resolverRole || 'MANAGER',
+        'x-user-name': payload.resolverName || 'Manager'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to approve void request');
+    }
+    return res.json();
+  },
+
+  async rejectVoidRequest(id: string, payload: {
+    resolverId?: string;
+    resolverName?: string;
+    resolverRole?: string;
+    rejectionReason: string;
+  }): Promise<{ success: boolean; voidRequest: VoidRequest; order: Order }> {
+    const res = await fetch(`${API_BASE}/void-requests/${id}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': payload.resolverRole || 'MANAGER',
+        'x-user-name': payload.resolverName || 'Manager'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to reject void request');
     }
     return res.json();
   }

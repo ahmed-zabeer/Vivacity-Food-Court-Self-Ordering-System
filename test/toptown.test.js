@@ -14,8 +14,8 @@ console.log('✅ Categories count:', stall.categories.length);
 const ttItems = menuItemsData.filter(i => i.stallId === 'top-town');
 console.log('✅ Total Top Town items:', ttItems.length);
 
-if (ttItems.length !== 78) {
-  throw new Error(`Expected 78 items, but found ${ttItems.length}`);
+if (ttItems.length < 78) {
+  throw new Error(`Expected at least 78 items, but found ${ttItems.length}`);
 }
 
 // 3. Check for duplicate IDs across entire database

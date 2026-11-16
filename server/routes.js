@@ -1,24 +1,24 @@
 import { Router } from 'express';
 import { db } from './db.js';
 import { eventBus } from './events.js';
-import { rateLimit } from 'express-rate-limit';
 import os from 'os';
 
 const router = Router();
-const orderCreationRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 30,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: { error: 'Too many order attempts. Please wait before trying again.' }
-});
-const paymentRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: { error: 'Too many payment attempts. Please wait before trying again.' }
-});
+const MANAGER_ROLES = new Set(['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER']);
+
+function getRequestRole(req) {
+  return String(req.headers['x-user-role'] || req.body?.userRole || '').trim().toUpperCase();
+}
+
+function getRequestName(req, fallback = 'Manager') {
+  return req.headers['x-user-name'] || req.body?.userName || fallback;
+}
+
+function requireManagerRole(req, res) {
+  if (MANAGER_ROLES.has(getRequestRole(req))) return true;
+  res.status(403).json({ error: 'Unauthorized: Manager access is required.' });
+  return false;
+}
 
 // --- Real-time SSE Endpoint ---
 router.get('/events', (req, res) => {
@@ -82,6 +82,34 @@ router.get('/stalls/:slug', (req, res) => {
   res.json(stall);
 });
 
+router.post('/stalls/:id/pause', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  try {
+    const { reason, durationMinutes } = req.body || {};
+    if (durationMinutes != null && (!Number.isFinite(Number(durationMinutes)) || Number(durationMinutes) <= 0)) {
+      return res.status(400).json({ error: 'Pause duration must be a positive number of minutes.' });
+    }
+    res.json(db.pauseStall(req.params.id, reason, durationMinutes, getRequestName(req)));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/stalls/:id/resume', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  try {
+    res.json(db.resumeStall(req.params.id, getRequestName(req)));
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+router.get('/stalls/:id/status', (req, res) => {
+  const stall = db.getStall(req.params.id);
+  if (!stall) return res.status(404).json({ error: 'Stall not found' });
+  res.json(db.getStallStatus(stall.id));
+});
+
 // --- Menu API ---
 router.get('/menu', (req, res) => {
   const { stallId, category, search } = req.query;
@@ -124,22 +152,40 @@ router.patch('/stalls/:id/prep-time', (req, res) => {
   res.json(stall);
 });
 
-// --- Customizations & Add-on Pricing API ---
-router.get('/customizations/config', (req, res) => {
-  res.json(db.getCustomizationConfig());
+router.get('/inventory', (req, res) => {
+  const stallId = typeof req.query.stallId === 'string' ? req.query.stallId : null;
+  res.json(db.getFullInventory(stallId));
 });
 
-router.patch('/customizations/config', (req, res) => {
-  const { categoryKey, addOnId, price } = req.body;
-  if (!categoryKey || !addOnId || price === undefined) {
-    return res.status(400).json({ error: 'categoryKey, addOnId, and price are required' });
+router.patch('/inventory/:id/stock', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  const { preparedQty } = req.body || {};
+  if (!Number.isInteger(Number(preparedQty)) || Number(preparedQty) < 0) {
+    return res.status(400).json({ error: 'Prepared quantity must be a non-negative whole number.' });
   }
   try {
-    const updated = db.updateCustomizationPrice(categoryKey, addOnId, price);
-    res.json(updated);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.json(db.setItemStock(req.params.id, Number(preparedQty), getRequestName(req)));
+  } catch (error) {
+    res.status(404).json({ error: error.message });
   }
+});
+
+router.patch('/inventory/:id/availability', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  const { isAvailable } = req.body || {};
+  if (typeof isAvailable !== 'boolean') {
+    return res.status(400).json({ error: 'isAvailable must be a boolean.' });
+  }
+  try {
+    res.json(db.setItemManualAvailability(req.params.id, isAvailable, getRequestName(req)));
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+router.patch('/inventory/:id/reset', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  res.json(db.resetItemStock(req.params.id, getRequestName(req)));
 });
 
 // --- Orders API ---
@@ -163,11 +209,12 @@ router.get('/orders/:id', (req, res) => {
   res.json(order);
 });
 
-router.post('/orders', orderCreationRateLimit, (req, res) => {
+router.post('/orders', (req, res) => {
   try {
     const {
       tableId,
       type,
+      customerOrderType,
       rawItems,
       customerNotes,
       paymentMethod,
@@ -175,18 +222,15 @@ router.post('/orders', orderCreationRateLimit, (req, res) => {
       customerName,
       customerPhone,
       customerAddress,
-      serviceType,
-      customerOrderType,
-      cartSessionId: bodySessionId
+      serviceType
     } = req.body;
-
-    const cartSessionId = bodySessionId || req.headers['x-cart-session-id'] || null;
 
     if (!rawItems || !Array.isArray(rawItems) || rawItems.length === 0) {
       return res.status(400).json({ error: 'Cart cannot be empty' });
     }
-    if (rawItems.length > 50) {
-      return res.status(400).json({ error: 'A cart cannot contain more than 50 items.' });
+
+    if (customerOrderType !== 'DINE_IN' && customerOrderType !== 'TAKEAWAY') {
+      return res.status(400).json({ error: 'Please select Dine-in or Takeaway to continue.' });
     }
 
     const trimmedName = (customerName || '').trim();
@@ -204,60 +248,27 @@ router.post('/orders', orderCreationRateLimit, (req, res) => {
       return res.status(400).json({ error: 'Please select Self-Service or Table Service to continue.' });
     }
 
-    const validCustomerOrderTypes = ['DINE_IN', 'TAKEAWAY'];
-    if (!customerOrderType || !validCustomerOrderTypes.includes(customerOrderType)) {
-      return res.status(400).json({ error: 'Please select Dine-in or Takeaway to continue.' });
-    }
-
     const validPaymentMethods = ['bKash', 'Online Card', 'NFC / Contactless', 'CASH'];
     if (!paymentMethod || !validPaymentMethods.includes(paymentMethod)) {
       return res.status(400).json({ error: 'Please select a payment method to continue.' });
     }
 
-    // Validate that all items exist and are not manually disabled
-    for (const raw of rawItems) {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-          typeof raw.menuItemId !== 'string' || raw.menuItemId.length > 100) {
-        return res.status(400).json({ error: 'Each cart item must include a valid menu item ID.' });
-      }
-      const quantity = raw.quantity === undefined ? 1 : raw.quantity;
-      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
-        return res.status(400).json({ error: 'Item quantity must be a whole number between 1 and 99.' });
-      }
-      const dbItem = db.getMenuItem(raw.menuItemId);
-      if (!dbItem) {
-        return res.status(400).json({ error: `Selected item (ID: ${raw.menuItemId}) not found in menu.` });
-      }
-      if (dbItem.isWeightBased && raw.weight !== undefined && raw.weight !== null &&
-          (!Number.isInteger(raw.weight) || raw.weight < 1 || raw.weight > 10000)) {
-        return res.status(400).json({ error: 'Item weight must be a whole number between 1g and 10000g.' });
-      }
-      const inv = db.inventory[raw.menuItemId];
-      if (inv && inv.manuallyDisabled) {
-        return res.status(400).json({
-          error: `"${dbItem.name}" is currently unavailable. Please remove it from your tray before placing the order.`
-        });
-      }
-    }
-
     const order = db.createOrder({
       tableId,
       type: type || 'DINE_IN',
+      customerOrderType,
       rawItems,
       customerName: trimmedName,
       customerPhone: cleanPhone,
       customerAddress: (customerAddress || '').trim(),
       serviceType,
-      customerOrderType,
       customerNotes,
       paymentMethod,
-      couponCode,
-      cartSessionId,
-      guestCount: req.body.guestCount
+      couponCode
     });
     res.status(201).json(order);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
 });
 
@@ -311,36 +322,52 @@ router.post('/orders/:id/remove-unavailable', (req, res) => {
   res.json(order);
 });
 
-router.post('/orders/:id/replace-unavailable', (req, res) => {
-  try {
-    const { oldItemId, newMenuItemId, quantity, notes } = req.body;
-    const order = db.customerReplaceUnavailableItem(req.params.id, oldItemId, newMenuItemId, quantity, notes);
-    if (!order) return res.status(404).json({ error: 'Order or item not found' });
-    res.json(order);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
 // Payment API
-router.post('/orders/:id/payment', paymentRateLimit, (req, res) => {
+router.post('/orders/:id/payment', (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(503).json({
-      error: 'Payment confirmation is unavailable until a verified payment gateway and staff authentication are configured.'
+      error: 'Payment confirmation is unavailable until a verified payment gateway is configured.'
     });
   }
+
   const { paymentMethod, transactionId, cashierName } = req.body;
   const order = db.confirmPayment(req.params.id, paymentMethod, transactionId, cashierName);
   if (!order) return res.status(404).json({ error: 'Order not found' });
   res.json(order);
 });
 
-// Refund & Cancellation API
 router.post('/orders/:id/refund', (req, res) => {
-  const { reason, staffName } = req.body;
-  const order = db.refundOrder(req.params.id, reason, staffName || 'Manager');
+  try {
+    const order = db.refundOrder(
+      req.params.id,
+      req.body?.reason || 'Customer refund',
+      req.body?.staffName || getRequestName(req)
+    );
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    res.json(order);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/orders/:id/review', (req, res) => {
+  const order = db.getOrder(req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found' });
-  res.json(order);
+  res.json(db.getReviewForOrder(req.params.id));
+});
+
+router.post('/orders/:id/review', (req, res) => {
+  try {
+    const review = db.submitReview({
+      orderId: req.params.id,
+      rating: req.body?.rating,
+      feedback: req.body?.feedback
+    });
+    res.status(201).json(review);
+  } catch (error) {
+    const status = error.message === 'Order not found' ? 404 : 400;
+    res.status(status).json({ error: error.message });
+  }
 });
 
 // Stall Kitchen & Central Counter Lifecycle Endpoints
@@ -472,19 +499,147 @@ router.get('/analytics', (req, res) => {
   res.json(db.getAnalyticsSummary());
 });
 
+router.get('/financial/daily-summary', (req, res) => {
+  const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+  res.json(db.getDailyFinancialSummary(date));
+});
+
+router.get('/financial/graph', (req, res) => {
+  res.json(db.getFinancialGraph(req.query));
+});
+
+router.get('/expenses', (req, res) => {
+  res.json(db.getExpenses({
+    date: req.query.date,
+    dateFrom: req.query.dateFrom,
+    dateTo: req.query.dateTo
+  }));
+});
+
+router.post('/expenses', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  try {
+    const expense = db.addExpense({
+      ...req.body,
+      createdBy: getRequestName(req)
+    });
+    res.status(201).json(expense);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.patch('/expenses/:id', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  try {
+    const expense = db.updateExpense(req.params.id, req.body || {}, getRequestName(req));
+    if (!expense) return res.status(404).json({ error: 'Expense record not found' });
+    res.json(expense);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete('/expenses/:id', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  const result = db.deleteExpense(req.params.id, getRequestName(req));
+  if (!result) return res.status(404).json({ error: 'Expense record not found' });
+  res.json(result);
+});
+
+router.get('/purchases', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  res.json(db.getPurchases({
+    dateFrom: req.query.dateFrom,
+    dateTo: req.query.dateTo,
+    status: req.query.status
+  }));
+});
+
+router.post('/purchases', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  try {
+    const purchase = db.addPurchase({
+      ...req.body,
+      createdBy: getRequestName(req)
+    });
+    res.status(201).json(purchase);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.patch('/purchases/:id', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  const purchase = db.updatePurchase(req.params.id, req.body || {}, getRequestName(req));
+  if (!purchase) return res.status(404).json({ error: 'Purchase not found' });
+  res.json(purchase);
+});
+
+router.delete('/purchases/:id', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  const result = db.deletePurchase(req.params.id, getRequestName(req));
+  if (!result) return res.status(404).json({ error: 'Purchase not found' });
+  res.json(result);
+});
+
+router.get('/accounting/ledger', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  res.json(db.getAccountingLedger({
+    dateFrom: req.query.dateFrom,
+    dateTo: req.query.dateTo,
+    type: req.query.type,
+    search: req.query.search,
+    limit: req.query.limit ? Number(req.query.limit) : undefined
+  }));
+});
+
+router.get('/accounting/income-statement', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  res.json(db.getIncomeStatement({
+    dateFrom: req.query.dateFrom,
+    dateTo: req.query.dateTo
+  }));
+});
+
+router.get('/accounting/trial-balance', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  res.json(db.getTrialBalance({
+    dateFrom: req.query.dateFrom,
+    dateTo: req.query.dateTo
+  }));
+});
+
+router.get('/accounting/balance-sheet', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  res.json(db.getBalanceSheet(req.query.asOfDate || null));
+});
+
+router.get('/accounting/dues', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  res.json(db.getDueReceivables());
+});
+
 // Revenue Endpoints (Daily, Monthly, Yearly in Asia/Dhaka)
 router.get('/revenue', (req, res) => {
+  const role = (req.headers['x-user-role'] || req.query.userRole || '').trim().toUpperCase();
+  const RESTRICTED_ROLES = ['CASHIER', 'STALL MANAGER', 'KITCHEN STAFF', 'KITCHEN', 'RUNNER'];
+  if (role && RESTRICTED_ROLES.includes(role)) {
+    return res.status(403).json({
+      error: 'Unauthorized: Revenue summaries are restricted to Manager and Chief Administrator only.'
+    });
+  }
   res.json(db.getRevenueSummary());
 });
 
 router.post('/revenue/reset-daily', (req, res) => {
-  const role = req.body.userRole || req.headers['x-user-role'];
+  const role = (req.body.userRole || req.headers['x-user-role'] || 'MANAGER').trim().toUpperCase();
   const user = req.body.userName || req.headers['x-user-name'] || 'Manager';
 
-  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
+  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
   if (!ALLOWED_ROLES.includes(role)) {
     return res.status(403).json({
-      error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can reset daily revenue.',
+      error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can reset daily revenue.',
       code: 403
     });
   }
@@ -497,13 +652,13 @@ router.post('/revenue/reset-daily', (req, res) => {
 });
 
 router.post('/revenue/reset-monthly', (req, res) => {
-  const role = req.body.userRole || req.headers['x-user-role'];
+  const role = (req.body.userRole || req.headers['x-user-role'] || 'MANAGER').trim().toUpperCase();
   const user = req.body.userName || req.headers['x-user-name'] || 'Manager';
 
-  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
+  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
   if (!ALLOWED_ROLES.includes(role)) {
     return res.status(403).json({
-      error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can reset monthly revenue.',
+      error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can reset monthly revenue.',
       code: 403
     });
   }
@@ -516,13 +671,13 @@ router.post('/revenue/reset-monthly', (req, res) => {
 });
 
 router.post('/revenue/reset-yearly', (req, res) => {
-  const role = req.body.userRole || req.headers['x-user-role'];
+  const role = (req.body.userRole || req.headers['x-user-role'] || 'MANAGER').trim().toUpperCase();
   const user = req.body.userName || req.headers['x-user-name'] || 'Manager';
 
-  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
+  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
   if (!ALLOWED_ROLES.includes(role)) {
     return res.status(403).json({
-      error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can reset yearly revenue.',
+      error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can reset yearly revenue.',
       code: 403
     });
   }
@@ -535,13 +690,13 @@ router.post('/revenue/reset-yearly', (req, res) => {
 });
 
 router.post('/revenue/reset-tables', (req, res) => {
-  const role = req.body.userRole || req.headers['x-user-role'];
+  const role = (req.body.userRole || req.headers['x-user-role'] || 'MANAGER').trim().toUpperCase();
   const user = req.body.userName || req.headers['x-user-name'] || 'Manager';
 
-  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
+  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
   if (!ALLOWED_ROLES.includes(role)) {
     return res.status(403).json({
-      error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can reset tables.',
+      error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can reset tables.',
       code: 403
     });
   }
@@ -554,13 +709,13 @@ router.post('/revenue/reset-tables', (req, res) => {
 });
 
 router.post('/revenue/reset-all', (req, res) => {
-  const role = req.body.userRole || req.headers['x-user-role'];
+  const role = (req.body.userRole || req.headers['x-user-role'] || 'MANAGER').trim().toUpperCase();
   const user = req.body.userName || req.headers['x-user-name'] || 'Manager';
 
-  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
+  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
   if (!ALLOWED_ROLES.includes(role)) {
     return res.status(403).json({
-      error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can perform a full reset.',
+      error: 'Unauthorized: Only Super Admin, Food Court Owner, or Manager can perform a full reset.',
       code: 403
     });
   }
@@ -574,22 +729,222 @@ router.post('/revenue/reset-all', (req, res) => {
 
 // Single Master 1-Click Button: Reset Everything & Delete All Orders (Default ৳0)
 router.post('/revenue/reset-everything', (req, res) => {
-  const role = req.body.userRole || req.headers['x-user-role'];
+  const role = (req.body.userRole || req.headers['x-user-role'] || 'MANAGER').trim().toUpperCase();
   const user = req.body.userName || req.headers['x-user-name'] || 'Manager';
+  const reason = req.body.reason || 'Operational shift restart / order board refresh';
 
-  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
+  const ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
   if (!ALLOWED_ROLES.includes(role)) {
     return res.status(403).json({
-      error: 'Unauthorized: Only Super Admin, Food Court Owner, Manager, or Cashier can delete all orders and perform clean restart.',
+      error: 'Unauthorized: Only Manager or Chief Administrator can delete all orders and perform clean restart.',
       code: 403
     });
   }
 
-  const result = db.clearAllOrdersAndReset(user, role);
+  const result = db.clearAllOrdersAndReset(user, role, reason);
   if (result.error) {
     return res.status(result.code || 403).json({ error: result.error });
   }
   res.json(result);
+});
+
+// --- Void / Order Cancellation Approval System ---
+router.post('/void-requests', (req, res) => {
+  try {
+    const role = (req.headers['x-user-role'] || req.body.cashierRole || 'CASHIER').trim().toUpperCase();
+    const cashierName = req.headers['x-user-name'] || req.body.cashierName || 'Counter Cashier';
+    const cashierId = req.headers['x-user-id'] || req.body.cashierId || 'usr-cashier';
+
+    const allowedSubmitters = ['CASHIER', 'MANAGER', 'SUPER ADMIN', 'FOOD COURT OWNER'];
+    if (!allowedSubmitters.includes(role)) {
+      return res.status(403).json({
+        error: `Unauthorized: Role "${role}" cannot submit void requests. Only Cashiers and Managers can submit.`
+      });
+    }
+
+    const voidReq = db.createVoidRequest({
+      orderId: req.body.orderId,
+      requestType: req.body.requestType,
+      reason: req.body.reason,
+      cashierId,
+      cashierName,
+      cashierRole: role,
+      voidItems: req.body.voidItems,
+      tableId: req.body.tableId,
+      token: req.body.token,
+      invoiceNo: req.body.invoiceNo
+    });
+
+    res.status(201).json(voidReq);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/void-requests', (req, res) => {
+  try {
+    const list = db.getVoidRequests({
+      status: req.query.status,
+      orderId: req.query.orderId
+    });
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/void-requests/:id', (req, res) => {
+  const voidReq = db.getVoidRequest(req.params.id);
+  if (!voidReq) return res.status(404).json({ error: 'Void request not found' });
+  res.json(voidReq);
+});
+
+router.post('/void-requests/:id/approve', (req, res) => {
+  try {
+    const role = (req.headers['x-user-role'] || req.body.resolverRole || 'MANAGER').trim().toUpperCase();
+    const resolverName = req.headers['x-user-name'] || req.body.resolverName || 'Food Court Manager';
+    const resolverId = req.headers['x-user-id'] || req.body.resolverId || 'usr-manager';
+    const approvalNote = req.body.approvalNote || 'Approved by Manager';
+
+    const ALLOWED = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    if (!ALLOWED.includes(role)) {
+      return res.status(403).json({
+        error: `Unauthorized: Role "${role}" cannot approve void requests. Only Authorized Managers and Administrators have approval authority.`
+      });
+    }
+
+    const result = db.approveVoidRequest(req.params.id, {
+      resolverId,
+      resolverName,
+      resolverRole: role,
+      approvalNote
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/void-requests/:id/reject', (req, res) => {
+  try {
+    const role = (req.headers['x-user-role'] || req.body.resolverRole || 'MANAGER').trim().toUpperCase();
+    const resolverName = req.headers['x-user-name'] || req.body.resolverName || 'Food Court Manager';
+    const resolverId = req.headers['x-user-id'] || req.body.resolverId || 'usr-manager';
+    const rejectionReason = req.body.rejectionReason || 'Rejected by Manager';
+
+    const ALLOWED = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    if (!ALLOWED.includes(role)) {
+      return res.status(403).json({
+        error: `Unauthorized: Role "${role}" cannot reject void requests. Only Authorized Managers and Administrators have rejection authority.`
+      });
+    }
+
+    const result = db.rejectVoidRequest(req.params.id, {
+      resolverId,
+      resolverName,
+      resolverRole: role,
+      rejectionReason
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Reset Void Requests (STRICTLY Manager & Chief Administrator only)
+router.post('/void-requests/reset', (req, res) => {
+  try {
+    const role = (req.headers['x-user-role'] || req.body.userRole || 'MANAGER').trim().toUpperCase();
+    const user = req.headers['x-user-name'] || req.body.userName || 'Manager';
+    const reason = req.body.reason || 'Reset void requests register to default zero';
+
+    const ALLOWED = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+    if (!ALLOWED.includes(role)) {
+      return res.status(403).json({
+        error: `Unauthorized: Role "${role}" cannot reset void register.`
+      });
+    }
+
+    const result = db.resetVoidRequests(user, role, reason);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Accounting: Void & Cancellation Reports
+router.get('/reports/accounting/void-summary', (req, res) => {
+  const userRole = (req.headers['x-user-role'] || '').trim().toUpperCase();
+  const ALLOWED = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+  if (userRole && !ALLOWED.includes(userRole)) {
+    return res.status(403).json({ error: 'Unauthorized: Only Manager and Chief Administrator can access Void Reports.' });
+  }
+  const { dateFrom, dateTo, search } = req.query;
+  res.json(db.getVoidSummaryReport({ dateFrom, dateTo, search }));
+});
+
+// Accounting: Delete Report / Reset History
+router.get('/reports/accounting/reset-history', (req, res) => {
+  const userRole = (req.headers['x-user-role'] || '').trim().toUpperCase();
+  const ALLOWED = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+  if (userRole && !ALLOWED.includes(userRole)) {
+    return res.status(403).json({ error: 'Unauthorized: Only Manager and Chief Administrator can access Reset History.' });
+  }
+  const { dateFrom, dateTo, search } = req.query;
+  res.json(db.getResetHistoryReport({ dateFrom, dateTo, search }));
+});
+
+// Inventory Wastage Removal Endpoint
+router.delete('/reports/inventory/wastage/:id', (req, res) => {
+  const userRole = (req.headers['x-user-role'] || req.body?.userRole || 'MANAGER').trim().toUpperCase();
+  const userName = req.headers['x-user-name'] || req.body?.userName || 'Manager';
+  const ALLOWED = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+  if (!ALLOWED.includes(userRole)) return res.status(403).json({ error: 'Unauthorized: Only Manager can remove wastage entries.' });
+  try {
+    const reason = req.body?.reason || req.query?.reason || 'Incorrect entry removal';
+    const result = db.removeInventoryWastage(req.params.id, { user: userName, role: userRole, reason });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/reports/inventory/wastage/:id/remove', (req, res) => {
+  const userRole = (req.headers['x-user-role'] || req.body?.userRole || 'MANAGER').trim().toUpperCase();
+  const userName = req.headers['x-user-name'] || req.body?.userName || 'Manager';
+  const ALLOWED = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'];
+  if (!ALLOWED.includes(userRole)) return res.status(403).json({ error: 'Unauthorized: Only Manager can remove wastage entries.' });
+  try {
+    const reason = req.body?.reason || 'Incorrect entry removal';
+    const result = db.removeInventoryWastage(req.params.id, { user: userName, role: userRole, reason });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Alias for accounting module compatibility
+router.get('/accounting/audit-trail', (req, res) => {
+  try {
+    const logs = db.auditLogs || [];
+    const { action, from, to, limit = 200 } = req.query;
+    let filtered = logs;
+    if (action) {
+      filtered = filtered.filter(l => l.action && l.action.includes(action.toUpperCase()));
+    }
+    if (from) {
+      filtered = filtered.filter(l => new Date(l.timestamp) >= new Date(from));
+    }
+    if (to) {
+      filtered = filtered.filter(l => new Date(l.timestamp) <= new Date(to));
+    }
+    filtered = filtered.slice().reverse().slice(0, Number(limit));
+    res.json(filtered);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/audit-logs', (req, res) => {
@@ -617,102 +972,42 @@ export function getNetworkInfo(port = process.env.PORT || 3000) {
 
   for (const [name, netList] of Object.entries(interfaces)) {
     if (!netList) continue;
-    // Skip virtual, docker, vmware, vbox, loopback, teredo, bluetooth interfaces
-    if (/virtual|vethernet|vmware|vbox|docker|loopback|pseudo|teredo|isatap|bluetooth|npcap|wsl/i.test(name)) {
-      continue;
-    }
     for (const net of netList) {
       if (net.family === 'IPv4' && !net.internal) {
-        // Exclude link-local auto-configuration addresses (169.254.x.x) and 0.0.0.0
-        if (!net.address.startsWith('169.254.') && net.address !== '0.0.0.0') {
-          lanIps.push({
-            interface: name,
-            address: net.address,
-            mac: net.mac,
-            isWifi: /wi-?fi|wlan|wireless/i.test(name),
-            isEthernet: /ethernet|eth|en|lan/i.test(name),
-            isPrivateRange: /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(net.address)
-          });
-        }
+        lanIps.push({
+          interface: name,
+          address: net.address,
+          mac: net.mac
+        });
       }
     }
   }
 
-  // Prioritize active Wi-Fi adapters with private IP range, then Ethernet, then other LAN
+  // Prioritize active Wi-Fi / Ethernet LAN adapters
   let primaryIp = null;
-  const preferredWifi = lanIps.find(i => i.isWifi && i.isPrivateRange);
-  const anyWifi = lanIps.find(i => i.isWifi);
-  const preferredEthernet = lanIps.find(i => i.isEthernet && i.isPrivateRange);
-  const anyPrivate = lanIps.find(i => i.isPrivateRange);
-
-  if (preferredWifi) {
-    primaryIp = preferredWifi.address;
-  } else if (anyWifi) {
-    primaryIp = anyWifi.address;
-  } else if (preferredEthernet) {
-    primaryIp = preferredEthernet.address;
-  } else if (anyPrivate) {
-    primaryIp = anyPrivate.address;
+  const preferred = lanIps.find(i => /wi-?fi|wlan|ethernet|eth|en/i.test(i.interface));
+  if (preferred) {
+    primaryIp = preferred.address;
   } else if (lanIps.length > 0) {
     primaryIp = lanIps[0].address;
   } else {
-    primaryIp = '127.0.0.1';
+    primaryIp = 'localhost';
   }
 
-  const isReachableOnLan = primaryIp !== '127.0.0.1' && primaryIp !== 'localhost';
-  const recommendedBaseUrl = isReachableOnLan ? `http://${primaryIp}:${port}` : `http://localhost:${port}`;
-
-  // Validate activeQrBaseUrl:
-  // If db.settings.qrBaseUrl was set to a LAN IP that is no longer on this machine,
-  // automatically update it to recommendedBaseUrl!
-  let activeQrBaseUrl = recommendedBaseUrl;
-  if (db.settings.qrBaseUrl) {
-    const saved = db.settings.qrBaseUrl;
-    // Check if saved is a private LAN IP URL (e.g. http://192.168.x.x:3000)
-    const ipMatch = saved.match(/https?:\/\/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/);
-    if (ipMatch) {
-      const savedIp = ipMatch[1];
-      const stillActive = lanIps.some(i => i.address === savedIp);
-      if (stillActive) {
-        activeQrBaseUrl = saved;
-      } else {
-        // Saved IP was from an old network (e.g. home Wi-Fi) -> auto-sync to current network!
-        db.settings.qrBaseUrl = recommendedBaseUrl;
-        activeQrBaseUrl = recommendedBaseUrl;
-        db.saveData();
-      }
-    } else if (saved.includes('localhost') || saved.includes('127.0.0.1')) {
-      // Localhost is inaccessible from phones on Wi-Fi: automatically sync to LAN IP
-      if (isReachableOnLan) {
-        db.settings.qrBaseUrl = recommendedBaseUrl;
-        activeQrBaseUrl = recommendedBaseUrl;
-        db.saveData();
-      } else {
-        activeQrBaseUrl = saved;
-      }
-    } else {
-      // User specified a custom non-IP domain (e.g. https://vivacity.food) -> respect it
-      activeQrBaseUrl = saved;
-    }
-  } else {
-    db.settings.qrBaseUrl = recommendedBaseUrl;
-    activeQrBaseUrl = recommendedBaseUrl;
-  }
+  const recommendedBaseUrl = `http://${primaryIp}:${port}`;
+  const activeQrBaseUrl = db.settings.qrBaseUrl || process.env.APP_BASE_URL || recommendedBaseUrl;
 
   return {
     lanIps,
     primaryIp,
     port: Number(port),
-    isReachableOnLan,
-    localhostUrl: `http://localhost:${port}`,
     recommendedBaseUrl,
     activeQrBaseUrl
   };
 }
 
 router.get('/network-info', (req, res) => {
-  const effectivePort = req.socket.localPort || process.env.PORT || 3000;
-  res.json(getNetworkInfo(effectivePort));
+  res.json(getNetworkInfo());
 });
 
 router.post('/settings/qr-base-url', (req, res) => {
@@ -725,358 +1020,6 @@ router.post('/settings/qr-base-url', (req, res) => {
   db.logAudit("QR_BASE_URL_UPDATED", `QR base URL updated to ${db.settings.qrBaseUrl}`, { qrBaseUrl: db.settings.qrBaseUrl });
   eventBus.broadcast("settings_updated", db.settings);
   res.json({ success: true, qrBaseUrl: db.settings.qrBaseUrl });
-});
-
-// ======================================================
-// EXPENSE MANAGEMENT ROUTES
-// ======================================================
-
-const EXPENSE_ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-
-router.get('/expenses', (req, res) => {
-  try {
-    const { date, dateFrom, dateTo } = req.query;
-    const expenses = db.getExpenses({ date, dateFrom, dateTo });
-    res.json(expenses);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/expenses', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  if (!EXPENSE_ALLOWED_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized: Only authorized roles can add expenses.' });
-  }
-  try {
-    const { amount, date, category, notes } = req.body;
-    const expense = db.addExpense({ amount, date, category, notes, createdBy: userName });
-    res.status(201).json(expense);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.patch('/expenses/:id', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  if (!EXPENSE_ALLOWED_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized.' });
-  }
-  try {
-    const { amount, date, category, notes } = req.body;
-    const updated = db.updateExpense(req.params.id, { amount, date, category, notes }, userName);
-    if (!updated) return res.status(404).json({ error: 'Expense not found' });
-    res.json(updated);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.delete('/expenses/:id', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  if (!EXPENSE_ALLOWED_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized.' });
-  }
-  const result = db.deleteExpense(req.params.id, userName);
-  if (!result) return res.status(404).json({ error: 'Expense not found' });
-  res.json(result);
-});
-
-// ======================================================
-// FINANCIAL OVERVIEW ROUTES
-// ======================================================
-
-router.get('/financial/daily-summary', (req, res) => {
-  try {
-    const { date } = req.query;
-    const summary = db.getDailyFinancialSummary(date || undefined);
-    res.json(summary);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/financial/graph', (req, res) => {
-  try {
-    const { days, dateFrom, dateTo } = req.query;
-    if (dateFrom && dateTo) {
-      const graph = db.getFinancialGraph({ dateFrom, dateTo });
-      return res.json(graph);
-    }
-    const daysNum = Math.min(366, Math.max(1, parseInt(days || '7', 10)));
-    const graph = db.getFinancialGraph({ days: daysNum });
-    res.json(graph);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ======================================================
-// INVENTORY ROUTES
-// ======================================================
-const INVENTORY_ALLOWED_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER', 'STALL MANAGER', 'KITCHEN STAFF'];
-
-router.get('/inventory', (req, res) => {
-  const { stallId } = req.query;
-  res.json(db.getFullInventory(stallId || null));
-});
-
-router.patch('/inventory/:menuItemId/stock', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Chef';
-  if (!INVENTORY_ALLOWED_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized: Only authorized staff can update stock.' });
-  }
-
-  const item = db.getMenuItem(req.params.menuItemId);
-  if (!item) return res.status(404).json({ error: 'Menu item not found' });
-  const userStallId = req.headers['x-user-stall-id'] || req.body.userStallId;
-  if (userRole === 'STALL MANAGER' && userStallId && item.stallId !== userStallId) {
-    return res.status(403).json({ error: 'You can only manage stock for your own stall.' });
-  }
-
-  try {
-    const { preparedQty } = req.body;
-    if (preparedQty === null || preparedQty === undefined || isNaN(Number(preparedQty)) || Number(preparedQty) < 0) {
-      return res.status(400).json({ error: 'Please enter a valid non-negative prepared quantity.' });
-    }
-    const result = db.setItemStock(req.params.menuItemId, Number(preparedQty), userName);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.patch('/inventory/:menuItemId/availability', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  const ADMIN_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-  if (!ADMIN_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized: Only admin or managers can override availability.' });
-  }
-  try {
-    const { isAvailable } = req.body;
-    const result = db.setItemManualAvailability(req.params.menuItemId, !!isAvailable, userName);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.patch('/inventory/:menuItemId/reset', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  const ADMIN_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-  if (!ADMIN_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized.' });
-  }
-  const result = db.resetItemStock(req.params.menuItemId, userName);
-  res.json(result);
-});
-
-// ======================================================
-// CART RESERVATION ROUTES (LIVE ACROSS ALL PHONES)
-// ======================================================
-
-router.post('/cart/reserve', (req, res) => {
-  try {
-    const { sessionId, menuItemId, quantity } = req.body;
-    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
-    if (!menuItemId) return res.status(400).json({ error: 'menuItemId is required' });
-    const result = db.reserveCartItem(sessionId, menuItemId, quantity);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.post('/cart/release-item', (req, res) => {
-  try {
-    const { sessionId, menuItemId } = req.body;
-    if (!sessionId || !menuItemId) return res.status(400).json({ error: 'sessionId and menuItemId are required' });
-    const result = db.releaseCartItem(sessionId, menuItemId);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.post('/cart/release-all', (req, res) => {
-  try {
-    const { sessionId } = req.body;
-    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
-    const result = db.releaseCartSession(sessionId);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.post('/cart/heartbeat', (req, res) => {
-  try {
-    const { sessionId } = req.body;
-    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
-    const result = db.touchCartSession(sessionId);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.get('/cart/reservations/:sessionId?', (req, res) => {
-  try {
-    const sessionId = req.params.sessionId || req.query.sessionId || null;
-    const reservations = db.getCartReservations(sessionId);
-    res.json(reservations);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// ======================================================
-// STALL PAUSE ROUTES
-// ======================================================
-const STALL_CONTROL_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-
-router.post('/stalls/:id/pause', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  if (!STALL_CONTROL_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized: Only authorized admin can pause stalls.' });
-  }
-  try {
-    const { reason, durationMinutes } = req.body;
-    const result = db.pauseStall(req.params.id, reason, durationMinutes ? Number(durationMinutes) : null, userName);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.post('/stalls/:id/resume', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  if (!STALL_CONTROL_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized: Only authorized admin can resume stalls.' });
-  }
-  try {
-    const result = db.resumeStall(req.params.id, userName);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.get('/stalls/:id/status', (req, res) => {
-  const status = db.getStallStatus(req.params.id);
-  res.json(status);
-});
-
-// ======================================================
-// ORDER REVIEW ROUTES
-// ======================================================
-router.post('/orders/:id/review', (req, res) => {
-  try {
-    const { rating, feedback } = req.body;
-    const review = db.submitReview({ orderId: req.params.id, rating, feedback });
-    res.status(201).json(review);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.get('/orders/:id/review', (req, res) => {
-  const review = db.getReviewForOrder(req.params.id);
-  res.json(review || null);
-});
-
-router.get('/reviews', (req, res) => {
-  const userRole = req.headers['x-user-role'] || '';
-  const ADMIN_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER', 'STALL MANAGER'];
-  if (!ADMIN_ROLES.includes(userRole)) {
-    return res.status(403).json({ error: 'Unauthorized.' });
-  }
-  const { limit, orderId } = req.query;
-  res.json(db.getReviews({ orderId: orderId || null, limit: limit ? Number(limit) : 100 }));
-});
-
-// ======================================================
-// ACCOUNTING ROUTES
-// ======================================================
-const ACCOUNTING_ROLES = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'];
-
-router.get('/accounting/ledger', (req, res) => {
-  const userRole = req.headers['x-user-role'] || '';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  const { dateFrom, dateTo, type, search, limit } = req.query;
-  res.json(db.getAccountingLedger({ dateFrom, dateTo, type, search, limit: limit ? Number(limit) : 300 }));
-});
-
-router.get('/accounting/income-statement', (req, res) => {
-  const userRole = req.headers['x-user-role'] || '';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  const { dateFrom, dateTo } = req.query;
-  res.json(db.getIncomeStatement({ dateFrom, dateTo }));
-});
-
-router.get('/accounting/trial-balance', (req, res) => {
-  const userRole = req.headers['x-user-role'] || '';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  const { dateFrom, dateTo } = req.query;
-  res.json(db.getTrialBalance({ dateFrom, dateTo }));
-});
-
-router.get('/accounting/balance-sheet', (req, res) => {
-  const userRole = req.headers['x-user-role'] || '';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  res.json(db.getBalanceSheet());
-});
-
-router.get('/accounting/dues', (req, res) => {
-  const userRole = req.headers['x-user-role'] || '';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  res.json(db.getDueReceivables());
-});
-
-// Purchases / Due Purchases
-router.get('/purchases', (req, res) => {
-  const userRole = req.headers['x-user-role'] || '';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  const { dateFrom, dateTo, status } = req.query;
-  res.json(db.getPurchases({ dateFrom, dateTo, status }));
-});
-
-router.post('/purchases', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  try {
-    const purchase = db.addPurchase({ ...req.body, createdBy: userName });
-    res.status(201).json(purchase);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.patch('/purchases/:id', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  const result = db.updatePurchase(req.params.id, req.body, userName);
-  if (!result) return res.status(404).json({ error: 'Purchase not found' });
-  res.json(result);
-});
-
-router.delete('/purchases/:id', (req, res) => {
-  const userRole = req.headers['x-user-role'] || req.body.userRole || '';
-  const userName = req.headers['x-user-name'] || req.body.userName || 'Manager';
-  if (!ACCOUNTING_ROLES.includes(userRole)) return res.status(403).json({ error: 'Unauthorized.' });
-  const result = db.deletePurchase(req.params.id, userName);
-  if (!result) return res.status(404).json({ error: 'Purchase not found' });
-  res.json(result);
 });
 
 export default router;

@@ -2,5 +2,20 @@
 .env.*
 !.env.example
 node_modules/
+dist/
 npm-debug.log*
 server/data/*.json
+public/**/*.ARW
+
+# Ignore local dependencies and temporary files
+node_modules/
+tmp-chrome-profile/
+scratch/
+tmp-candidates/
+tmp-contact/
+tmp-audit/
+tmp-menu-sources/
+server-startup.log
+*.lnk
+/.tmp-*
+/tmp-*

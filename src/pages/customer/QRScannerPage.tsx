@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTableSession } from '../../context/TableSessionContext';
 import { useCart } from '../../context/CartContext';
 import { useLocation } from 'wouter';
-import { Camera, QrCode, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Camera, QrCode, ArrowRight } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 export const QRScannerPage: React.FC = () => {
-  const { tableId, setTableId } = useTableSession();
+  const { setTableId } = useTableSession();
   const { clearCart, clearCustomerDetails } = useCart();
   const [, setLocation] = useLocation();
 
@@ -30,14 +30,14 @@ export const QRScannerPage: React.FC = () => {
         (decodedText) => {
           handleDetectedCode(decodedText);
         },
-        (errorMessage) => {
+        () => {
           // ignore frame errors
         }
       )
       .then(() => {
         setCameraActive(true);
       })
-      .catch((err) => {
+      .catch(() => {
         setCameraActive(false);
         setScanError('Camera access not granted or not supported on this browser.');
       });

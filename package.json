@@ -3,15 +3,22 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22 <25"
+  },
   "scripts": {
     "dev": "node --max-old-space-size=4096 server/index.js",
-    "build": "vite build",
-    "start": "NODE_ENV=production node --max-old-space-size=4096 server/index.js",
-    "preview": "vite preview"
+    "build": "node --max-old-space-size=4096 ./node_modules/vite/bin/vite.js build",
+    "start": "node --max-old-space-size=4096 server/index.js --production",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/run-tests.js"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "esbuild@0.25.12": true
   },
   "dependencies": {
-    "canvas-confetti": "^1.9.4",
-    "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "express-rate-limit": "^8.3.1",
@@ -20,11 +27,9 @@
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwind-merge": "^3.5.0",
     "wouter": "^3.7.1"
   },
   "devDependencies": {
-    "@types/canvas-confetti": "^1.9.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^22.13.0",

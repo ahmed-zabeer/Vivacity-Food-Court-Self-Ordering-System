@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Store, Search, ShoppingBag, Receipt, QrCode } from 'lucide-react';
+import { Home, Store, Search, ShoppingBag, Receipt } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useCart } from '../../context/CartContext';
 

@@ -1,0 +1,752 @@
+import { getDhakaDateParts } from '../db.js';
+
+export class SalesReportsEngine {
+  constructor(db) {
+    this.db = db;
+  }
+
+  _filterOrders({ dateFrom = null, dateTo = null, stallId = null, orderStatus = null, paymentStatus = null, paymentMethod = null, search = '' } = {}) {
+    return this.db.orders.filter(order => {
+      if (!order) return false;
+      const dateParts = getDhakaDateParts(new Date(order.paidAt || order.createdAt));
+      const orderDate = dateParts.dateStr;
+
+      if (dateFrom && orderDate < dateFrom) return false;
+      if (dateTo && orderDate > dateTo) return false;
+      if (orderStatus && order.status !== orderStatus) return false;
+      if (paymentStatus && order.paymentStatus !== paymentStatus) return false;
+      if (paymentMethod && order.paymentMethod !== paymentMethod) return false;
+
+      if (stallId && stallId !== 'ALL') {
+        const hasStall = order.items?.some(i => i.stallId === stallId) || order.stalls?.some(s => s.stallId === stallId);
+        if (!hasStall) return false;
+      }
+
+      if (search) {
+        const q = search.toLowerCase();
+        const matchesToken = String(order.token || '').toLowerCase().includes(q);
+        const matchesInvoice = String(order.invoiceNo || '').toLowerCase().includes(q);
+        const matchesCustomer = String(order.customerName || '').toLowerCase().includes(q) || String(order.customerPhone || '').includes(q);
+        const matchesItem = order.items?.some(i => (i.name || '').toLowerCase().includes(q));
+        if (!matchesToken && !matchesInvoice && !matchesCustomer && !matchesItem) return false;
+      }
+
+      return true;
+    });
+  }
+
+  /**
+   * Top-Selling Items Report
+   */
+  getTopSellingItems({ dateFrom = null, dateTo = null, stallId = null, category = null, limit = 50, sortBy = 'quantity', search = '' } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo, stallId });
+    // Only count legitimate sales (paid orders, not cancelled)
+    const validOrders = orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
+
+    const itemMap = new Map();
+    let totalSalesOverall = 0;
+
+    for (const order of validOrders) {
+      const orderDiscountRate = order.subtotal > 0 ? (order.discount || 0) / order.subtotal : 0;
+
+      for (const item of (order.items || [])) {
+        if (stallId && stallId !== 'ALL' && item.stallId !== stallId) continue;
+        
+        const dbItem = this.db.getMenuItem ? this.db.getMenuItem(item.menuItemId) : null;
+        const itemCategory = dbItem?.category || 'General';
+        if (category && category !== 'ALL' && itemCategory !== category) continue;
+
+        if (search && !(item.name || '').toLowerCase().includes(search.toLowerCase())) continue;
+
+        const itemId = item.menuItemId || item.id;
+        if (!itemMap.has(itemId)) {
+          const stall = this.db.stalls.find(s => s.id === item.stallId);
+          itemMap.set(itemId, {
+            itemId,
+            name: item.name,
+            stallId: item.stallId,
+            stallName: stall?.name || item.stallId,
+            category: itemCategory,
+            unit: dbItem?.unit || 'portion',
+            quantitySold: 0,
+            orderCount: 0,
+            grossSales: 0,
+            discounts: 0,
+            refunds: 0,
+            netSales: 0,
+            recipeCostPerUnit: null,
+            totalRecipeCost: null,
+            hasRecipe: false
+          });
+        }
+
+        const entry = itemMap.get(itemId);
+        const qty = Number(item.quantity) || 1;
+        const price = Number(item.price) || 0;
+        const itemGross = price * qty;
+        const itemDiscount = Math.round(itemGross * orderDiscountRate);
+
+        entry.quantitySold += qty;
+        entry.orderCount += 1;
+        entry.grossSales += itemGross;
+        entry.discounts += itemDiscount;
+        entry.netSales += (itemGross - itemDiscount);
+
+        totalSalesOverall += (itemGross - itemDiscount);
+      }
+    }
+
+    // Process recipe costs & profit margins if recipe exists
+    const results = Array.from(itemMap.values()).map(entry => {
+      const recipe = this.db.getRecipe ? this.db.getRecipe(entry.itemId) : null;
+      let recipeCostPerUnit = null;
+      let totalCost = null;
+      let hasRecipe = false;
+
+      if (recipe && Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0) {
+        hasRecipe = true;
+        recipeCostPerUnit = recipe.ingredients.reduce((s, ing) => s + (Number(ing.cost) || 0), 0);
+        totalCost = Math.round(recipeCostPerUnit * entry.quantitySold);
+      }
+
+      const grossProfit = hasRecipe ? entry.netSales - totalCost : null;
+      const profitMargin = hasRecipe && entry.netSales > 0 ? Number(((grossProfit / entry.netSales) * 100).toFixed(1)) : null;
+      const contributionPercent = totalSalesOverall > 0 ? Number(((entry.netSales / totalSalesOverall) * 100).toFixed(1)) : 0;
+      const avgSellingPrice = entry.quantitySold > 0 ? Math.round(entry.netSales / entry.quantitySold) : 0;
+
+      return {
+        ...entry,
+        avgSellingPrice,
+        recipeCostPerUnit,
+        totalCost,
+        grossProfit,
+        profitMargin,
+        contributionPercent,
+        hasRecipe
+      };
+    });
+
+    // Sorting
+    results.sort((a, b) => {
+      if (sortBy === 'quantity') return b.quantitySold - a.quantitySold;
+      if (sortBy === 'revenue') return b.netSales - a.netSales;
+      if (sortBy === 'profit') return (b.grossProfit || 0) - (a.grossProfit || 0);
+      if (sortBy === 'margin') return (b.profitMargin || 0) - (a.profitMargin || 0);
+      return b.quantitySold - a.quantitySold;
+    });
+
+    const parsedLimit = limit === 'ALL' || !limit ? results.length : Number(limit);
+    return {
+      items: results.slice(0, parsedLimit),
+      totalSalesOverall,
+      totalCount: results.length,
+      dateFrom,
+      dateTo
+    };
+  }
+
+  /**
+   * Sales Summary Report with Previous Period Comparison
+   */
+  getSalesSummary({ dateFrom = null, dateTo = null, stallId = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo, stallId });
+
+    let totalOrders = orders.length;
+    let completedOrders = 0;
+    let pendingOrders = 0;
+    let cancelledOrders = 0;
+    let refundedOrders = 0;
+
+    let totalQuantitySold = 0;
+    let grossItemSales = 0;
+    let totalDiscounts = 0;
+    let totalRefunds = 0;
+    let netSales = 0;
+
+    let vatTaxCollected = 0;
+    let serviceChargesCollected = 0;
+    let totalCollections = 0;
+    let outstandingReceivables = 0;
+
+    const paymentMethods = {
+      CASH: 0,
+      bKash: 0,
+      Nagad: 0,
+      'Online Card': 0,
+      'NFC / Contactless': 0
+    };
+
+    for (const order of orders) {
+      if (order.status === 'COMPLETED') completedOrders++;
+      if (order.status === 'CANCELLED') cancelledOrders++;
+      if (['NEW', 'UNDER REVIEW', 'ACCEPTED', 'PREPARING', 'READY'].includes(order.status)) pendingOrders++;
+      if (order.paymentStatus === 'REFUNDED') refundedOrders++;
+
+      const isPaid = order.paymentStatus === 'PAID';
+      const isCancelled = order.status === 'CANCELLED';
+
+      if (isCancelled && order.paymentStatus === 'REFUNDED') {
+        totalRefunds += (Number(order.grandTotal) || 0);
+        continue;
+      }
+
+      if (isPaid && !isCancelled) {
+        grossItemSales += (Number(order.subtotal) || 0);
+        totalDiscounts += (Number(order.discount) || 0);
+        vatTaxCollected += (Number(order.tax) || 0);
+        serviceChargesCollected += (Number(order.serviceCharge) || 0);
+        totalCollections += (Number(order.grandTotal) || 0);
+
+        const method = order.paymentMethod || 'CASH';
+        if (paymentMethods[method] !== undefined) {
+          paymentMethods[method] += (Number(order.grandTotal) || 0);
+        } else {
+          paymentMethods.CASH += (Number(order.grandTotal) || 0);
+        }
+
+        for (const item of (order.items || [])) {
+          if (!stallId || stallId === 'ALL' || item.stallId === stallId) {
+            totalQuantitySold += (Number(item.quantity) || 1);
+          }
+        }
+      } else if (!isCancelled && (order.paymentStatus === 'UNPAID' || order.paymentStatus === 'PAYMENT DUE')) {
+        outstandingReceivables += (Number(order.grandTotal) || 0);
+      }
+    }
+
+    netSales = Math.max(0, grossItemSales - totalDiscounts - totalRefunds) + serviceChargesCollected;
+    const averageOrderValue = (completedOrders + pendingOrders) > 0
+      ? Math.round(totalCollections / (completedOrders + pendingOrders))
+      : 0;
+
+    // Operating expenses in same period
+    const expenses = (this.db.expenses || []).filter(e => {
+      if (dateFrom && e.date < dateFrom) return false;
+      if (dateTo && e.date > dateTo) return false;
+      return true;
+    }).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+    // COGS estimation (from recipe or standard food cost ratio if unconfigured)
+    const cogs = 0; // calculated dynamically in Income Statement / Ledger
+    const grossProfit = netSales - cogs;
+    const netProfit = grossProfit - expenses;
+
+    // Previous Equivalent Period Calculation
+    let comparison = null;
+    if (dateFrom && dateTo) {
+      const diffMs = new Date(dateTo).getTime() - new Date(dateFrom).getTime();
+      const prevDateTo = new Date(new Date(dateFrom).getTime() - 86400000).toISOString().slice(0, 10);
+      const prevDateFrom = new Date(new Date(dateFrom).getTime() - 86400000 - diffMs).toISOString().slice(0, 10);
+
+      const prevOrders = this._filterOrders({ dateFrom: prevDateFrom, dateTo: prevDateTo, stallId })
+        .filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
+      const prevRevenue = prevOrders.reduce((s, o) => s + (Number(o.grandTotal) || 0), 0);
+      const prevOrdersCount = prevOrders.length;
+
+      const revenueChange = prevRevenue > 0 ? Number((((totalCollections - prevRevenue) / prevRevenue) * 100).toFixed(1)) : null;
+      const ordersChange = prevOrdersCount > 0 ? Number((((totalOrders - prevOrdersCount) / prevOrdersCount) * 100).toFixed(1)) : null;
+
+      comparison = {
+        prevDateFrom,
+        prevDateTo,
+        prevRevenue,
+        prevOrdersCount,
+        revenueChange,
+        ordersChange
+      };
+    }
+
+    return {
+      totalOrders,
+      completedOrders,
+      pendingOrders,
+      cancelledOrders,
+      refundedOrders,
+      totalQuantitySold,
+      grossItemSales,
+      totalDiscounts,
+      totalRefunds,
+      netSales,
+      vatTaxCollected,
+      serviceChargesCollected,
+      totalCollections,
+      outstandingReceivables,
+      paymentMethods,
+      averageOrderValue,
+      cogs,
+      grossProfit,
+      operatingExpenses: expenses,
+      netProfit,
+      comparison,
+      dateFrom,
+      dateTo
+    };
+  }
+
+  /**
+   * Complete Sales Details (Transaction Rows)
+   */
+  getSalesDetails({ dateFrom = null, dateTo = null, stallId = null, paymentMethod = null, search = '', page = 1, limit = 50 } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo, stallId, paymentMethod, search });
+    const rows = [];
+
+    for (const order of orders) {
+      const dateParts = getDhakaDateParts(new Date(order.paidAt || order.createdAt));
+      const timeStr = `${String(dateParts.hour).padStart(2, '0')}:${String(dateParts.minute).padStart(2, '0')}`;
+
+      for (const item of (order.items || [])) {
+        if (stallId && stallId !== 'ALL' && item.stallId !== stallId) continue;
+        const stall = this.db.stalls.find(s => s.id === item.stallId);
+
+        const qty = Number(item.quantity) || 1;
+        const price = Number(item.price) || 0;
+        const itemTotal = price * qty;
+
+        rows.push({
+          orderId: order.id,
+          invoiceNo: order.invoiceNo || String(88000 + Number(order.token)),
+          token: order.token,
+          date: dateParts.dateStr,
+          time: timeStr,
+          guestName: order.customerName || 'Walk-in Guest',
+          customerPhone: order.customerPhone || 'N/A',
+          tableNumber: order.tableId || (order.type === 'PARCEL' ? 'Takeaway' : 'N/A'),
+          orderType: order.type === 'PARCEL' || order.customerOrderType === 'TAKEAWAY' ? 'Takeaway' : 'Dine-in',
+          serviceType: order.serviceType === 'TABLE_SERVICE' ? 'Table Service' : 'Self-Service',
+          stallId: item.stallId,
+          stallName: stall?.name || item.stallId,
+          itemId: item.menuItemId || item.id,
+          itemName: item.name,
+          quantity: qty,
+          unitPrice: price,
+          discount: order.discount || 0,
+          tax: order.tax || 0,
+          totalAmount: itemTotal,
+          paymentMethod: order.paymentMethod || 'CASH',
+          paymentStatus: order.paymentStatus,
+          orderStatus: order.status,
+          cashier: order.confirmedBy || (order.history?.find(h => h.status === 'PAID')?.note?.match(/by (.*)\./)?.[1]) || 'Counter Cashier'
+        });
+      }
+    }
+
+    const totalCount = rows.length;
+    const startIndex = (Number(page) - 1) * Number(limit);
+    const paginatedRows = rows.slice(startIndex, startIndex + Number(limit));
+
+    return {
+      transactions: paginatedRows,
+      totalCount,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(totalCount / Number(limit))
+    };
+  }
+
+  /**
+   * Sales By User / Cashier
+   */
+  getSalesByUser({ dateFrom = null, dateTo = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo });
+    const userMap = new Map();
+
+    for (const order of orders) {
+      // Find staff who handled the order
+      const paidHistory = order.history?.find(h => h.status === 'PAID');
+      const staffName = order.confirmedBy || (paidHistory?.note?.match(/by (.*)\./)?.[1]) || 'Central Counter';
+
+      if (!userMap.has(staffName)) {
+        userMap.set(staffName, {
+          userName: staffName,
+          role: staffName.includes('Admin') ? 'SUPER ADMIN' : (staffName.includes('Manager') ? 'MANAGER' : 'CASHIER'),
+          ordersHandled: 0,
+          salesProcessed: 0,
+          paymentsConfirmed: 0,
+          discountsAuthorized: 0,
+          refundsProcessed: 0,
+          cancelledOrders: 0,
+          totalValue: 0
+        });
+      }
+
+      const entry = userMap.get(staffName);
+      entry.ordersHandled += 1;
+
+      if (order.paymentStatus === 'PAID' && order.status !== 'CANCELLED') {
+        entry.salesProcessed += (Number(order.grandTotal) || 0);
+        entry.paymentsConfirmed += 1;
+        entry.discountsAuthorized += (Number(order.discount) || 0);
+        entry.totalValue += (Number(order.grandTotal) || 0);
+      } else if (order.paymentStatus === 'REFUNDED') {
+        entry.refundsProcessed += 1;
+      } else if (order.status === 'CANCELLED') {
+        entry.cancelledOrders += 1;
+      }
+    }
+
+    const users = Array.from(userMap.values()).map(u => ({
+      ...u,
+      averageTransactionValue: u.paymentsConfirmed > 0 ? Math.round(u.salesProcessed / u.paymentsConfirmed) : 0
+    }));
+
+    return users.sort((a, b) => b.salesProcessed - a.salesProcessed);
+  }
+
+  /**
+   * Order Type Summary (Dine-in vs Takeaway, Self-service vs Table-service)
+   */
+  getOrderTypeSummary({ dateFrom = null, dateTo = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo });
+    const types = {
+      DINE_IN: { name: 'Dine-in (Hall)', count: 0, quantity: 0, gross: 0, discount: 0, refund: 0, net: 0, payments: { CASH: 0, bKash: 0, Nagad: 0, Card: 0, NFC: 0 } },
+      TAKEAWAY: { name: 'Takeaway (Parcel)', count: 0, quantity: 0, gross: 0, discount: 0, refund: 0, net: 0, payments: { CASH: 0, bKash: 0, Nagad: 0, Card: 0, NFC: 0 } },
+      SELF_SERVICE: { name: 'Self-Service Counter', count: 0, quantity: 0, gross: 0, discount: 0, refund: 0, net: 0, payments: { CASH: 0, bKash: 0, Nagad: 0, Card: 0, NFC: 0 } },
+      TABLE_SERVICE: { name: 'Table-Service Waiter', count: 0, quantity: 0, gross: 0, discount: 0, refund: 0, net: 0, payments: { CASH: 0, bKash: 0, Nagad: 0, Card: 0, NFC: 0 } }
+    };
+
+    for (const order of orders) {
+      const isTakeaway = order.type === 'PARCEL' || order.customerOrderType === 'TAKEAWAY';
+      const isTable = order.serviceType === 'TABLE_SERVICE';
+
+      const typeKey = isTakeaway ? 'TAKEAWAY' : 'DINE_IN';
+      const serviceKey = isTable ? 'TABLE_SERVICE' : 'SELF_SERVICE';
+
+      const isPaid = order.paymentStatus === 'PAID' && order.status !== 'CANCELLED';
+      const isRefunded = order.paymentStatus === 'REFUNDED';
+
+      const gross = Number(order.subtotal) || 0;
+      const disc = Number(order.discount) || 0;
+      const ref = isRefunded ? Number(order.grandTotal) || 0 : 0;
+      const net = isPaid ? Number(order.grandTotal) || 0 : 0;
+      const qty = (order.items || []).reduce((s, i) => s + (Number(i.quantity) || 1), 0);
+      const method = order.paymentMethod || 'CASH';
+
+      for (const key of [typeKey, serviceKey]) {
+        types[key].count += 1;
+        types[key].quantity += qty;
+        types[key].gross += gross;
+        types[key].discount += disc;
+        types[key].refund += ref;
+        types[key].net += net;
+
+        if (isPaid) {
+          if (method === 'CASH') types[key].payments.CASH += net;
+          else if (method === 'bKash') types[key].payments.bKash += net;
+          else if (method === 'Nagad') types[key].payments.Nagad += net;
+          else if (method === 'Online Card') types[key].payments.Card += net;
+          else if (method === 'NFC / Contactless') types[key].payments.NFC += net;
+        }
+      }
+    }
+
+    return Object.entries(types).map(([key, val]) => ({
+      key,
+      ...val,
+      averageOrderValue: val.count > 0 ? Math.round(val.net / val.count) : 0
+    }));
+  }
+
+  /**
+   * Stall-Wise Sales (All 7 Stalls)
+   */
+  getStallWiseSales({ dateFrom = null, dateTo = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo });
+    const validOrders = orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
+
+    const stallStats = {};
+    for (const s of this.db.stalls) {
+      stallStats[s.id] = {
+        stallId: s.id,
+        stallName: s.name,
+        badge: s.badge || '',
+        orderCount: 0,
+        quantitySold: 0,
+        grossSales: 0,
+        discounts: 0,
+        refunds: 0,
+        netSales: 0,
+        cogs: 0,
+        grossProfit: 0,
+        profitMargin: 0,
+        paymentBreakdown: { CASH: 0, bKash: 0, Nagad: 0, 'Online Card': 0, 'NFC / Contactless': 0 },
+        itemCounts: {}
+      };
+    }
+
+    for (const order of validOrders) {
+      const orderDiscountRate = order.subtotal > 0 ? (order.discount || 0) / order.subtotal : 0;
+      const seenStallsInOrder = new Set();
+
+      for (const item of (order.items || [])) {
+        const sid = item.stallId;
+        if (!stallStats[sid]) continue;
+
+        seenStallsInOrder.add(sid);
+        const qty = Number(item.quantity) || 1;
+        const price = Number(item.price) || 0;
+        const itemGross = price * qty;
+        const itemDisc = Math.round(itemGross * orderDiscountRate);
+        const itemNet = itemGross - itemDisc;
+
+        stallStats[sid].quantitySold += qty;
+        stallStats[sid].grossSales += itemGross;
+        stallStats[sid].discounts += itemDisc;
+        stallStats[sid].netSales += itemNet;
+
+        // Best seller tracking
+        stallStats[sid].itemCounts[item.name] = (stallStats[sid].itemCounts[item.name] || 0) + qty;
+
+        const method = order.paymentMethod || 'CASH';
+        if (stallStats[sid].paymentBreakdown[method] !== undefined) {
+          stallStats[sid].paymentBreakdown[method] += itemNet;
+        } else {
+          stallStats[sid].paymentBreakdown.CASH += itemNet;
+        }
+      }
+
+      for (const sid of seenStallsInOrder) {
+        stallStats[sid].orderCount += 1;
+      }
+    }
+
+    return Object.values(stallStats).map(s => {
+      let bestItem = 'N/A';
+      let maxQty = 0;
+      for (const [name, qty] of Object.entries(s.itemCounts)) {
+        if (qty > maxQty) {
+          maxQty = qty;
+          bestItem = `${name} (${qty})`;
+        }
+      }
+
+      // 15% standard food hall commission model for Vivacity
+      const commission = Math.round(s.netSales * 0.15);
+      const merchantPayout = s.netSales - commission;
+
+      return {
+        ...s,
+        bestSellingItem: bestItem,
+        commissionRate: '15%',
+        managementCommission: commission,
+        merchantPayout,
+        grossProfit: s.netSales - s.cogs,
+        profitMargin: s.netSales > 0 ? Number((((s.netSales - s.cogs) / s.netSales) * 100).toFixed(1)) : 0
+      };
+    }).sort((a, b) => b.netSales - a.netSales);
+  }
+
+  /**
+   * Category-Wise Sales
+   */
+  getCategoryWiseSales({ dateFrom = null, dateTo = null, stallId = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo, stallId });
+    const validOrders = orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
+
+    const catMap = new Map();
+    let totalSales = 0;
+
+    for (const order of validOrders) {
+      const orderDiscountRate = order.subtotal > 0 ? (order.discount || 0) / order.subtotal : 0;
+
+      for (const item of (order.items || [])) {
+        if (stallId && stallId !== 'ALL' && item.stallId !== stallId) continue;
+        const dbItem = this.db.getMenuItem ? this.db.getMenuItem(item.menuItemId) : null;
+        const cat = dbItem?.category || 'General';
+
+        if (!catMap.has(cat)) {
+          catMap.set(cat, {
+            category: cat,
+            itemCount: 0,
+            quantitySold: 0,
+            grossSales: 0,
+            discounts: 0,
+            netSales: 0
+          });
+        }
+
+        const entry = catMap.get(cat);
+        const qty = Number(item.quantity) || 1;
+        const price = Number(item.price) || 0;
+        const gross = price * qty;
+        const disc = Math.round(gross * orderDiscountRate);
+        const net = gross - disc;
+
+        entry.quantitySold += qty;
+        entry.grossSales += gross;
+        entry.discounts += disc;
+        entry.netSales += net;
+        totalSales += net;
+      }
+    }
+
+    return Array.from(catMap.values()).map(c => ({
+      ...c,
+      percentage: totalSales > 0 ? Number(((c.netSales / totalSales) * 100).toFixed(1)) : 0
+    })).sort((a, b) => b.netSales - a.netSales);
+  }
+
+  /**
+   * Hourly Sales Report in Asia/Dhaka
+   */
+  getHourlySales({ dateFrom = null, dateTo = null, stallId = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo, stallId });
+    const validOrders = orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
+
+    const hours = Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      label: `${String(i).padStart(2, '0')}:00 - ${String(i).padStart(2, '0')}:59`,
+      orders: 0,
+      itemsSold: 0,
+      sales: 0,
+      paymentsCollected: 0
+    }));
+
+    for (const order of validOrders) {
+      const parts = getDhakaDateParts(new Date(order.paidAt || order.createdAt));
+      const h = parts.hour;
+      if (h >= 0 && h < 24) {
+        hours[h].orders += 1;
+        hours[h].sales += (Number(order.grandTotal) || 0);
+        hours[h].paymentsCollected += (Number(order.grandTotal) || 0);
+
+        for (const item of (order.items || [])) {
+          if (!stallId || stallId === 'ALL' || item.stallId === stallId) {
+            hours[h].itemsSold += (Number(item.quantity) || 1);
+          }
+        }
+      }
+    }
+
+    // Determine Peak & Slowest Hours
+    let peakHour = hours[0];
+    let slowestHour = hours[0];
+
+    for (const h of hours) {
+      h.averageOrderValue = h.orders > 0 ? Math.round(h.sales / h.orders) : 0;
+      if (h.sales > peakHour.sales) peakHour = h;
+      if (h.sales < slowestHour.sales && h.hour >= 10 && h.hour <= 22) slowestHour = h;
+    }
+
+    return {
+      hours,
+      peakSalesHour: peakHour,
+      slowestBusinessHour: slowestHour,
+      totalSales: hours.reduce((s, h) => s + h.sales, 0)
+    };
+  }
+
+  /**
+   * Payment Methods Breakdown & Discrepancy Detection
+   */
+  getPaymentMethodReport({ dateFrom = null, dateTo = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo });
+
+    const methods = {
+      CASH: { name: 'Cash in Till (Physical)', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
+      bKash: { name: 'bKash Merchant Pay', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
+      Nagad: { name: 'Nagad Merchant Pay', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
+      'Online Card': { name: 'Online POS / Card Gateway', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
+      'NFC / Contactless': { name: 'NFC Contactless Tap', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 }
+    };
+
+    let totalCollections = 0;
+
+    for (const order of orders) {
+      const m = order.paymentMethod || 'CASH';
+      const target = methods[m] || methods.CASH;
+      const amt = Number(order.grandTotal) || 0;
+
+      target.transactions += 1;
+
+      if (order.paymentStatus === 'PAID' && order.status !== 'CANCELLED') {
+        target.successfulCollections += amt;
+        target.netCollected += amt;
+        totalCollections += amt;
+      } else if (order.paymentStatus === 'REFUNDED') {
+        target.refunds += amt;
+      } else if (order.paymentStatus === 'FAILED') {
+        target.failedAmount += amt;
+      } else {
+        target.pendingAmount += amt;
+      }
+    }
+
+    const list = Object.entries(methods).map(([key, val]) => ({
+      key,
+      ...val,
+      percentage: totalCollections > 0 ? Number(((val.successfulCollections / totalCollections) * 100).toFixed(1)) : 0
+    }));
+
+    return {
+      methods: list,
+      totalCollections
+    };
+  }
+
+  /**
+   * Discounts, Refunds & Cancellations Audit Report
+   */
+  getDiscountsRefundsReport({ dateFrom = null, dateTo = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo });
+
+    const discountsList = [];
+    const refundsList = [];
+    const cancellationsList = [];
+
+    let totalDiscounts = 0;
+    let totalRefunds = 0;
+    let totalCancelledValue = 0;
+
+    for (const order of orders) {
+      // Check discount
+      if (order.discount && order.discount > 0) {
+        totalDiscounts += order.discount;
+        discountsList.push({
+          orderId: order.id,
+          token: order.token,
+          date: getDhakaDateParts(new Date(order.createdAt)).dateStr,
+          subtotal: order.subtotal,
+          discountAmount: order.discount,
+          authorizedBy: order.confirmedBy || 'System Coupon'
+        });
+      }
+
+      // Check refund
+      if (order.paymentStatus === 'REFUNDED') {
+        totalRefunds += order.grandTotal;
+        const cancelHistory = order.history?.find(h => h.status === 'CANCELLED');
+        refundsList.push({
+          orderId: order.id,
+          token: order.token,
+          date: getDhakaDateParts(new Date(cancelHistory?.time || order.createdAt)).dateStr,
+          amount: order.grandTotal,
+          reason: cancelHistory?.note || 'Customer refund requested',
+          refundedBy: cancelHistory?.note?.match(/by (.*)\./)?.[1] || 'Manager'
+        });
+      }
+
+      // Check cancelled without refund
+      if (order.status === 'CANCELLED' && order.paymentStatus !== 'REFUNDED') {
+        totalCancelledValue += order.grandTotal;
+        const cancelHistory = order.history?.find(h => h.status === 'CANCELLED');
+        cancellationsList.push({
+          orderId: order.id,
+          token: order.token,
+          date: getDhakaDateParts(new Date(cancelHistory?.time || order.createdAt)).dateStr,
+          amount: order.grandTotal,
+          reason: cancelHistory?.note || 'Cancelled before payment confirmation',
+          cancelledBy: cancelHistory?.note?.match(/by (.*)\./)?.[1] || 'System / Customer'
+        });
+      }
+    }
+
+    return {
+      totalDiscounts,
+      totalRefunds,
+      totalCancelledValue,
+      discountsList,
+      refundsList,
+      cancellationsList
+    };
+  }
+}

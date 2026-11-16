@@ -3,11 +3,11 @@ import { api } from '../../services/api';
 import { realtime } from '../../services/events';
 import { sound } from '../../services/sound';
 import { RunnerTask } from '../../types';
-import { Bike, CheckCircle2, Clock, MapPin, Store, ArrowRight } from 'lucide-react';
+import { Bike, CheckCircle2 } from 'lucide-react';
 
 export const RunnerDashboard: React.FC = () => {
   const [tasks, setTasks] = useState<RunnerTask[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   const fetchTasks = async () => {
     try {
@@ -32,9 +32,20 @@ export const RunnerDashboard: React.FC = () => {
       fetchTasks();
     });
 
+    const unsubOrderUpdated = realtime.on('order_updated', () => {
+      fetchTasks();
+    });
+
+    const unsubReset = realtime.on('all_orders_reset', () => {
+      setTasks([]);
+      fetchTasks();
+    });
+
     return () => {
       unsubTask();
       unsubUpdated();
+      unsubOrderUpdated();
+      unsubReset();
     };
   }, []);
 

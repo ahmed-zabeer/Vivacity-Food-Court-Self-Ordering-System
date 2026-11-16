@@ -6,7 +6,6 @@
 
 class SoundService {
   private ctx: AudioContext | null = null;
-  private audioInitialized = false;
 
   // ── Alarm state ────────────────────────────────────────────────────────────
   // A self-rescheduling recursive timeout drives the alarm so it is immune
@@ -27,7 +26,6 @@ class SoundService {
   private _setupUserGestureUnlock() {
     const unlock = () => {
       this._initCtx();
-      this.audioInitialized = true;
     };
     window.addEventListener('click',      unlock, { once: true, passive: true });
     window.addEventListener('touchstart', unlock, { once: true, passive: true });
@@ -43,16 +41,6 @@ class SoundService {
     if (this.ctx?.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
-  }
-
-  /** Attempt to resume the AudioContext. Returns true if running afterwards. */
-  private async _ensureRunning(): Promise<boolean> {
-    this._initCtx();
-    if (!this.ctx) return false;
-    if (this.ctx.state === 'suspended') {
-      try { await this.ctx.resume(); } catch { return false; }
-    }
-    return this.ctx.state === 'running';
   }
 
   // ── Mute preference ────────────────────────────────────────────────────────
@@ -88,7 +76,6 @@ class SoundService {
 
       if (this.ctx.state === 'suspended') await this.ctx.resume();
 
-      this.audioInitialized = true;
       localStorage.setItem('vivacity_notifications_enabled', 'true');
       if (this.isMuted()) this.setMuted(false);
 
@@ -264,7 +251,6 @@ class SoundService {
       if (this.ctx.state === 'suspended') {
         await this.ctx.resume();
       }
-      this.audioInitialized = true;
       if (this.ctx.state === 'running') {
         this._alarmRunning = true;
         this._alarmBeat = 0;

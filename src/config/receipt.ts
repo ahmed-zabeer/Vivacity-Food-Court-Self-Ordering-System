@@ -5,9 +5,9 @@
 export const FOOD_COURT_INFO = {
   name: 'VIVACITY FOOD COURT',
   addressLine1: '349 Badurtola, Kandirpar, Comilla-3500',
-  addressLine2: '(Level-5 of Showpno Super Shop)',
-  phone: '01338777700',
-  bin: 'Applied',
+  addressLine2: '(Level-5)',
+  phone: '01700-500500',
+  bin: '0026781320601',
   mushak: '6.3',
   facebook:
     'https://www.facebook.com/photo/?fbid=122120336648537222&set=pcb.122120338040537222',
@@ -52,9 +52,15 @@ export function orderTypeLabel(order: {
   orderTypeDescription?: string;
   serviceType?: string;
 }): string {
-  if (order.orderTypeDescription) return order.orderTypeDescription;
+  // Strip legacy "→ Hall / Table dining" suffix that was stored in old records
+  if (order.orderTypeDescription) {
+    const raw = order.orderTypeDescription;
+    // e.g. "Dine-in → Hall / Table dining" → "Dine-in"
+    const stripped = raw.replace(/\s*→.*$/i, '').trim();
+    if (stripped) return stripped;
+  }
   const takeaway = order.customerOrderType === 'TAKEAWAY' || order.type === 'PARCEL';
-  return takeaway ? 'Takeaway → Carryout parcel box' : 'Dine-in → Hall / Table dining';
+  return takeaway ? 'Takeaway' : 'Dine-in';
 }
 
 /** Shared 80mm thermal print styles. */
