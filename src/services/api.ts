@@ -6,17 +6,46 @@ import {
   VoidRequest, VoidRequestType
 } from '../types';
 import { API_BASE } from '../config/api';
+import { stallsData, menuItemsData, tablesData } from '../data/menuData';
 
 export const api = {
   // Tables
   async getTables(): Promise<Table[]> {
-    const res = await fetch(`${API_BASE}/tables`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/tables`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) return data;
+      }
+    } catch (err) {
+      console.warn('[API fallback] getTables:', err);
+    }
+    return tablesData as unknown as Table[];
   },
 
   async getTable(id: string): Promise<Table & { session: any; activeOrders: Order[] }> {
-    const res = await fetch(`${API_BASE}/tables/${id}`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/tables/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.id) return data;
+      }
+    } catch (err) {
+      console.warn(`[API fallback] getTable(${id}):`, err);
+    }
+    const t = tablesData.find(tbl => tbl.id === id) || {
+      id,
+      number: id.replace('T', ''),
+      capacity: 4,
+      status: 'AVAILABLE',
+      qrCode: `/t/${id}`,
+      currentSessionId: null
+    };
+    return {
+      ...(t as unknown as Table),
+      session: null,
+      activeOrders: []
+    };
   },
 
   async updateTableStatus(id: string, status: string): Promise<Table> {
@@ -59,23 +88,60 @@ export const api = {
 
   // Stalls
   async getStalls(): Promise<Stall[]> {
-    const res = await fetch(`${API_BASE}/stalls`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/stalls`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) return data;
+      }
+    } catch (err) {
+      console.warn('[API fallback] getStalls:', err);
+    }
+    return stallsData as unknown as Stall[];
   },
 
   async getStall(slug: string): Promise<Stall> {
-    const res = await fetch(`${API_BASE}/stalls/${slug}`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/stalls/${slug}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.id) return data;
+      }
+    } catch (err) {
+      console.warn(`[API fallback] getStall(${slug}):`, err);
+    }
+    const found = stallsData.find(s => s.slug === slug || s.id === slug);
+    if (found) return found as unknown as Stall;
+    throw new Error(`Stall '${slug}' not found`);
   },
 
   // Menu
   async getMenuItems(params?: { stallId?: string; category?: string; search?: string }): Promise<MenuItem[]> {
-    const query = new URLSearchParams();
-    if (params?.stallId) query.set('stallId', params.stallId);
-    if (params?.category) query.set('category', params.category);
-    if (params?.search) query.set('search', params.search);
-    const res = await fetch(`${API_BASE}/menu?${query.toString()}`);
-    return res.json();
+    try {
+      const query = new URLSearchParams();
+      if (params?.stallId) query.set('stallId', params.stallId);
+      if (params?.category) query.set('category', params.category);
+      if (params?.search) query.set('search', params.search);
+      const res = await fetch(`${API_BASE}/menu?${query.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) return data;
+      }
+    } catch (err) {
+      console.warn('[API fallback] getMenuItems:', err);
+    }
+    let items = [...(menuItemsData as unknown as MenuItem[])];
+    if (params?.stallId) {
+      items = items.filter(i => i.stallId === params.stallId);
+    }
+    if (params?.category) {
+      items = items.filter(i => i.category.toLowerCase() === params.category!.toLowerCase());
+    }
+    if (params?.search) {
+      const q = params.search.toLowerCase();
+      items = items.filter(i => i.name.toLowerCase().includes(q) || i.description?.toLowerCase().includes(q));
+    }
+    return items;
   },
 
   async updateItemAvailability(id: string, isAvailable: boolean): Promise<MenuItem> {

@@ -1,7 +1,25 @@
-export default function apiUnavailable(_request, response) {
-  response.statusCode = 503;
-  response.setHeader('Content-Type', 'application/json; charset=utf-8');
-  response.end(JSON.stringify({
-    error: 'The Vivacity API is not hosted on this Vercel deployment. Configure VITE_API_BASE_URL to use a deployed backend.'
-  }));
-}
+import express from 'express';
+import cors from 'cors';
+import apiRouter from '../server/routes.js';
+
+const app = express();
+
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'X-Cart-Session-Id', 'X-User-Role', 'X-User-Name', 'X-User-Stall-Id']
+}));
+
+app.use(express.json({ limit: '100kb' }));
+
+// Strip '/api' prefix if present so router matches cleanly
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api')) {
+    req.url = req.url.slice(4) || '/';
+  }
+  next();
+});
+
+app.use(apiRouter);
+
+export default app;

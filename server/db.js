@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
-  : path.join(__dirname, 'data');
+  : (process.env.VERCEL ? path.join('/tmp', 'vivacity_data') : path.join(__dirname, 'data'));
 const RESETS_FILE = path.join(DATA_DIR, 'revenue_resets.json');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 const EXPENSES_FILE = path.join(DATA_DIR, 'expenses.json');
