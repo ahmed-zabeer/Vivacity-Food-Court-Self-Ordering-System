@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTableSession } from '../../context/TableSessionContext';
 import { api } from '../../services/api';
+import { stallsData } from '../../data/menuData';
 import { Stall } from '../../types';
 import { useLocation } from 'wouter';
 import { Star, Clock, ChevronRight, QrCode, ShieldCheck } from 'lucide-react';
@@ -8,8 +9,8 @@ import { Star, Clock, ChevronRight, QrCode, ShieldCheck } from 'lucide-react';
 export const HomePage: React.FC = () => {
   const { tableId, activeOrders, isTakeaway } = useTableSession();
   const [, setLocation] = useLocation();
-  const [stalls, setStalls] = useState<Stall[]>([]);
-  const [, setLoading] = useState(true);
+  const [stalls, setStalls] = useState<Stall[]>(() => stallsData as unknown as Stall[]);
+  const [, setLoading] = useState(false);
 
   useEffect(() => {
     api.getStalls()

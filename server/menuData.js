@@ -4813,7 +4813,7 @@ const menuImageOverrides = {
   "bb-cmb-6": "/assets/menu/burger-bar-crispy-chicken.jpg",
   "db-coke": "/assets/Drinks/Cocacola.png",
   "db-sprite": "/assets/Drinks/Sprite.png",
-  "db-fanta": "/assets/Drinks/Fanta.png",
+  "db-fanta": "/assets/Drinks/Fanta.jpg",
   "db-water": "/assets/Drinks/Kinley.png"
 };
 

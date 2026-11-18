@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { stallsData } from '../../data/menuData';
 import { Stall } from '../../types';
 import { useLocation } from 'wouter';
 import { Star, Clock, ArrowRight } from 'lucide-react';
 
 export const AllStallsPage: React.FC = () => {
   const [, setLocation] = useLocation();
-  const [stalls, setStalls] = useState<Stall[]>([]);
-  const [, setLoading] = useState(true);
+  const [stalls, setStalls] = useState<Stall[]>(() => stallsData as unknown as Stall[]);
+  const [, setLoading] = useState(false);
 
   useEffect(() => {
     api.getStalls()

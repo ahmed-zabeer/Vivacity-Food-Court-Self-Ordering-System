@@ -38,6 +38,7 @@ const ReportsAnalytics = React.lazy(() => import('./pages/admin/ReportsAnalytics
 const AuditLogViewer = React.lazy(() => import('./pages/admin/AuditLogViewer').then(module => ({ default: module.AuditLogViewer })));
 const AccountingPage = React.lazy(() => import('./pages/admin/AccountingPage').then(module => ({ default: module.AccountingPage })));
 const InventoryManager = React.lazy(() => import('./pages/admin/InventoryManager').then(module => ({ default: module.InventoryManager })));
+const ManualPOSPage = React.lazy(() => import('./pages/admin/ManualPOSPage').then(module => ({ default: module.ManualPOSPage })));
 
 // Route handler for table scans /t/:tableId
 const TableRouteHandler: React.FC = () => {
@@ -316,6 +317,8 @@ const MainContent: React.FC = () => {
 
             {/* Admin & Operations Routes */}
             <Route path="/admin" component={AdminDashboard} />
+            <Route path="/admin/pos" component={ManualPOSPage} />
+            <Route path="/admin/manual-order" component={ManualPOSPage} />
             <Route path="/admin/accounting" component={AccountingPage} />
             <Route path="/admin/inventory" component={InventoryManager} />
             <Route path="/admin/orders" component={OrdersManager} />

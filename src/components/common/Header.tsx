@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
               <span className="text-[14px] xs:text-xs sm:text-sm font-extrabold text-zinc-900 tracking-tight leading-none whitespace-nowrap mt-3 -ml-2 ">
                 Vivacity Food Court
               </span>
-              {tableId && !isTakeaway ? (
+              {tableId ? (
                 <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-500/30 text-[9px] sm:text-[10px] font-black uppercase whitespace-nowrap shrink-0 flex items-center gap-1 shadow-2xs mt-3">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Table {tableId}
@@ -259,7 +259,7 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
             <span>
               Session:{' '}
               <strong className="text-zinc-900">
-                {tableId ? `Table ${tableId}` : 'Takeaway'}
+                {tableId ? `Table ${tableId}` : isTakeaway ? 'Takeaway' : 'Self-Ordering'}
               </strong>
             </span>
             {onReplayIntro && (

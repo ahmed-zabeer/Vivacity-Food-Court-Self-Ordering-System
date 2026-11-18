@@ -14,7 +14,6 @@ import { useAuth } from '../../context/AuthContext';
 import { useLocation } from 'wouter';
 import { DollarSign, Grid, Clock, ChefHat, CheckCircle, Package, ArrowRight, AlertCircle, Store, RotateCcw, Calendar, CalendarDays, ShieldCheck, Check, Bell, Printer, History, Receipt, BookOpen, ShoppingCart } from 'lucide-react';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
-import { ManualPOSModal } from '../../components/admin/ManualPOSModal';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 
 export const AdminDashboard: React.FC = () => {
@@ -27,7 +26,6 @@ export const AdminDashboard: React.FC = () => {
   const [readyItems, setReadyItems] = useState<CounterReadyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [printKOTOrder, setPrintKOTOrder] = useState<Order | null>(null);
-  const [manualPOSOpen, setManualPOSOpen] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
 
   // Track seen order IDs in state and persistent storage
@@ -559,9 +557,9 @@ export const AdminDashboard: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           {/* Prominent Manual Order / Counter Order Button */}
           <button
-            onClick={() => setManualPOSOpen(true)}
+            onClick={() => setLocation('/admin/pos')}
             className="px-4 py-2 bg-gradient-to-r from-brand-500 to-[#e06d24] hover:from-brand-600 hover:to-orange-700 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-2 ring-2 ring-brand-500/30 active:scale-95"
-            title="Open Professional Manual POS Ordering System for Walk-in Diners"
+            title="Open Dedicated Full-Screen Manual POS Ordering Terminal"
           >
             <ShoppingCart className="w-4 h-4" />
             <span>Manual Order / Counter Order</span>
@@ -1715,18 +1713,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Manual Counter POS Ordering Modal */}
-      {manualPOSOpen && (
-        <ManualPOSModal
-          isOpen={manualPOSOpen}
-          onClose={() => setManualPOSOpen(false)}
-          onOrderCreated={(newOrder) => {
-            setReceiptOrder(newOrder);
-            fetchDashboardData();
-            fetchFinancialData();
-          }}
-        />
-      )}
+
 
       {/* Guest Thermal Cash Memo / Receipt Modal */}
       {receiptOrder && (
