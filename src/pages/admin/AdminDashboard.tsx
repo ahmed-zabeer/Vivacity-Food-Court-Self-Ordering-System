@@ -12,8 +12,10 @@ import {
 } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from 'wouter';
-import { DollarSign, Grid, Clock, ChefHat, CheckCircle, Package, ArrowRight, AlertCircle, Store, RotateCcw, Calendar, CalendarDays, ShieldCheck, Check, Bell, Printer, History, Receipt, BookOpen } from 'lucide-react';
+import { DollarSign, Grid, Clock, ChefHat, CheckCircle, Package, ArrowRight, AlertCircle, Store, RotateCcw, Calendar, CalendarDays, ShieldCheck, Check, Bell, Printer, History, Receipt, BookOpen, ShoppingCart } from 'lucide-react';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
+import { ManualPOSModal } from '../../components/admin/ManualPOSModal';
+import { ReceiptModal } from '../../components/common/ReceiptModal';
 
 export const AdminDashboard: React.FC = () => {
   const [, setLocation] = useLocation();
@@ -25,6 +27,8 @@ export const AdminDashboard: React.FC = () => {
   const [readyItems, setReadyItems] = useState<CounterReadyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [printKOTOrder, setPrintKOTOrder] = useState<Order | null>(null);
+  const [manualPOSOpen, setManualPOSOpen] = useState(false);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
 
   // Track seen order IDs in state and persistent storage
   const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(() => {
@@ -418,9 +422,14 @@ export const AdminDashboard: React.FC = () => {
     fetchFinancialData(selectedFinancialDate, rangePreset, customStartDate, customEndDate);
   }, [selectedFinancialDate, rangePreset, customStartDate, customEndDate, fetchFinancialData]);
 
-  const handleConfirmAndNotify = async (orderId: string, stallId: string) => {
+  const handleConfirmAndNotify = async (orderId: string, stallId: string, customReason?: string) => {
     try {
-      await api.confirmAndNotifyCustomer(orderId, stallId, currentUser.name);
+      const isRepeat = readyItems.find(i => i.orderId === orderId && i.stallId === stallId)?.status === 'NOTIFIED';
+      let reason = customReason;
+      if (isRepeat && !reason) {
+        reason = window.prompt('Enter reason for re-sending notification to guest (e.g. Diner has not collected yet):', 'Customer call reminder') || 'Customer call reminder';
+      }
+      await api.confirmAndNotifyCustomer(orderId, stallId, currentUser.name, currentUser.role, null, reason);
       const updated = await api.getCounterReadyConfirmations().catch(() => []);
       setReadyItems(updated || []);
       fetchDashboardData();
@@ -548,6 +557,16 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Quick Hub Navigation Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Prominent Manual Order / Counter Order Button */}
+          <button
+            onClick={() => setManualPOSOpen(true)}
+            className="px-4 py-2 bg-gradient-to-r from-brand-500 to-[#e06d24] hover:from-brand-600 hover:to-orange-700 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-2 ring-2 ring-brand-500/30 active:scale-95"
+            title="Open Professional Manual POS Ordering System for Walk-in Diners"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            <span>Manual Order / Counter Order</span>
+          </button>
+
           {/* Accounting Page Button */}
           <button
             onClick={() => setLocation('/admin/accounting')}
@@ -927,7 +946,7 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. READY FOOD — LIVE STALL-MANAGED NOTIFICATION MONITOR                   */}
+      {/* 2. ALL STALLS — READY TO NOTIFY                                           */}
       {/* ========================================================================= */}
       {readyItems.length > 0 && (
         <section className="bg-white rounded-3xl p-5 border-2 border-emerald-400/80 shadow-md space-y-4">
@@ -938,17 +957,17 @@ export const AdminDashboard: React.FC = () => {
               </div>
               <div>
                 <h2 className="text-sm font-black text-zinc-900 uppercase tracking-wider">
-                  Ready Food — Live Stall-Managed Monitor
+                  All Stalls — Ready to Notify
                 </h2>
                 <p className="text-[11px] text-zinc-500">
-                  Guest notifications are managed directly by each Stall Manager. Counter monitors ready state and confirms pickup.
+                  Shared live ready state across all seven food court kitchens. Central Counter &amp; Stall Managers share unified notification status.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-black">
-                {readyItems.filter(i => i.status === 'READY').length} Awaiting Stall Notification
+                {readyItems.filter(i => i.status === 'READY').length} Awaiting Notification
               </span>
               <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-black">
                 {readyItems.filter(i => i.status === 'NOTIFIED').length} Ready for Pickup
@@ -984,6 +1003,18 @@ export const AdminDashboard: React.FC = () => {
                         >
                           <Printer className="w-3 h-3 text-amber-400" />
                           <span>PRINT KOT</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const fullOrder = recentOrders.find(o => o.id === item.orderId) || await api.getOrder(item.orderId).catch(() => null);
+                            if (fullOrder) setReceiptOrder(fullOrder);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                          title="Print Customer Guest Receipt"
+                        >
+                          <Receipt className="w-3 h-3 text-zinc-700" />
+                          <span>RECEIPT</span>
                         </button>
                       </div>
                       {(item.customerName || item.customerPhone) && (
@@ -1050,15 +1081,22 @@ export const AdminDashboard: React.FC = () => {
                   </div>
 
                   {/* Wait Time Info */}
-                  <div className="text-[11px] text-zinc-400 flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      <span>Ready for ~{item.waitMinutes} min</span>
+                  <div className="text-[11px] text-zinc-500 flex flex-col gap-0.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-zinc-400" />
+                        <span>Ready for ~{item.waitMinutes} min</span>
+                      </div>
+                      {item.notifiedAt && (
+                        <span className="text-[10px] text-emerald-600 font-bold">
+                          Notified at {new Date(item.notifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </div>
-                    {item.notifiedAt && (
-                      <span className="text-[10px] text-emerald-600 font-bold">
-                        Notified at {new Date(item.notifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                    {item.confirmedBy && (
+                      <div className="text-[9.5px] text-emerald-700 font-bold">
+                        ✓ Dispatched by: {item.confirmedBy} (Call #{item.notificationCount || 1})
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1068,14 +1106,15 @@ export const AdminDashboard: React.FC = () => {
                   {item.status === 'READY' ? (
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/70 px-2.5 py-1.5 rounded-xl w-full text-center">
-                        Awaiting Stall Manager Notification
+                        Food Ready at Kitchen • Awaiting Notification
                       </span>
                       <button
                         onClick={() => handleConfirmAndNotify(item.orderId, item.stallId)}
-                        className="py-1.5 px-3 rounded-xl border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs shrink-0 cursor-pointer"
-                        title="Optional cashier assist"
+                        className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 animate-pulse"
+                        title="Dispatch food-ready alert to diner's screen and lock-screen"
                       >
-                        Notify Now
+                        <Bell className="w-3.5 h-3.5 text-white animate-bounce" />
+                        <span>NOTIFY GUEST</span>
                       </button>
                     </div>
                   ) : (
@@ -1083,10 +1122,10 @@ export const AdminDashboard: React.FC = () => {
                       <button
                         onClick={() => handleConfirmAndNotify(item.orderId, item.stallId)}
                         className="py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-[#e06d24] hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
-                        title="Diner has not collected yet. Call guest again."
+                        title="Diner has not collected yet. Call guest again with audit reason."
                       >
                         <Bell className="w-3.5 h-3.5 animate-bounce" />
-                        <span>Call Again</span>
+                        <span>Resend Notification</span>
                       </button>
                       <button
                         onClick={() => handleMarkCollected(item.orderId, item.stallId)}
@@ -1674,6 +1713,27 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Manual Counter POS Ordering Modal */}
+      {manualPOSOpen && (
+        <ManualPOSModal
+          isOpen={manualPOSOpen}
+          onClose={() => setManualPOSOpen(false)}
+          onOrderCreated={(newOrder) => {
+            setReceiptOrder(newOrder);
+            fetchDashboardData();
+            fetchFinancialData();
+          }}
+        />
+      )}
+
+      {/* Guest Thermal Cash Memo / Receipt Modal */}
+      {receiptOrder && (
+        <ReceiptModal
+          order={receiptOrder}
+          onClose={() => setReceiptOrder(null)}
+        />
       )}
     </div>
   );

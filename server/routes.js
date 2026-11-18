@@ -272,6 +272,104 @@ router.post('/orders', (req, res) => {
   }
 });
 
+// Central Counter Manual POS Ordering
+router.post('/orders/manual', (req, res) => {
+  try {
+    const {
+      tableId,
+      type,
+      customerOrderType,
+      rawItems,
+      customerNotes,
+      paymentMethod,
+      customerName,
+      customerPhone,
+      serviceType,
+      discountType,
+      discountPercent,
+      discountAmount,
+      discountReason,
+      discountAppliedBy,
+      discountApprovedBy,
+      cashReceived,
+      changeReturned,
+      cardPosRef,
+      cardPosStatus,
+      cardPosTerminal,
+      cashierName,
+      cashierId
+    } = req.body;
+
+    if (!rawItems || !Array.isArray(rawItems) || rawItems.length === 0) {
+      return res.status(400).json({ error: 'Order cart cannot be empty' });
+    }
+
+    if (customerOrderType !== 'DINE_IN' && customerOrderType !== 'TAKEAWAY') {
+      return res.status(400).json({ error: 'Please select Dine-in or Takeaway to continue.' });
+    }
+
+    if (customerOrderType === 'DINE_IN' && (!tableId || !String(tableId).trim())) {
+      return res.status(400).json({ error: 'Table selection is required for Dine-in orders.' });
+    }
+
+    if (!serviceType || (serviceType !== 'SELF_SERVICE' && serviceType !== 'TABLE_SERVICE')) {
+      return res.status(400).json({ error: 'Please select Self-Service or Table Service to continue.' });
+    }
+
+    const validPaymentMethods = [
+      'CASH',
+      'bKash',
+      'Nagad',
+      'Card / Physical POS Terminal',
+      'Online Card',
+      'NFC / Contactless'
+    ];
+    if (!paymentMethod || !validPaymentMethods.includes(paymentMethod)) {
+      return res.status(400).json({ error: 'Please select a valid payment method.' });
+    }
+
+    const order = db.createOrder({
+      tableId: customerOrderType === 'DINE_IN' ? String(tableId).trim().toUpperCase() : null,
+      type: customerOrderType === 'TAKEAWAY' ? 'PARCEL' : 'DINE_IN',
+      customerOrderType,
+      rawItems,
+      customerName: (customerName || '').trim() || 'Counter Guest',
+      customerPhone: (customerPhone || '').trim(),
+      customerAddress: '',
+      serviceType,
+      customerNotes: (customerNotes || '').trim(),
+      paymentMethod,
+      orderSource: 'MANUAL_COUNTER',
+      cashierName: cashierName || req.headers['x-user-name'] || 'Central Counter',
+      cashierId: cashierId || req.headers['x-user-id'] || 'usr-cashier',
+      discountType: discountType || 'NONE',
+      discountPercent: Number(discountPercent) || 0,
+      discountAmount: Number(discountAmount) || 0,
+      discountReason: discountReason || null,
+      discountAppliedBy: discountAppliedBy || cashierName || req.headers['x-user-name'] || 'Central Counter',
+      discountApprovedBy: discountApprovedBy || null,
+      cashReceived: cashReceived !== undefined && cashReceived !== null ? Number(cashReceived) : null,
+      changeReturned: changeReturned !== undefined && changeReturned !== null ? Number(changeReturned) : null,
+      cardPosRef: cardPosRef || null,
+      cardPosStatus: cardPosStatus || null,
+      cardPosTerminal: cardPosTerminal || null,
+      autoConfirmPayment: true
+    });
+
+    res.status(201).json(order);
+  } catch (err) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
+
+router.post('/orders/:id/reprint-receipt', (req, res) => {
+  const staffName = req.body.staffName || req.headers['x-user-name'] || 'Central Counter';
+  const reason = req.body.reason || 'Customer request';
+  const result = db.logReceiptReprint(req.params.id, staffName, reason);
+  if (result.error) return res.status(result.code || 400).json({ error: result.error });
+  res.json(result);
+});
+
 // Manager Actions
 router.post('/orders/:id/accept', (req, res) => {
   const order = db.acceptOrder(req.params.id, req.body.managerName || 'Central Counter');
@@ -436,7 +534,8 @@ router.post('/orders/:id/stalls/:stallId/counter-confirm', (req, res) => {
   }
 
   const staffName = req.body.counterStaff || req.body.staffName || 'Central Counter';
-  const result = db.confirmAndNotifyCustomer(req.params.id, req.params.stallId, staffName);
+  const reason = req.body.reason || null;
+  const result = db.confirmAndNotifyCustomer(req.params.id, req.params.stallId, staffName, reason);
   if (result.error) return res.status(result.code || 400).json({ error: result.error });
   res.json(result);
 });
@@ -456,7 +555,8 @@ router.post('/orders/:id/stalls/:stallId/notify', (req, res) => {
   }
 
   const staffName = req.body.staffName || (role === 'STALL MANAGER' ? `${req.params.stallId} Manager` : 'Stall Kitchen Staff');
-  const result = db.confirmAndNotifyCustomer(req.params.id, req.params.stallId, staffName);
+  const reason = req.body.reason || null;
+  const result = db.confirmAndNotifyCustomer(req.params.id, req.params.stallId, staffName, reason);
   if (result.error) return res.status(result.code || 400).json({ error: result.error });
   res.json(result);
 });

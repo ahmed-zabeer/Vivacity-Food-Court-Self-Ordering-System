@@ -110,11 +110,17 @@ export const StallDashboard: React.FC = () => {
     }
   };
 
-  const handleNotifyGuest = async (orderId: string) => {
+  const handleNotifyGuest = async (orderId: string, customReason?: string) => {
     if (!stall) return;
     try {
       const staffName = currentUser?.name || `${stall.name} Manager`;
-      await api.notifyGuestStall(orderId, stall.id, staffName, currentUser?.role, currentUser?.stallId || stall.id);
+      const targetOrder = stallOrders.find(o => o.id === orderId);
+      const isRepeat = targetOrder?.stallSubOrder.status === 'NOTIFIED';
+      let reason = customReason;
+      if (isRepeat && !reason) {
+        reason = window.prompt('Enter reason for re-sending notification (e.g. Food waiting on pickup counter):', 'Stall counter reminder') || 'Stall counter reminder';
+      }
+      await api.notifyGuestStall(orderId, stall.id, staffName, currentUser?.role, currentUser?.stallId || stall.id, reason);
       sound.playKitchenBell();
       fetchStallData();
     } catch (e: any) {
@@ -356,17 +362,24 @@ export const StallDashboard: React.FC = () => {
                     </div>
 
                     {/* Last reminder info */}
-                    <div className="text-[10px] text-zinc-500 flex items-center justify-between pt-1">
-                      <span>
-                        {sub.lastNotifiedAt
-                          ? `Last reminder: ${new Date(sub.lastNotifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                          : sub.readyAt
-                          ? `Ready at ${new Date(sub.readyAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                          : 'Ready'}
-                      </span>
-                      {isNotified && (
-                        <span className="font-extrabold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full">
-                          Uncollected
+                    <div className="text-[10px] text-zinc-500 flex flex-col gap-0.5 pt-1">
+                      <div className="flex items-center justify-between">
+                        <span>
+                          {sub.lastNotifiedAt
+                            ? `Last reminder: ${new Date(sub.lastNotifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : sub.readyAt
+                            ? `Ready at ${new Date(sub.readyAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Ready'}
+                        </span>
+                        {isNotified && (
+                          <span className="font-extrabold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full">
+                            Uncollected
+                          </span>
+                        )}
+                      </div>
+                      {sub.confirmedBy && isNotified && (
+                        <span className="text-[9.5px] font-bold text-emerald-700">
+                          ✓ Sent by: {sub.confirmedBy} (Call #{sub.notificationCount || 1})
                         </span>
                       )}
                     </div>

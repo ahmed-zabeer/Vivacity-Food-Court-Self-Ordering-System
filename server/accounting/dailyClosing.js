@@ -33,8 +33,14 @@ export class DailyClosingEngine {
       bKash: 0,
       Nagad: 0,
       'Online Card': 0,
+      'Card / Physical POS Terminal': 0,
       'NFC / Contactless': 0
     };
+
+    let manualSalesCount = 0;
+    let manualSalesAmount = 0;
+    let qrSalesCount = 0;
+    let qrSalesAmount = 0;
 
     let cashSalesReceived = 0;
     let cashRefunds = 0;
@@ -67,6 +73,14 @@ export class DailyClosingEngine {
         }
 
         if (m === 'CASH') cashSalesReceived += grand;
+
+        if (order.orderSource === 'MANUAL_COUNTER') {
+          manualSalesCount++;
+          manualSalesAmount += grand;
+        } else {
+          qrSalesCount++;
+          qrSalesAmount += grand;
+        }
 
         for (const item of (order.items || [])) {
           totalFoodQty += (Number(item.quantity) || 1);
@@ -191,7 +205,9 @@ export class DailyClosingEngine {
         refunds: totalRefunds,
         netSales,
         salesByStall,
-        salesByPaymentMethod
+        salesByPaymentMethod,
+        manualCounterSales: { count: manualSalesCount, amount: manualSalesAmount },
+        qrCodeSales: { count: qrSalesCount, amount: qrSalesAmount }
       },
 
       // Expenses

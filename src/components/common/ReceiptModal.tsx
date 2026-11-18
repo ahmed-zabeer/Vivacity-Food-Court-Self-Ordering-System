@@ -44,7 +44,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
   const serviceLabel =
     order.serviceType === 'TABLE_SERVICE' ? 'Table Service' : 'Self-Service';
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    try {
+      if (order && order.id) {
+        import('../../services/api').then(({ api }) => {
+          api.logReceiptReprint(order.id, order.cashierName || 'Cashier Counter', 'Thermal Print Requested').catch(() => {});
+        });
+      }
+    } catch {}
+    window.print();
+  };
 
   const Dash = () => <div className="border-t border-dashed border-black my-1" />;
   const DoubleDash = () => (
@@ -121,6 +130,24 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
                 <span className="truncate">Invoice No:{invoiceNo}</span>
                 <span className="shrink-0">Number Of Guests:{guestCount}</span>
               </div>
+              <div className="flex items-center justify-between gap-2 text-[10px]">
+                <span>Order Source:</span>
+                <span className="font-bold uppercase">
+                  {order.orderSource === 'MANUAL_COUNTER' ? 'Manual Counter' : 'Online / QR'}
+                </span>
+              </div>
+              {order.cashierName && (
+                <div className="flex items-center justify-between gap-2 text-[10px]">
+                  <span>Cashier:</span>
+                  <span className="font-bold">{order.cashierName}</span>
+                </div>
+              )}
+              {order.reprintCount && order.reprintCount > 0 ? (
+                <div className="flex items-center justify-between gap-2 text-[10px] font-bold text-amber-700">
+                  <span>Reprint Copy:</span>
+                  <span>#{order.reprintCount}</span>
+                </div>
+              ) : null}
               <div className="text-[16px] font-black tracking-wide leading-tight pt-0.5">
                 Token No:{order.token}
               </div>
@@ -206,7 +233,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
                 <span>৳{money(order.serviceCharge || 0)}</span>
               </div>
               <div className="flex justify-between gap-2">
-                <span>Discount:</span>
+                <span>Discount{order.discountPercent ? ` (${order.discountPercent}%)` : ''}:</span>
                 <span>-৳{money(order.discount || 0)}</span>
               </div>
               <div className="flex justify-between gap-2">
@@ -232,15 +259,45 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
                 <span>{money(paidAmount)}</span>
               </div>
               <div className="flex justify-between gap-2">
+                <span>-Payment Status:</span>
+                <span className="font-bold uppercase">{order.paymentStatus}</span>
+              </div>
+              {order.paymentMethod === 'CASH' && order.cashReceived !== undefined && order.cashReceived !== null && (
+                <div className="flex justify-between gap-2">
+                  <span>-Cash Received:</span>
+                  <span>{money(order.cashReceived)}</span>
+                </div>
+              )}
+              {order.paymentMethod === 'CASH' && (order.changeReturned !== undefined && order.changeReturned !== null || returnedAmount > 0) && (
+                <div className="flex justify-between gap-2 font-bold">
+                  <span>-Change Returned:</span>
+                  <span>{money(order.changeReturned !== undefined && order.changeReturned !== null ? order.changeReturned : returnedAmount)}</span>
+                </div>
+              )}
+              {order.cardPosRef && (
+                <div className="flex justify-between gap-2 font-bold">
+                  <span>-POS Card Ref:</span>
+                  <span className="font-mono">{order.cardPosRef}</span>
+                </div>
+              )}
+              {order.cardPosTerminal && (
+                <div className="flex justify-between gap-2 text-[9px] text-zinc-600">
+                  <span>-Terminal:</span>
+                  <span>{order.cardPosTerminal}</span>
+                </div>
+              )}
+              <div className="flex justify-between gap-2 font-bold">
                 <span>-TOTAL PAYMENT:</span>
                 <span>{money(paidAmount)}</span>
               </div>
-              <div className="flex justify-between gap-2">
-                <span>-RETURNED AMOUNT:</span>
-                <span>{money(returnedAmount)}</span>
-              </div>
+              {order.paymentMethod !== 'CASH' && returnedAmount > 0 && (
+                <div className="flex justify-between gap-2">
+                  <span>-RETURNED AMOUNT:</span>
+                  <span>{money(returnedAmount)}</span>
+                </div>
+              )}
               {!isPaid && (
-                <div className="flex justify-between gap-2 pt-0.5 font-bold">
+                <div className="flex justify-between gap-2 pt-0.5 font-bold text-red-600">
                   <span>-AMOUNT DUE:</span>
                   <span>{money(order.grandTotal)}</span>
                 </div>

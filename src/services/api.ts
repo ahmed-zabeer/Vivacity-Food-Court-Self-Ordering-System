@@ -160,6 +160,53 @@ export const api = {
     return res.json();
   },
 
+  async createManualOrder(payload: {
+    tableId: string | null;
+    type?: 'DINE_IN' | 'PARCEL';
+    customerOrderType: 'DINE_IN' | 'TAKEAWAY';
+    rawItems: any[];
+    customerName?: string;
+    customerPhone?: string;
+    serviceType: 'SELF_SERVICE' | 'TABLE_SERVICE';
+    customerNotes?: string;
+    paymentMethod: string;
+    discountType?: string;
+    discountPercent?: number;
+    discountAmount?: number;
+    discountReason?: string;
+    discountAppliedBy?: string;
+    discountApprovedBy?: string;
+    cashReceived?: number | null;
+    changeReturned?: number | null;
+    cardPosRef?: string | null;
+    cardPosStatus?: string | null;
+    cardPosTerminal?: string | null;
+    cashierName?: string;
+    cashierId?: string;
+  }): Promise<Order> {
+    const res = await fetch(`${API_BASE}/orders/manual`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to submit counter order');
+    }
+    return res.json();
+  },
+
+  async logReceiptReprint(orderId: string, staffName?: string, reason?: string): Promise<{ success: boolean; reprintCount: number }> {
+    const res = await fetch(`${API_BASE}/orders/${orderId}/reprint-receipt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staffName, reason })
+    });
+    return res.json();
+  },
+
   async acceptOrder(id: string, managerName?: string): Promise<Order> {
     const res = await fetch(`${API_BASE}/orders/${id}/accept`, {
       method: 'POST',
@@ -292,7 +339,7 @@ export const api = {
     return res.json();
   },
 
-  async confirmAndNotifyCustomer(orderId: string, stallId: string, counterStaff?: string, role?: string, userStallId?: string | null): Promise<{ success: boolean; order: Order; stall: StallSubOrder; notificationEvent?: StallReadyConfirmedEvent; alreadyNotified?: boolean }> {
+  async confirmAndNotifyCustomer(orderId: string, stallId: string, counterStaff?: string, role?: string, userStallId?: string | null, reason?: string): Promise<{ success: boolean; order: Order; stall: StallSubOrder; notificationEvent?: StallReadyConfirmedEvent; alreadyNotified?: boolean }> {
     const res = await fetch(`${API_BASE}/orders/${orderId}/stalls/${stallId}/counter-confirm`, {
       method: 'POST',
       headers: {
@@ -300,7 +347,7 @@ export const api = {
         ...(role ? { 'x-user-role': role } : {}),
         ...(userStallId ? { 'x-user-stall-id': userStallId } : {})
       },
-      body: JSON.stringify({ counterStaff, role, userStallId })
+      body: JSON.stringify({ counterStaff, role, userStallId, reason })
     });
     if (!res.ok) {
       const err = await res.json();
@@ -314,7 +361,8 @@ export const api = {
     stallId: string,
     staffName?: string,
     role?: string,
-    userStallId?: string | null
+    userStallId?: string | null,
+    reason?: string
   ): Promise<{ success: boolean; order: Order; stall: StallSubOrder; notificationEvent?: StallReadyConfirmedEvent; alreadyNotified?: boolean; isRepeat?: boolean }> {
     const res = await fetch(`${API_BASE}/orders/${orderId}/stalls/${stallId}/notify`, {
       method: 'POST',
@@ -323,7 +371,7 @@ export const api = {
         ...(role ? { 'x-user-role': role } : {}),
         ...(userStallId ? { 'x-user-stall-id': userStallId } : {})
       },
-      body: JSON.stringify({ staffName, role, userStallId })
+      body: JSON.stringify({ staffName, role, userStallId, reason })
     });
     if (!res.ok) {
       const err = await res.json();

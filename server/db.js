@@ -1058,7 +1058,22 @@ class Database {
     couponCode = null,
     cartSessionId = null,
     guestCount = 0,
-    clientId = null
+    clientId = null,
+    orderSource = "QR_CODE",
+    cashierName = null,
+    cashierId = null,
+    discountType = "NONE",
+    discountPercent = 0,
+    discountAmount = 0,
+    discountReason = null,
+    discountAppliedBy = null,
+    discountApprovedBy = null,
+    cashReceived = null,
+    changeReturned = null,
+    cardPosRef = null,
+    cardPosStatus = null,
+    cardPosTerminal = null,
+    autoConfirmPayment = false
   }) {
     const invalidOrder = message => Object.assign(new Error(message), { statusCode: 400 });
 
@@ -1066,7 +1081,14 @@ class Database {
       throw invalidOrder("Please select Self-Service or Table Service to continue.");
     }
 
-    const validPaymentMethods = ["bKash", "Online Card", "NFC / Contactless", "CASH"];
+    const validPaymentMethods = [
+      "bKash",
+      "Nagad",
+      "Online Card",
+      "Card / Physical POS Terminal",
+      "NFC / Contactless",
+      "CASH"
+    ];
     if (!paymentMethod || !validPaymentMethods.includes(paymentMethod)) {
       throw invalidOrder("Please select a payment method to continue.");
     }
@@ -1242,6 +1264,38 @@ class Database {
           discount = coupon.value;
         }
       }
+    } else if (discountPercent > 0) {
+      discount = Math.round((subtotal * Math.min(100, Math.max(0, discountPercent))) / 100);
+    } else if (discountAmount > 0) {
+      discount = Math.min(subtotal, Math.max(0, Math.round(discountAmount)));
+    }
+
+    const resolvedDiscountPercent = discountPercent > 0
+      ? discountPercent
+      : (discount > 0 && subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0);
+
+    const isManual = orderSource === "MANUAL_COUNTER";
+
+    // Cash calculation validation
+    let resolvedCashReceived = null;
+    let resolvedChangeReturned = null;
+    if (paymentMethod === "CASH" && cashReceived !== null && cashReceived !== undefined) {
+      resolvedCashReceived = Number(cashReceived);
+      if (resolvedCashReceived < (subtotal - discount + (serviceType === "TABLE_SERVICE" ? Math.round(subtotal * 0.05) : 0) + (this.settings.taxEnabled ? Math.round(subtotal * this.settings.taxRate) : 0))) {
+        const netDue = (subtotal - discount + (serviceType === "TABLE_SERVICE" ? Math.round(subtotal * 0.05) : 0) + (this.settings.taxEnabled ? Math.round(subtotal * this.settings.taxRate) : 0)) - resolvedCashReceived;
+        throw invalidOrder(`Cash received (৳${resolvedCashReceived}) is less than net payable total. Remaining due: ৳${netDue}.`);
+      }
+      resolvedChangeReturned = Math.max(0, resolvedCashReceived - (subtotal - discount + (serviceType === "TABLE_SERVICE" ? Math.round(subtotal * 0.05) : 0) + (this.settings.taxEnabled ? Math.round(subtotal * this.settings.taxRate) : 0)));
+    }
+
+    // Physical POS Card Terminal validation
+    if (paymentMethod === "Card / Physical POS Terminal") {
+      if (autoConfirmPayment && cardPosStatus !== "APPROVED") {
+        throw invalidOrder("Physical POS Terminal card payment must be processed and marked APPROVED on the terminal before confirming.");
+      }
+      if (autoConfirmPayment && (!cardPosRef || !String(cardPosRef).trim())) {
+        throw invalidOrder("Physical POS Terminal Approval/Transaction Reference is required for card payments.");
+      }
     }
 
     // Table Service adds exactly 5% waiter service fee on subtotal; Self-Service is ৳0
@@ -1314,20 +1368,37 @@ class Database {
       parcelToken: isTakeaway ? `P${(this.parcelTokenCounter++).toString().padStart(3, "0")}` : null,
       sessionId,
       type: resolvedType,
-      status: "NEW", // Pipeline step 1: NEW / UNDER REVIEW
-      paymentStatus: paymentMethod === "CASH" ? "PAYMENT DUE" : "UNPAID",
+      orderSource: isManual ? "MANUAL_COUNTER" : "QR_CODE",
+      cashierName: cashierName || null,
+      cashierId: cashierId || null,
+      status: autoConfirmPayment ? "PREPARING" : "NEW",
+      paymentStatus: autoConfirmPayment ? "PAID" : (paymentMethod === "CASH" ? "PAYMENT DUE" : "UNPAID"),
       paymentMethod,
-      customerName,
-      customerPhone,
+      customerName: customerName || (isManual ? "Counter Guest" : ""),
+      customerPhone: customerPhone || "",
       customerAddress,
       serviceType: isTableService ? "TABLE_SERVICE" : "SELF_SERVICE",
       customerOrderType: resolvedCustomerOrderType,
       orderTypeDescription: orderTypeExactLabel,
       customerNotes,
       createdAt: new Date().toISOString(),
+      paidAt: autoConfirmPayment ? new Date().toISOString() : null,
+      transactionId: cardPosRef || (autoConfirmPayment ? `TXN-POS-${tokenNum}` : null),
+      cardPosRef: cardPosRef || null,
+      cardPosStatus: cardPosStatus || null,
+      cardPosTerminal: cardPosTerminal || null,
+      cashReceived: resolvedCashReceived,
+      changeReturned: resolvedChangeReturned,
+      returnedAmount: resolvedChangeReturned || 0,
+      discountPercent: resolvedDiscountPercent,
+      discountReason: discountReason || (couponCode ? `Coupon ${couponCode}` : (discount > 0 ? 'Manual Counter Discount' : null)),
+      discountAppliedBy: discountAppliedBy || cashierName || null,
+      discountApprovedBy: discountApprovedBy || null,
       items: verifiedItems,
       stalls: stallOrders.map(s => ({
         ...s,
+        status: autoConfirmPayment ? "PREPARING" : "NEW",
+        prepStartedAt: autoConfirmPayment ? new Date().toISOString() : null,
         orderType: resolvedCustomerOrderType,
         orderTypeDescription: orderTypeExactLabel,
         serviceType: isTableService ? "TABLE_SERVICE" : "SELF_SERVICE"
@@ -1337,20 +1408,47 @@ class Database {
       tax,
       serviceCharge,
       grandTotal,
-      kotGenerated: false,
-      kotNumber: null,
+      kotGenerated: autoConfirmPayment,
+      kotNumber: autoConfirmPayment ? `KOT-${tokenNum}` : null,
+      kotGeneratedAt: autoConfirmPayment ? new Date().toISOString() : null,
       history: [
-        { status: "NEW", time: new Date().toISOString(), note: `Customer submitted master order (${orderTypeExactLabel}).` }
+        { status: "NEW", time: new Date().toISOString(), note: `${isManual ? 'Cashier placed counter order' : 'Customer submitted master order'} (${orderTypeExactLabel}).` }
       ]
     };
 
+    if (autoConfirmPayment) {
+      order.history.push({
+        status: "PAID",
+        time: new Date().toISOString(),
+        note: `Paid via ${paymentMethod} at Central Counter by ${cashierName || 'Cashier'}.${resolvedChangeReturned !== null ? ` Cash: ৳${resolvedCashReceived}, Change: ৳${resolvedChangeReturned}.` : ''}`
+      });
+      order.history.push({
+        status: "PREPARING",
+        time: new Date().toISOString(),
+        note: `KOT ${order.kotNumber} generated. Order released to stall kitchens.`
+      });
+      if (order.tableId) {
+        this.updateTableStatus(order.tableId, "PREPARING");
+      }
+    }
+
     this.orders.unshift(order);
+
+    if (autoConfirmPayment) {
+      this._deductInventory(order);
+    }
     this.saveData();
 
-    this.logAudit("ORDER_CREATED", `New master order Token #${tokenNum} (${order.serviceType}) for ${type === "DINE_IN" ? 'Table ' + tableId : 'Takeaway'} (৳${grandTotal})`, { orderId, token: tokenNum, serviceType: order.serviceType });
+    this.logAudit("ORDER_CREATED", `New master order Token #${tokenNum} (${order.serviceType}) for ${type === "DINE_IN" ? 'Table ' + tableId : 'Takeaway'} (৳${grandTotal}) [${order.orderSource}]`, { orderId, token: tokenNum, serviceType: order.serviceType, orderSource: order.orderSource });
     
     // Broadcast real-time order arrival to Central Admin
     eventBus.broadcast("order_created", order);
+    if (autoConfirmPayment) {
+      eventBus.broadcast("kot_generated", order);
+      eventBus.broadcast("revenue_updated", this.getRevenueSummary());
+      eventBus.broadcast("financial_updated", this.getDailyFinancialSummary());
+      eventBus.broadcast("analytics_updated", this.getAnalyticsSummary());
+    }
 
     return order;
   }
@@ -2645,7 +2743,7 @@ class Database {
     return order;
   }
 
-  confirmAndNotifyCustomer(orderId, stallId, counterStaff = "Central Counter") {
+  confirmAndNotifyCustomer(orderId, stallId, counterStaff = "Central Counter", reason = null) {
     const order = this.getOrder(orderId);
     if (!order) return { error: "Order not found", code: 404 };
     const stall = order.stalls.find(s => s.stallId === stallId);
@@ -2683,7 +2781,8 @@ class Database {
       eventId: stall.notificationEventId,
       notifiedAt: nowIso,
       confirmedBy: counterStaff,
-      attempt: stall.notificationCount
+      attempt: stall.notificationCount,
+      reason: reason || (isRepeat ? "Customer call reminder" : "Initial ready notification")
     });
 
     // Check if all stalls in master order are now NOTIFIED or COLLECTED
@@ -2693,9 +2792,10 @@ class Database {
       if (order.tableId) this.updateTableStatus(order.tableId, "READY");
     }
 
+    const reasonSuffix = reason ? ` (Reason: ${reason})` : '';
     const historyNote = isRepeat
-      ? `Repeat reminder #${stall.notificationCount} dispatched by ${counterStaff} for ${stall.stallName}.`
-      : `${counterStaff} confirmed ${stall.stallName} is ready. Customer notified to collect.`;
+      ? `Repeat reminder #${stall.notificationCount} dispatched by ${counterStaff} for ${stall.stallName}${reasonSuffix}.`
+      : `${counterStaff} confirmed ${stall.stallName} is ready. Customer notified to collect.${reasonSuffix}`;
 
     order.history.push({
       status: "READY",
@@ -2706,8 +2806,8 @@ class Database {
     this.saveData();
     this.logAudit(
       isRepeat ? "REPEAT_NOTIFICATION_DISPATCHED" : "COUNTER_CONFIRMED_READY",
-      `${counterStaff} ${isRepeat ? `re-notified (attempt #${stall.notificationCount})` : 'confirmed food ready'} for "${stall.stallName}" in #${order.token} (Table ${order.tableId || 'Takeaway'}). Customer notification dispatched.`,
-      { orderId, stallId, attempt: stall.notificationCount, eventId: stall.notificationEventId },
+      `${counterStaff} ${isRepeat ? `re-notified (attempt #${stall.notificationCount})` : 'confirmed food ready'} for "${stall.stallName}" in #${order.token} (Table ${order.tableId || 'Takeaway'})${reasonSuffix}. Customer notification dispatched.`,
+      { orderId, stallId, attempt: stall.notificationCount, eventId: stall.notificationEventId, reason },
       counterStaff
     );
 
@@ -2726,6 +2826,7 @@ class Database {
       notificationEventId: stall.notificationEventId,
       notifiedAt: stall.lastNotifiedAt,
       attempt: stall.notificationCount,
+      reason: reason || null,
       isRepeat
     };
 
@@ -2770,6 +2871,22 @@ class Database {
     eventBus.broadcast("order_updated", order);
 
     return { success: true, order, stall };
+  }
+
+  logReceiptReprint(orderId, staffName = "Cashier Counter", reason = "Customer copy request") {
+    const order = this.getOrder(orderId);
+    if (!order) return { error: "Order not found", code: 404 };
+    if (!order.reprintCount) order.reprintCount = 0;
+    order.reprintCount += 1;
+    if (!Array.isArray(order.reprintHistory)) order.reprintHistory = [];
+    order.reprintHistory.push({
+      reprintedAt: new Date().toISOString(),
+      staffName,
+      reason
+    });
+    this.logAudit("RECEIPT_REPRINTED", `Receipt reprinted for Order #${order.token} by ${staffName}. Reason: ${reason}`, { orderId, token: order.token, reprintCount: order.reprintCount }, staffName);
+    this.saveData();
+    return { success: true, reprintCount: order.reprintCount, reprintHistory: order.reprintHistory };
   }
 
   getAwaitingCounterConfirmations() {

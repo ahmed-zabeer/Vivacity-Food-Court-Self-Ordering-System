@@ -173,6 +173,7 @@ export class SalesReportsEngine {
       bKash: 0,
       Nagad: 0,
       'Online Card': 0,
+      'Card / Physical POS Terminal': 0,
       'NFC / Contactless': 0
     };
 
@@ -645,6 +646,7 @@ export class SalesReportsEngine {
       CASH: { name: 'Cash in Till (Physical)', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
       bKash: { name: 'bKash Merchant Pay', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
       Nagad: { name: 'Nagad Merchant Pay', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
+      'Card / Physical POS Terminal': { name: 'Physical Card POS Terminal', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
       'Online Card': { name: 'Online POS / Card Gateway', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 },
       'NFC / Contactless': { name: 'NFC Contactless Tap', transactions: 0, successfulCollections: 0, pendingAmount: 0, failedAmount: 0, refunds: 0, netCollected: 0 }
     };
@@ -707,7 +709,9 @@ export class SalesReportsEngine {
           date: getDhakaDateParts(new Date(order.createdAt)).dateStr,
           subtotal: order.subtotal,
           discountAmount: order.discount,
-          authorizedBy: order.confirmedBy || 'System Coupon'
+          discountPercent: order.discountPercent || (order.subtotal ? Math.round((order.discount / order.subtotal) * 100) : 0),
+          reason: order.discountReason || (order.couponCode ? `Coupon ${order.couponCode}` : 'Counter Discount'),
+          authorizedBy: order.discountApprovedBy || order.discountAppliedBy || order.confirmedBy || 'System'
         });
       }
 
@@ -748,5 +752,52 @@ export class SalesReportsEngine {
       refundsList,
       cancellationsList
     };
+  }
+
+  /**
+   * QR Self-Order vs Manual Counter POS Sales Report
+   */
+  getOrderSourceReport({ dateFrom = null, dateTo = null } = {}) {
+    const orders = this._filterOrders({ dateFrom, dateTo });
+    const sources = {
+      MANUAL_COUNTER: { name: 'Manual Counter (POS)', count: 0, itemsCount: 0, gross: 0, discount: 0, net: 0 },
+      QR_CODE: { name: 'QR Self-Order (Diner Mobile)', count: 0, itemsCount: 0, gross: 0, discount: 0, net: 0 }
+    };
+
+    for (const order of orders) {
+      if (order.paymentStatus !== 'PAID' || order.status === 'CANCELLED') continue;
+      const srcKey = order.orderSource === 'MANUAL_COUNTER' ? 'MANUAL_COUNTER' : 'QR_CODE';
+      const gross = Number(order.subtotal) || 0;
+      const disc = Number(order.discount) || 0;
+      const net = Number(order.grandTotal) || 0;
+      const itemsQty = (order.items || []).reduce((s, i) => s + (Number(i.quantity) || 1), 0);
+
+      sources[srcKey].count += 1;
+      sources[srcKey].itemsCount += itemsQty;
+      sources[srcKey].gross += gross;
+      sources[srcKey].discount += disc;
+      sources[srcKey].net += net;
+    }
+
+    const totalNet = sources.MANUAL_COUNTER.net + sources.QR_CODE.net;
+    return {
+      manualCounter: {
+        ...sources.MANUAL_COUNTER,
+        percentage: totalNet > 0 ? Number(((sources.MANUAL_COUNTER.net / totalNet) * 100).toFixed(1)) : 0
+      },
+      qrCode: {
+        ...sources.QR_CODE,
+        percentage: totalNet > 0 ? Number(((sources.QR_CODE.net / totalNet) * 100).toFixed(1)) : 0
+      },
+      totalOrders: sources.MANUAL_COUNTER.count + sources.QR_CODE.count,
+      totalNet
+    };
+  }
+
+  /**
+   * Cashier-wise Sales Report
+   */
+  getCashierSalesReport({ dateFrom = null, dateTo = null } = {}) {
+    return this.getSalesByUser({ dateFrom, dateTo });
   }
 }

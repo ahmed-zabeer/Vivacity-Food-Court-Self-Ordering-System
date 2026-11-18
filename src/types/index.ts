@@ -25,7 +25,13 @@ export type PaymentStatus =
   | 'PARTIALLY REFUNDED'
   | 'CANCELLED';
 
-export type PaymentMethod = 'bKash' | 'Online Card' | 'NFC / Contactless' | 'CASH';
+export type PaymentMethod =
+  | 'bKash'
+  | 'Nagad'
+  | 'Online Card'
+  | 'Card / Physical POS Terminal'
+  | 'NFC / Contactless'
+  | 'CASH';
 
 export type TableStatus =
   | 'AVAILABLE'
@@ -288,6 +294,20 @@ export interface Order {
   parcelToken?: string | null;
   sessionId?: string | null;
   type: 'DINE_IN' | 'PARCEL';
+  orderSource?: 'MANUAL_COUNTER' | 'QR_CODE' | 'ONLINE';
+  cashierName?: string | null;
+  cashierId?: string | null;
+  cashReceived?: number | null;
+  changeReturned?: number | null;
+  cardPosRef?: string | null;
+  cardPosStatus?: 'APPROVED' | 'DECLINED' | 'PENDING' | null;
+  cardPosTerminal?: string | null;
+  discountPercent?: number;
+  discountReason?: string | null;
+  discountAppliedBy?: string | null;
+  discountApprovedBy?: string | null;
+  reprintCount?: number;
+  reprintHistory?: Array<{ reprintedAt: string; staffName: string; reason: string }>;
   customerOrderType?: CustomerOrderType; // explicit Dine-in / Takeaway selection by customer
   orderTypeDescription?: string;
   status: OrderStatus;
