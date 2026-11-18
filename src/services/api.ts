@@ -259,7 +259,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to submit counter order');
+      throw new Error(err.error || `Server error (${res.status}): Failed to submit counter order`);
     }
     return res.json();
   },

@@ -10,6 +10,14 @@ console.log("==================================================================\
 const salesEngine = new SalesReportsEngine(db);
 const closingEngine = new DailyClosingEngine(db);
 
+// Ensure test items have sufficient inventory for repeatable test runs
+if (db.inventory && db.inventory['mb-mom-1']) {
+  db.inventory['mb-mom-1'].preparedQty = 500;
+  db.inventory['mb-mom-1'].soldQty = 0;
+  db.inventory['mb-mom-1'].reservedQty = 0;
+  db.inventory['mb-mom-1'].available = 500;
+}
+
 // SCENARIO 1: Cashier creates a Manual Dine-in order
 console.log("Scenario 1: Verifying Cashier creates Manual Dine-in order...");
 const dineInOrder = db.createOrder({

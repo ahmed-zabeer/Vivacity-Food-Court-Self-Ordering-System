@@ -63,18 +63,18 @@ export const ManualPOSPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Cart State
+  // Cart State (Empty initially)
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Order Details
-  const [orderType, setOrderType] = useState<'DINE_IN' | 'TAKEAWAY'>('DINE_IN');
-  const [tableId, setTableId] = useState<string>('T01');
-  const [serviceType, setServiceType] = useState<'SELF_SERVICE' | 'TABLE_SERVICE'>('SELF_SERVICE');
+  // Order Details: CLEAN INITIAL STATE (Unselected)
+  const [orderType, setOrderType] = useState<'DINE_IN' | 'TAKEAWAY' | null>(null);
+  const [tableId, setTableId] = useState<string>(''); // Unselected initially
+  const [serviceType, setServiceType] = useState<'SELF_SERVICE' | 'TABLE_SERVICE' | null>(null); // Unselected initially
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [customerNotes, setCustomerNotes] = useState<string>('');
 
-  // Discount System (100% Optional)
+  // Discount System (100% Optional, defaults to 0% / NONE)
   const [discountType, setDiscountType] = useState<'NONE' | '5' | '10' | '15' | 'CUSTOM'>('NONE');
   const [customDiscountMode, setCustomDiscountMode] = useState<'PERCENT' | 'FIXED'>('PERCENT');
   const [customDiscountPercent, setCustomDiscountPercent] = useState<string>('');
@@ -345,16 +345,58 @@ export const ManualPOSPage: React.FC = () => {
     setCart(prev => prev.filter(item => item.cartId !== cartId));
   };
 
+  // Complete Reset to Clean Initial State (Called only after confirmed success or explicit clear)
+  const resetPOSForm = () => {
+    setCart([]);
+    setOrderType(null); // Unselected
+    setTableId('');     // Unselected
+    setServiceType(null); // Unselected
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerNotes('');
+    setDiscountType('NONE');
+    setCustomDiscountMode('PERCENT');
+    setCustomDiscountPercent('');
+    setCustomDiscountAmount('');
+    setDiscountReason('');
+    setManagerPin('');
+    setManagerApproved(false);
+    setPinError(null);
+    setPaymentMethod('CASH');
+    setCashReceivedInput('');
+    setMobileTrxRef('');
+    setCardApprovalCode('');
+    setCardPosStatus('APPROVED');
+    setSubmitError(null);
+    setCurrentStep('SELECT_FOOD');
+  };
+
   const handleClearCart = () => {
-    if (window.confirm('Are you sure you want to clear the entire cart?')) {
-      setCart([]);
-      setDiscountType('NONE');
-      setCustomDiscountPercent('');
-      setCustomDiscountAmount('');
-      setCashReceivedInput('');
-      setCardApprovalCode('');
-      setCurrentStep('SELECT_FOOD');
+    if (window.confirm('Are you sure you want to clear the entire cart and start fresh?')) {
+      resetPOSForm();
     }
+  };
+
+  // Step 1 -> Step 2 validation
+  const handleProceedToPayment = () => {
+    setSubmitError(null);
+    if (cart.length === 0) {
+      setSubmitError('Cart is empty. Please select food items first.');
+      return;
+    }
+    if (!orderType) {
+      setSubmitError('Please select Dine-in or Takeaway to proceed.');
+      return;
+    }
+    if (orderType === 'DINE_IN' && !tableId) {
+      setSubmitError('Please select a Dining Table (T01–T55).');
+      return;
+    }
+    if (orderType === 'DINE_IN' && !serviceType) {
+      setSubmitError('Please select Service Style (Self-Service or Table Service).');
+      return;
+    }
+    setCurrentStep('PAYMENT');
   };
 
   // Verify Manager PIN for >10% discount
@@ -400,8 +442,18 @@ export const ManualPOSPage: React.FC = () => {
       return;
     }
 
+    if (!orderType) {
+      setSubmitError('Please select Dine-in or Takeaway.');
+      return;
+    }
+
     if (orderType === 'DINE_IN' && !tableId) {
       setSubmitError('Please select a dining table (T01–T55).');
+      return;
+    }
+
+    if (orderType === 'DINE_IN' && !serviceType) {
+      setSubmitError('Please select Service Style (Self-Service or Table Service).');
       return;
     }
 
@@ -451,7 +503,7 @@ export const ManualPOSPage: React.FC = () => {
         rawItems,
         customerName: customerName.trim() || 'Counter Guest',
         customerPhone: customerPhone.trim(),
-        serviceType: orderType === 'DINE_IN' ? serviceType : 'SELF_SERVICE',
+        serviceType: (orderType === 'DINE_IN' && serviceType) ? serviceType : 'SELF_SERVICE',
         customerNotes: customerNotes.trim(),
         paymentMethod,
         discountType,
@@ -473,25 +525,12 @@ export const ManualPOSPage: React.FC = () => {
       setCreatedOrder(result);
       setShowReceiptModal(true);
 
-      // Reset cart and fields for the next order
-      setCart([]);
-      setDiscountType('NONE');
-      setCustomDiscountPercent('');
-      setCustomDiscountAmount('');
-      setCustomDiscountMode('PERCENT');
-      setDiscountReason('');
-      setManagerPin('');
-      setManagerApproved(false);
-      setCashReceivedInput('');
-      setCardApprovalCode('');
-      setMobileTrxRef('');
-      setCustomerName('');
-      setCustomerPhone('');
-      setCustomerNotes('');
-      setCurrentStep('SELECT_FOOD');
+      // Clean Reset ONLY after confirmed successful order creation
+      resetPOSForm();
     } catch (err: any) {
       console.error('Manual order submission failed:', err);
-      setSubmitError(err?.message || 'Failed to submit order. Please check network connection.');
+      // PRESERVE CART AND INPUTS ON FAILURE SO CASHIER CAN RETRY
+      setSubmitError(err?.message || 'Failed to submit counter order. Please check network connection.');
     } finally {
       setSubmitting(false);
     }
@@ -554,7 +593,7 @@ export const ManualPOSPage: React.FC = () => {
           <button
             type="button"
             disabled={cart.length === 0}
-            onClick={() => cart.length > 0 && setCurrentStep('PAYMENT')}
+            onClick={() => cart.length > 0 && handleProceedToPayment()}
             className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               currentStep === 'PAYMENT'
                 ? 'bg-white text-zinc-950 shadow-xs'
@@ -587,11 +626,11 @@ export const ManualPOSPage: React.FC = () => {
             <span>{currentTime || '12:00:00 PM'}</span>
           </div>
 
-          {cart.length > 0 && (
+          {(cart.length > 0 || orderType !== null || customerName) && (
             <button
               onClick={handleClearCart}
               className="px-2.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border border-red-500/30"
-              title="Clear current cart"
+              title="Clear current cart and start fresh"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Reset</span>
@@ -786,11 +825,18 @@ export const ManualPOSPage: React.FC = () => {
           <div className="w-full lg:w-[420px] xl:w-[460px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 border-l border-zinc-200 shadow-lg overflow-hidden min-h-0">
             {/* Top Fixed Order Configuration */}
             <div className="p-3.5 border-b border-zinc-200 bg-zinc-50/70 space-y-2.5 shrink-0">
-              {/* Dine-In vs Takeaway Toggle (Clean Black and White) */}
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block">
+                Destination & Table
+              </span>
+
+              {/* Dine-In vs Takeaway Toggle (Clean Black and White, unselected initially) */}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setOrderType('DINE_IN')}
+                  onClick={() => {
+                    setOrderType('DINE_IN');
+                    if (!serviceType) setServiceType('SELF_SERVICE');
+                  }}
                   className={`py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 ${
                     orderType === 'DINE_IN'
                       ? 'bg-zinc-950 text-white shadow-xs'
@@ -801,7 +847,11 @@ export const ManualPOSPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setOrderType('TAKEAWAY')}
+                  onClick={() => {
+                    setOrderType('TAKEAWAY');
+                    setTableId('');
+                    setServiceType('SELF_SERVICE');
+                  }}
                   className={`py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 ${
                     orderType === 'TAKEAWAY'
                       ? 'bg-zinc-950 text-white shadow-xs'
@@ -824,6 +874,7 @@ export const ManualPOSPage: React.FC = () => {
                       onChange={e => setTableId(e.target.value)}
                       className="w-full px-3 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-zinc-900"
                     >
+                      <option value="">-- Select Table --</option>
                       {allTables.map(t => (
                         <option key={t} value={t}>
                           Table {t}
@@ -834,13 +885,14 @@ export const ManualPOSPage: React.FC = () => {
 
                   <div>
                     <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
-                      Service Style
+                      Service Style *
                     </label>
                     <select
-                      value={serviceType}
+                      value={serviceType || ''}
                       onChange={e => setServiceType(e.target.value as any)}
                       className="w-full px-3 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-zinc-900"
                     >
+                      <option value="">-- Select Service --</option>
                       <option value="SELF_SERVICE">Self-Service (৳0)</option>
                       <option value="TABLE_SERVICE">Table Service (+5%)</option>
                     </select>
@@ -942,6 +994,14 @@ export const ManualPOSPage: React.FC = () => {
               )}
             </div>
 
+            {/* Error in Step 1 if any */}
+            {submitError && currentStep === 'SELECT_FOOD' && (
+              <div className="p-2.5 mx-3 mb-1 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-600 flex items-center gap-2 shrink-0">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{submitError}</span>
+              </div>
+            )}
+
             {/* Bottom Fixed Action Bar: Summary & CONFIRM ORDER Button */}
             <div className="p-3.5 border-t border-zinc-200 bg-white space-y-3 shrink-0">
               <div className="flex items-center justify-between text-xs font-bold text-zinc-700 px-1">
@@ -957,7 +1017,7 @@ export const ManualPOSPage: React.FC = () => {
               <button
                 type="button"
                 disabled={cart.length === 0}
-                onClick={() => setCurrentStep('PAYMENT')}
+                onClick={handleProceedToPayment}
                 className={`w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer ${
                   cart.length === 0
                     ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed shadow-none'
@@ -1618,7 +1678,7 @@ export const ManualPOSPage: React.FC = () => {
       )}
 
       {/* =========================================================================
-          RECEIPT MODAL (Guest Memo & KOT Print after Payment Confirmation)
+          RECEIPT MODAL (Guest Memo & Exact KOT Print after Payment Confirmation)
          ========================================================================= */}
       {showReceiptModal && createdOrder && (
         <ReceiptModal
