@@ -79,14 +79,15 @@ export const Header: React.FC<HeaderProps> = ({ onReplayIntro }) => {
                 Vivacity Food Court
               </span>
               {tableId && !isTakeaway ? (
-                <span className="px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-500/30 text-[9px] sm:text-[10px] font-black uppercase whitespace-nowrap shrink-0">
-                  {tableId}
+                <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-500/30 text-[9px] sm:text-[10px] font-black uppercase whitespace-nowrap shrink-0 flex items-center gap-1 shadow-2xs mt-3">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Table {tableId}
                 </span>
-              ) : (
-                <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-500/30 text-[9px] sm:text-[10px] font-black uppercase whitespace-nowrap shrink-0">
+              ) : isTakeaway ? (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-500/30 text-[9px] sm:text-[10px] font-black uppercase whitespace-nowrap shrink-0 mt-3">
                   Takeaway
                 </span>
-              )}
+              ) : null}
             </div>
             <p className="text-[10px] text-zinc-400 leading-none mt-1 hidden sm:block">
               7 Kitchens • 55 Tables Hub

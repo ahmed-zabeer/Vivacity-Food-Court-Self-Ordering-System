@@ -6,7 +6,7 @@ import { useLocation } from 'wouter';
 import { Star, Clock, ChevronRight, QrCode, ShieldCheck } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
-  const { tableId, activeOrders } = useTableSession();
+  const { tableId, activeOrders, isTakeaway } = useTableSession();
   const [, setLocation] = useLocation();
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [, setLoading] = useState(true);
@@ -32,17 +32,19 @@ export const HomePage: React.FC = () => {
       <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent border border-amber-500/20 rounded-3xl p-3.5 sm:p-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 shadow-2xs">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-2xl bg-brand-500 text-white flex items-center justify-center font-black shadow-xs shrink-0">
-            <span className="text-sm font-black">{tableId || 'T17'}</span>
+            <span className="text-sm font-black">
+              {tableId ? tableId : isTakeaway ? '🥡' : 'QR'}
+            </span>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-zinc-900 truncate">
-                Dining at Table {tableId || 'T17'}
+                {tableId ? `Dining at Table ${tableId}` : isTakeaway ? 'Takeaway / Parcel Order' : 'Self-Ordering System'}
               </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
             <p className="text-[11px] text-zinc-500 truncate">
-              Multi-Stall single checkout enabled
+              {tableId ? 'Multi-Stall single checkout enabled' : isTakeaway ? 'Pick up at central counter when ready' : 'Scan any table QR (T01–T55) to begin'}
             </p>
           </div>
         </div>
@@ -50,10 +52,10 @@ export const HomePage: React.FC = () => {
           <button
             onClick={() => setLocation('/scan')}
             className="text-[11px] font-bold text-zinc-600 bg-white/80 hover:bg-white px-2.5 py-1.5 rounded-full border border-zinc-200 shadow-2xs flex items-center gap-1 cursor-pointer transition-colors"
-            title="Scan different table QR"
+            title="Scan table QR"
           >
             <QrCode className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Change</span>
+            <span className="hidden sm:inline">{tableId ? 'Change' : 'Scan Table'}</span>
           </button>
           <button
             onClick={() => setLocation('/cart')}
