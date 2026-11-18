@@ -64,13 +64,25 @@ export const TableSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       if (tableId) {
         const orders = await api.getOrders({ tableId });
-        setActiveOrders(orders.filter(o => !['COMPLETED', 'CANCELLED'].includes(o.status)));
+        const now = Date.now();
+        // Fresh table scan defaults to zero active orders unless placed in the current session (last 3 hours)
+        const currentActive = orders.filter(o => {
+          if (['COMPLETED', 'CANCELLED'].includes(o.status)) return false;
+          if (o.createdAt) {
+            const time = new Date(o.createdAt).getTime();
+            if (!isNaN(time) && now - time > 3 * 60 * 60 * 1000) {
+              return false; // older order, do not show on fresh scan
+            }
+          }
+          return true;
+        });
+        setActiveOrders(currentActive);
       } else {
-        const all = await api.getOrders();
-        setActiveOrders(all.slice(0, 3));
+        setActiveOrders([]);
       }
     } catch (e) {
       console.error('Error fetching table active orders:', e);
+      setActiveOrders([]);
     }
   };
 

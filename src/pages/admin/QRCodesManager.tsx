@@ -22,6 +22,7 @@ export const QRCodesManager: React.FC = () => {
   } | null>(null);
   const [copiedBaseUrl, setCopiedBaseUrl] = useState(false);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+  const [qrTargetMode, setQrTargetMode] = useState<'vercel' | 'lan'>('vercel');
 
   const fetchNetwork = () => {
     api.getNetworkInfo().then(info => setNetworkInfo(info)).catch(() => {});
@@ -43,11 +44,14 @@ export const QRCodesManager: React.FC = () => {
     };
   }, []);
 
+  const vercelBaseUrl = 'https://vivacityfoodcourt.vercel.app';
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   const lanBaseUrl = (networkInfo && networkInfo.isReachableOnLan)
     ? (networkInfo.activeQrBaseUrl || networkInfo.recommendedBaseUrl)
     : null;
-  const effectiveBaseUrl = lanBaseUrl || (!isLocalhost && typeof window !== 'undefined' ? window.location.origin : (networkInfo?.recommendedBaseUrl || ''));
+  const effectiveBaseUrl = qrTargetMode === 'vercel'
+    ? vercelBaseUrl
+    : (lanBaseUrl || (!isLocalhost && typeof window !== 'undefined' ? window.location.origin : (networkInfo?.recommendedBaseUrl || 'http://localhost:3000')));
 
   const handleCopy = (tableId: string) => {
     const base = effectiveBaseUrl || (networkInfo?.recommendedBaseUrl || window.location.origin);
@@ -113,12 +117,40 @@ export const QRCodesManager: React.FC = () => {
                   {networkInfo?.isReachableOnLan ? 'Active Local Wi-Fi Network Detected' : 'Local Host Mode (No Wi-Fi LAN)'}
                 </span>
               </div>
-              <div className="text-sm font-black tracking-tight text-white flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[11px] font-bold text-zinc-300">QR Target:</span>
+                <button
+                  type="button"
+                  onClick={() => setQrTargetMode('vercel')}
+                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    qrTargetMode === 'vercel'
+                      ? 'bg-brand-500 text-white shadow-xs'
+                      : 'bg-white/10 text-zinc-300 hover:bg-white/20'
+                  }`}
+                >
+                  🌐 Vercel Cloud (Online)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrTargetMode('lan')}
+                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    qrTargetMode === 'lan'
+                      ? 'bg-emerald-500 text-white shadow-xs'
+                      : 'bg-white/10 text-zinc-300 hover:bg-white/20'
+                  }`}
+                >
+                  📡 Local Wi-Fi (LAN)
+                </button>
+              </div>
+
+              <div className="text-sm font-black tracking-tight text-white flex items-center gap-2 flex-wrap mt-1">
                 <span>Phone Scan URL:</span>
                 <span className="text-amber-400 font-mono select-all">{effectiveBaseUrl || 'http://localhost:3000'}</span>
               </div>
               <p className="text-[11px] text-zinc-400">
-                All 55 table QR badges encode this exact URL so any smartphone on this Wi-Fi can scan and order directly.
+                {qrTargetMode === 'vercel'
+                  ? 'QR badges currently encode the live Vercel Cloud URL so any phone camera anywhere can scan and open instantly.'
+                  : 'QR badges encode your local Wi-Fi IP for direct on-premise dining hall network routing.'}
               </p>
             </div>
           </div>

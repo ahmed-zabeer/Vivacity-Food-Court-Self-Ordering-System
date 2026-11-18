@@ -85,7 +85,7 @@ class Database {
       demoMode: true,
       businessName: "Vivacity Food Court",
       tagline: "Premier Food Court Hub",
-      qrBaseUrl: process.env.APP_BASE_URL || null
+      qrBaseUrl: process.env.APP_BASE_URL || 'https://vivacityfoodcourt.vercel.app'
     };
 
     this.tokenCounter = 48; // Starts after seed token #0047

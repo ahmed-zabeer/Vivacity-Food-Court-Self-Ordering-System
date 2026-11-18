@@ -15,19 +15,25 @@ export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, zone, baseU
   const isLocalHostClient = typeof window !== 'undefined' && 
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
+  const VERCEL_URL = 'https://vivacityfoodcourt.vercel.app';
+
   const [resolvedBaseUrl, setResolvedBaseUrl] = useState<string>(() => {
-    if (baseUrl && !baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
+    if (baseUrl) {
       return baseUrl.replace(/\/+$/, '');
     }
     if (!isLocalHostClient && typeof window !== 'undefined') {
       return window.location.origin;
     }
-    return '';
+    return VERCEL_URL;
   });
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
 
   useEffect(() => {
+    if (baseUrl) {
+      setResolvedBaseUrl(baseUrl.replace(/\/+$/, ''));
+      return;
+    }
     let isMounted = true;
     if (!resolvedBaseUrl || resolvedBaseUrl.includes('localhost') || resolvedBaseUrl.includes('127.0.0.1')) {
       api.getNetworkInfo()
@@ -35,24 +41,22 @@ export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, zone, baseU
           if (!isMounted) return;
           const url = (info.activeQrBaseUrl && !info.activeQrBaseUrl.includes('localhost') && !info.activeQrBaseUrl.includes('127.0.0.1'))
             ? info.activeQrBaseUrl
-            : (info.recommendedBaseUrl && !info.recommendedBaseUrl.includes('localhost') && !info.recommendedBaseUrl.includes('127.0.0.1'))
-              ? info.recommendedBaseUrl
-              : (typeof window !== 'undefined' ? window.location.origin : '');
+            : VERCEL_URL;
           if (url) {
             setResolvedBaseUrl(url.replace(/\/+$/, ''));
           }
         })
         .catch(() => {
-          if (isMounted && typeof window !== 'undefined') {
-            setResolvedBaseUrl(window.location.origin);
+          if (isMounted) {
+            setResolvedBaseUrl(VERCEL_URL);
           }
         });
     }
     return () => { isMounted = false; };
-  }, [baseUrl, resolvedBaseUrl]);
+  }, [baseUrl]);
 
-  // When on localhost, do NOT prematurely default to localhost:3000 to avoid generating broken QR codes for phones
-  const activeOrigin = resolvedBaseUrl || (!isLocalHostClient && typeof window !== 'undefined' ? window.location.origin : '');
+  // Active URL for phone scanning
+  const activeOrigin = resolvedBaseUrl || VERCEL_URL;
   const tableUrl = activeOrigin ? `${activeOrigin}/t/${tableId}` : '';
 
   useEffect(() => {
