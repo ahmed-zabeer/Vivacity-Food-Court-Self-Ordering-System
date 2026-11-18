@@ -1211,6 +1211,11 @@ export const AdminDashboard: React.FC = () => {
                         }`}>
                           {order.status}
                         </span>
+                        {order.orderSource === 'MANUAL_COUNTER' && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-sky-100 text-sky-800 border border-sky-200">
+                            Manual Counter
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1226,6 +1231,9 @@ export const AdminDashboard: React.FC = () => {
                         </button>
                       </div>
 
+                      <div className="text-[10px] text-zinc-400 mt-0.5 font-mono">
+                        Invoice: {order.invoiceNo || order.token}
+                      </div>
                       <div className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
                         {order.items.map(i => `${i.quantity}x ${i.name}`).join(' • ')}
                       </div>

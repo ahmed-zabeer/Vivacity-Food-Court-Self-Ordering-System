@@ -3103,10 +3103,27 @@ class Database {
     const latestYearlyReset = yearlyResets[0] || null;
     const yearlyResetCutoff = latestYearlyReset ? new Date(latestYearlyReset.resetAt).getTime() : 0;
 
+    // Weekly calculation (Monday through current day of the week in Asia/Dhaka)
+    const currentDhakaDate = new Date(`${todayParts.dateStr}T12:00:00+06:00`);
+    const dayOfWeek = currentDhakaDate.getDay();
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const mondayDate = new Date(currentDhakaDate.getTime() + diffToMonday * 86400000);
+    const startOfWeekStr = getDhakaDateParts(mondayDate).dateStr;
+
+    const prevMondayDate = new Date(mondayDate.getTime() - 7 * 86400000);
+    const prevSundayDate = new Date(mondayDate.getTime() - 1 * 86400000);
+    const prevStartOfWeekStr = getDhakaDateParts(prevMondayDate).dateStr;
+    const prevEndOfWeekStr = getDhakaDateParts(prevSundayDate).dateStr;
+
     let dailyRevenue = 0;
     let dailyOrders = 0;
     let prevDailyRevenue = 0;
     let prevDailyOrders = 0;
+
+    let weeklyRevenue = 0;
+    let weeklyOrders = 0;
+    let prevWeeklyRevenue = 0;
+    let prevWeeklyOrders = 0;
 
     let monthlyRevenue = 0;
     let monthlyOrders = 0;
@@ -3162,6 +3179,15 @@ class Database {
         prevDailyRevenue += amount;
         prevDailyOrders++;
       }
+
+      // 4. WEEKLY REVENUE (Current Monday to Sunday week in Asia/Dhaka)
+      if (orderParts.dateStr >= startOfWeekStr && orderParts.dateStr <= todayParts.dateStr) {
+        weeklyRevenue += amount;
+        weeklyOrders++;
+      } else if (orderParts.dateStr >= prevStartOfWeekStr && orderParts.dateStr <= prevEndOfWeekStr) {
+        prevWeeklyRevenue += amount;
+        prevWeeklyOrders++;
+      }
     }
 
     const calcComparison = (current, prev) => {
@@ -3181,6 +3207,17 @@ class Database {
           prevRevenue: prevDailyRevenue,
           prevOrders: prevDailyOrders,
           percentageChange: calcComparison(dailyRevenue, prevDailyRevenue)
+        }
+      },
+      weekly: {
+        revenue: weeklyRevenue,
+        orders: weeklyOrders,
+        period: `${startOfWeekStr} to ${todayParts.dateStr}`,
+        resetAt: null,
+        comparison: {
+          prevRevenue: prevWeeklyRevenue,
+          prevOrders: prevWeeklyOrders,
+          percentageChange: calcComparison(weeklyRevenue, prevWeeklyRevenue)
         }
       },
       monthly: {

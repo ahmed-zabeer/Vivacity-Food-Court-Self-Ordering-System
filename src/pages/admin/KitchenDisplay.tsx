@@ -36,6 +36,11 @@ export const KitchenDisplay: React.FC = () => {
       fetchKDS();
     });
 
+    const unsubCreated = realtime.on('order_created', () => {
+      sound.playKitchenBell();
+      fetchKDS();
+    });
+
     const unsubUpdated = realtime.on('order_updated', () => {
       fetchKDS();
     });
@@ -47,6 +52,7 @@ export const KitchenDisplay: React.FC = () => {
 
     return () => {
       unsubKOT();
+      unsubCreated();
       unsubUpdated();
       unsubReset();
     };
@@ -181,6 +187,14 @@ export const KitchenDisplay: React.FC = () => {
                       }`}>
                         Service Type: {order.serviceType === 'TABLE_SERVICE' ? 'TABLE SERVICE' : 'SELF-SERVICE'}
                       </span>
+                      {order.orderSource === 'MANUAL_COUNTER' && (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-sky-500 text-white">
+                          Manual Counter
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5 font-mono">
+                      Invoice: {order.invoiceNo || order.token} | ID: {order.id}
                     </div>
                     {(order.customerName || order.customerPhone) && (
                       <div className="text-[11px] font-bold text-zinc-300 mt-1">

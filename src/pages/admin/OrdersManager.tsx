@@ -760,6 +760,11 @@ export const OrdersManager: React.FC = () => {
                         <div className="text-[10px] text-zinc-400">
                           {new Date(order.createdAt).toLocaleTimeString()}
                         </div>
+                        {order.invoiceNo && (
+                          <div className="text-[9px] text-zinc-400 font-mono truncate max-w-[100px]">
+                            Inv: {order.invoiceNo}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -795,6 +800,11 @@ export const OrdersManager: React.FC = () => {
                         }`}>
                           Service: {order.serviceType === 'TABLE_SERVICE' ? 'TABLE SERVICE' : 'SELF-SERVICE'}
                         </span>
+                        {order.orderSource === 'MANUAL_COUNTER' && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border bg-sky-100 text-sky-800 border-sky-300">
+                            Manual
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -826,10 +836,20 @@ export const OrdersManager: React.FC = () => {
                     <span className="px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 text-xs font-bold uppercase">
                       {selectedOrder.tableId ? `Table ${selectedOrder.tableId}` : 'Parcel'}
                     </span>
+                    {selectedOrder.orderSource === 'MANUAL_COUNTER' && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 text-[10px] font-black uppercase">
+                        Manual Counter
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-zinc-400 mt-0.5 font-mono">
                     Order ID: {selectedOrder.id}
                   </p>
+                  {selectedOrder.invoiceNo && (
+                    <p className="text-[10px] text-zinc-400 font-mono">
+                      Invoice: {selectedOrder.invoiceNo}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

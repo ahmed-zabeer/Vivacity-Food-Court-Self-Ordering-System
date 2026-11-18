@@ -505,6 +505,7 @@ export interface RevenuePeriodData {
 
 export interface RevenueSummary {
   daily: RevenuePeriodData;
+  weekly?: RevenuePeriodData;
   monthly: RevenuePeriodData;
   yearly: RevenuePeriodData;
   timezone: string;

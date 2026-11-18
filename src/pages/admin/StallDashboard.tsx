@@ -61,6 +61,11 @@ export const StallDashboard: React.FC = () => {
       fetchStallData();
     });
 
+    const unsubKOT = realtime.on('kot_generated', () => {
+      sound.playKitchenBell();
+      fetchStallData();
+    });
+
     const unsubReset = realtime.on('all_orders_reset', () => {
       setOrders([]);
       fetchStallData();
@@ -73,6 +78,7 @@ export const StallDashboard: React.FC = () => {
     return () => {
       unsub();
       unsubCreated();
+      unsubKOT();
       unsubReset();
       unsubMenu();
     };
@@ -506,6 +512,14 @@ export const StallDashboard: React.FC = () => {
                         }`}>
                           Service Type: {order.serviceType === 'TABLE_SERVICE' ? 'TABLE SERVICE' : 'SELF-SERVICE'}
                         </span>
+                        {order.orderSource === 'MANUAL_COUNTER' && (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase border bg-sky-50 text-sky-800 border-sky-300">
+                            Manual Counter
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-zinc-400 mt-0.5 font-mono">
+                        Invoice: {order.invoiceNo || order.token}
                       </div>
                       {(order.customerName || order.customerPhone) && (
                         <div className="text-[11px] font-bold text-zinc-700 mt-1">

@@ -1830,6 +1830,7 @@ export const ManualPOSPage: React.FC = () => {
       {showReceiptModal && createdOrder && (
         <ReceiptModal
           order={createdOrder}
+          autoSequentialPrint={true}
           onClose={() => {
             setShowReceiptModal(false);
             setCreatedOrder(null);
