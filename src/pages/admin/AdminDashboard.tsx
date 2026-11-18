@@ -12,7 +12,7 @@ import {
 } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from 'wouter';
-import { DollarSign, Grid, Clock, ChefHat, CheckCircle, Package, ArrowRight, AlertCircle, Store, RotateCcw, Calendar, CalendarDays, ShieldCheck, Check, Bell, Printer, History, Receipt, BookOpen, ShoppingCart } from 'lucide-react';
+import { DollarSign, Grid, Clock, ChefHat, CheckCircle, Package, ArrowRight, AlertCircle, Store, RotateCcw, Calendar, CalendarDays, ShieldCheck, Check, Bell, Printer, History, Receipt, BookOpen, ShoppingCart, TrendingUp } from 'lucide-react';
 import { KOTPrintView } from '../../components/common/KOTPrintView';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 
@@ -64,6 +64,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Authorized roles check: Chief Administrator (SUPER ADMIN), Food Court Owner, Food Court Manager ONLY (Cashier excluded)
   const isAuthorizedToReset = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'].includes(currentUser.role);
+  const isAuthorizedForRevenue = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'].includes(currentUser.role);
   const isAuthorizedForExpenses = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER'].includes(currentUser.role);
 
   // ================= Financial Overview & Expenses State =================
@@ -655,10 +656,10 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 1. THREE REVENUE CARDS: Daily Revenue | Monthly Revenue | Yearly Revenue */}
-      {/* (Manager & Chief Administrator only — hidden from Cashier)               */}
+      {/* 1. FOUR REVENUE CARDS: Daily Revenue | Weekly | Monthly | Yearly Revenue */}
+      {/* (Manager, Chief Administrator, and Cashier)                              */}
       {/* ========================================================================= */}
-      {isAuthorizedToReset && (
+      {isAuthorizedForRevenue && (
       <section className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -686,7 +687,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* ── CARD 1: DAILY REVENUE ── */}
           <div className="bg-white rounded-3xl p-5 border border-zinc-200/90 shadow-xs hover:border-zinc-300 transition-all flex flex-col justify-between relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-full pointer-events-none" />
@@ -748,6 +749,62 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               ) : (
                 <span className="text-zinc-400">Default ৳0 • Updates on payment</span>
+              )}
+            </div>
+          </div>
+
+          {/* ── CARD 2: WEEKLY REVENUE ── */}
+          <div className="bg-white rounded-3xl p-5 border border-zinc-200/90 shadow-xs hover:border-zinc-300 transition-all flex flex-col justify-between relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-bl-full pointer-events-none" />
+
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-black">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-zinc-800 uppercase tracking-wider">
+                      Weekly Revenue
+                    </h3>
+                    <span className="text-[10px] text-zinc-400 font-semibold block">
+                      {revenue?.weekly?.period ? `Week (${revenue.weekly.period})` : "Current Week"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-black uppercase">
+                    WTD
+                  </span>
+                </div>
+              </div>
+
+              {/* Main Amount */}
+              <div className="my-2">
+                <div className="text-3xl font-black text-zinc-900 tracking-tight">
+                  {formatTaka(revenue?.weekly?.revenue || 0)}
+                </div>
+                <div className="text-xs font-bold text-zinc-500 mt-0.5">
+                  <strong className="text-zinc-900 font-extrabold">{revenue?.weekly?.orders || 0}</strong> Paid Orders
+                </div>
+              </div>
+            </div>
+
+            {/* Comparison Strip */}
+            <div className="pt-3 mt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
+              {revenue?.weekly?.comparison?.prevOrders ? (
+                <div className="flex items-center gap-1.5 text-zinc-500">
+                  <span className={`font-bold ${
+                    (revenue.weekly.comparison.percentageChange ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'
+                  }`}>
+                    {(revenue.weekly.comparison.percentageChange ?? 0) >= 0 ? '+' : ''}
+                    {revenue.weekly.comparison.percentageChange ?? 0}%
+                  </span>
+                  <span>vs last week ({formatTaka(revenue.weekly.comparison.prevRevenue)})</span>
+                </div>
+              ) : (
+                <span className="text-zinc-400">Monday to date • Current calendar week</span>
               )}
             </div>
           </div>

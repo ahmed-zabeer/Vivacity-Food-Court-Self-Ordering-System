@@ -371,6 +371,22 @@ class Database {
         const parsed = JSON.parse(rawOrders);
         if (Array.isArray(parsed)) {
           this.orders = parsed.map(order => {
+            // Reconcile any historical manual counter orders stuck in PAYMENT DUE
+            if (order.orderSource === 'MANUAL_COUNTER' && order.paymentStatus === 'PAYMENT DUE') {
+              order.paymentStatus = 'PAID';
+              if (!order.paidAt) order.paidAt = order.createdAt || new Date().toISOString();
+              if (order.status === 'NEW') order.status = 'PREPARING';
+              if (!order.kotGenerated) {
+                order.kotGenerated = true;
+                order.kotNumber = order.kotNumber || `KOT-${order.token}`;
+                order.kotGeneratedAt = order.kotGeneratedAt || order.paidAt;
+              }
+              if (Array.isArray(order.stalls)) {
+                order.stalls.forEach(s => {
+                  if (s.status === 'NEW' || s.status === 'PENDING') s.status = 'PREPARING';
+                });
+              }
+            }
             if (Array.isArray(order.stalls)) {
               order.stalls = order.stalls.map(s => {
                 const prepMin = s.prepTimeMinutes || (s.prepTimeEst ? parseInt(s.prepTimeEst, 10) : 15) || 15;
@@ -1275,6 +1291,7 @@ class Database {
       : (discount > 0 && subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0);
 
     const isManual = orderSource === "MANUAL_COUNTER";
+    const shouldAutoConfirm = Boolean(autoConfirmPayment || isManual);
 
     // Cash calculation validation
     let resolvedCashReceived = null;
@@ -1290,10 +1307,10 @@ class Database {
 
     // Physical POS Card Terminal validation
     if (paymentMethod === "Card / Physical POS Terminal") {
-      if (autoConfirmPayment && cardPosStatus !== "APPROVED") {
+      if (shouldAutoConfirm && cardPosStatus !== "APPROVED") {
         throw invalidOrder("Physical POS Terminal card payment must be processed and marked APPROVED on the terminal before confirming.");
       }
-      if (autoConfirmPayment && (!cardPosRef || !String(cardPosRef).trim())) {
+      if (shouldAutoConfirm && (!cardPosRef || !String(cardPosRef).trim())) {
         throw invalidOrder("Physical POS Terminal Approval/Transaction Reference is required for card payments.");
       }
     }
@@ -1371,8 +1388,8 @@ class Database {
       orderSource: isManual ? "MANUAL_COUNTER" : "QR_CODE",
       cashierName: cashierName || null,
       cashierId: cashierId || null,
-      status: autoConfirmPayment ? "PREPARING" : "NEW",
-      paymentStatus: autoConfirmPayment ? "PAID" : (paymentMethod === "CASH" ? "PAYMENT DUE" : "UNPAID"),
+      status: shouldAutoConfirm ? "PREPARING" : "NEW",
+      paymentStatus: shouldAutoConfirm ? "PAID" : (paymentMethod === "CASH" ? "PAYMENT DUE" : "UNPAID"),
       paymentMethod,
       customerName: customerName || (isManual ? "Counter Guest" : ""),
       customerPhone: customerPhone || "",
@@ -1382,8 +1399,8 @@ class Database {
       orderTypeDescription: orderTypeExactLabel,
       customerNotes,
       createdAt: new Date().toISOString(),
-      paidAt: autoConfirmPayment ? new Date().toISOString() : null,
-      transactionId: cardPosRef || (autoConfirmPayment ? `TXN-POS-${tokenNum}` : null),
+      paidAt: shouldAutoConfirm ? new Date().toISOString() : null,
+      transactionId: cardPosRef || (shouldAutoConfirm ? `TXN-POS-${tokenNum}` : null),
       cardPosRef: cardPosRef || null,
       cardPosStatus: cardPosStatus || null,
       cardPosTerminal: cardPosTerminal || null,
@@ -1397,8 +1414,8 @@ class Database {
       items: verifiedItems,
       stalls: stallOrders.map(s => ({
         ...s,
-        status: autoConfirmPayment ? "PREPARING" : "NEW",
-        prepStartedAt: autoConfirmPayment ? new Date().toISOString() : null,
+        status: shouldAutoConfirm ? "PREPARING" : "NEW",
+        prepStartedAt: shouldAutoConfirm ? new Date().toISOString() : null,
         orderType: resolvedCustomerOrderType,
         orderTypeDescription: orderTypeExactLabel,
         serviceType: isTableService ? "TABLE_SERVICE" : "SELF_SERVICE"
@@ -1408,15 +1425,15 @@ class Database {
       tax,
       serviceCharge,
       grandTotal,
-      kotGenerated: autoConfirmPayment,
-      kotNumber: autoConfirmPayment ? `KOT-${tokenNum}` : null,
-      kotGeneratedAt: autoConfirmPayment ? new Date().toISOString() : null,
+      kotGenerated: shouldAutoConfirm,
+      kotNumber: shouldAutoConfirm ? `KOT-${tokenNum}` : null,
+      kotGeneratedAt: shouldAutoConfirm ? new Date().toISOString() : null,
       history: [
         { status: "NEW", time: new Date().toISOString(), note: `${isManual ? 'Cashier placed counter order' : 'Customer submitted master order'} (${orderTypeExactLabel}).` }
       ]
     };
 
-    if (autoConfirmPayment) {
+    if (shouldAutoConfirm) {
       order.history.push({
         status: "PAID",
         time: new Date().toISOString(),
@@ -1434,7 +1451,7 @@ class Database {
 
     this.orders.unshift(order);
 
-    if (autoConfirmPayment) {
+    if (shouldAutoConfirm) {
       this._deductInventory(order);
     }
     this.saveData();
@@ -1443,11 +1460,12 @@ class Database {
     
     // Broadcast real-time order arrival to Central Admin
     eventBus.broadcast("order_created", order);
-    if (autoConfirmPayment) {
+    if (shouldAutoConfirm) {
       eventBus.broadcast("kot_generated", order);
       eventBus.broadcast("revenue_updated", this.getRevenueSummary());
       eventBus.broadcast("financial_updated", this.getDailyFinancialSummary());
       eventBus.broadcast("analytics_updated", this.getAnalyticsSummary());
+      eventBus.broadcast("order_updated", order);
     }
 
     return order;

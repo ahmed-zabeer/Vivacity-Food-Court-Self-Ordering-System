@@ -723,10 +723,10 @@ router.get('/accounting/dues', (req, res) => {
 // Revenue Endpoints (Daily, Monthly, Yearly in Asia/Dhaka)
 router.get('/revenue', (req, res) => {
   const role = (req.headers['x-user-role'] || req.query.userRole || '').trim().toUpperCase();
-  const RESTRICTED_ROLES = ['CASHIER', 'STALL MANAGER', 'KITCHEN STAFF', 'KITCHEN', 'RUNNER'];
+  const RESTRICTED_ROLES = ['STALL MANAGER', 'KITCHEN STAFF', 'KITCHEN', 'RUNNER'];
   if (role && RESTRICTED_ROLES.includes(role)) {
     return res.status(403).json({
-      error: 'Unauthorized: Revenue summaries are restricted to Manager and Chief Administrator only.'
+      error: 'Unauthorized: Revenue summaries are restricted to Manager, Cashier, and Chief Administrator only.'
     });
   }
   res.json(db.getRevenueSummary());

@@ -326,9 +326,10 @@ export const OrdersManager: React.FC = () => {
 
   const handleCreateManualOrder = async () => {
     try {
-      const newOrder = await api.createOrder({
+      const newOrder = await api.createManualOrder({
         tableId: manualType === 'DINE_IN' ? manualTable : null,
         type: manualType,
+        customerOrderType: manualType === 'PARCEL' ? 'TAKEAWAY' : 'DINE_IN',
         rawItems: [
           { menuItemId: 'cb-stk-1', quantity: 1, notes: 'Counter walk-in' },
           { menuItemId: 'mb-mom-1', quantity: 2, notes: 'Spicy dip' }
@@ -337,7 +338,9 @@ export const OrdersManager: React.FC = () => {
         customerPhone: '01700000000',
         serviceType: 'SELF_SERVICE',
         customerNotes: 'Staff manual entry at counter',
-        paymentMethod: manualPayment
+        paymentMethod: manualPayment,
+        cashierName: currentUser?.name || 'Cashier',
+        cashierId: currentUser?.id || 'usr-cashier'
       });
       setShowManualModal(false);
       fetchOrders();

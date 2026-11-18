@@ -1,16 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
+import { realtime } from '../../services/events';
 import { FileSpreadsheet } from 'lucide-react';
 
 export const ReportsAnalytics: React.FC = () => {
   const [analytics, setAnalytics] = useState<any>(null);
   const [, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchAnalytics = useCallback(() => {
     api.getAnalytics()
       .then(res => setAnalytics(res))
+      .catch(err => console.error('Failed to fetch analytics:', err))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchAnalytics();
+
+    const unsubAnalytics = realtime.on('analytics_updated', (updated: any) => {
+      if (updated) setAnalytics(updated);
+      else fetchAnalytics();
+    });
+    const unsubRevenue = realtime.on('revenue_updated', () => fetchAnalytics());
+    const unsubOrder = realtime.on('order_updated', () => fetchAnalytics());
+
+    return () => {
+      unsubAnalytics();
+      unsubRevenue();
+      unsubOrder();
+    };
+  }, [fetchAnalytics]);
 
   const handleExportCSV = () => {
     if (!analytics || !analytics.stallPerformance) return;
