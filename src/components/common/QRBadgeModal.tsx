@@ -15,16 +15,15 @@ export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, zone, baseU
   const isLocalHostClient = typeof window !== 'undefined' && 
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-  const VERCEL_URL = 'https://vivacityfoodcourt.vercel.app';
+  // No hardcoded deployment domain: an explicit base URL wins, otherwise use the
+  // origin this app is served from (works for both Vercel and localhost).
+  const DEFAULT_BASE_URL = typeof window !== 'undefined' ? window.location.origin : '';
 
   const [resolvedBaseUrl, setResolvedBaseUrl] = useState<string>(() => {
     if (baseUrl) {
       return baseUrl.replace(/\/+$/, '');
     }
-    if (!isLocalHostClient && typeof window !== 'undefined') {
-      return window.location.origin;
-    }
-    return VERCEL_URL;
+    return DEFAULT_BASE_URL;
   });
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
@@ -39,16 +38,17 @@ export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, zone, baseU
       api.getNetworkInfo()
         .then(info => {
           if (!isMounted) return;
-          const url = (info.activeQrBaseUrl && !info.activeQrBaseUrl.includes('localhost') && !info.activeQrBaseUrl.includes('127.0.0.1'))
-            ? info.activeQrBaseUrl
-            : VERCEL_URL;
+          // Locally a phone must use the LAN IP; deployed hosts use their own origin.
+          const url = info.isVercel
+            ? (info.activeQrBaseUrl || DEFAULT_BASE_URL)
+            : (info.recommendedBaseUrl || info.activeQrBaseUrl || DEFAULT_BASE_URL);
           if (url) {
             setResolvedBaseUrl(url.replace(/\/+$/, ''));
           }
         })
         .catch(() => {
           if (isMounted) {
-            setResolvedBaseUrl(VERCEL_URL);
+            setResolvedBaseUrl(DEFAULT_BASE_URL);
           }
         });
     }
@@ -56,7 +56,7 @@ export const QRBadgeModal: React.FC<QRBadgeModalProps> = ({ tableId, zone, baseU
   }, [baseUrl]);
 
   // Active URL for phone scanning
-  const activeOrigin = resolvedBaseUrl || VERCEL_URL;
+  const activeOrigin = resolvedBaseUrl || DEFAULT_BASE_URL;
   const tableUrl = activeOrigin ? `${activeOrigin}/t/${tableId}` : '';
 
   useEffect(() => {

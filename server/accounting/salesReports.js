@@ -1,8 +1,41 @@
 import { getDhakaDateParts } from '../db.js';
+import { getOrderRefunds, getRefundDateStr } from './refunds.js';
+import { computeCogs, getMenuItemCost } from './cogs.js';
 
 export class SalesReportsEngine {
   constructor(db) {
     this.db = db;
+  }
+
+  /**
+   * All refunds paid out inside a date window, regardless of when the original
+   * order was paid. This is what keeps refunds from being double-subtracted:
+   * a sale is recognised on its payment date, a refund on its refund date.
+   */
+  _refundsInRange({ dateFrom = null, dateTo = null } = {}) {
+    const rows = [];
+    let total = 0;
+    for (const order of this.db.orders) {
+      for (const refund of getOrderRefunds(order)) {
+        const dateStr = getRefundDateStr(refund, order);
+        if (!dateStr) continue;
+        if (dateFrom && dateStr < dateFrom) continue;
+        if (dateTo && dateStr > dateTo) continue;
+        total += refund.amount;
+        rows.push({
+          orderId: order.id,
+          token: order.token,
+          invoiceNo: order.invoiceNo,
+          date: dateStr,
+          amount: refund.amount,
+          method: refund.method,
+          reason: refund.reason,
+          refundedBy: refund.by,
+          transactionId: refund.transactionId
+        });
+      }
+    }
+    return { total, rows };
   }
 
   _filterOrders({ dateFrom = null, dateTo = null, stallId = null, orderStatus = null, paymentStatus = null, paymentMethod = null, search = '' } = {}) {
@@ -163,6 +196,12 @@ export class SalesReportsEngine {
     let totalRefunds = 0;
     let netSales = 0;
 
+    const stallFilter = (stallId && stallId !== 'ALL') ? stallId : null;
+    // A sale is recognised on the date it was PAID. A later cancellation or
+    // refund does not erase the sale - the refund is booked separately on the
+    // date the money actually left the till.
+    const salesOrders = [];
+
     let vatTaxCollected = 0;
     let serviceChargesCollected = 0;
     let totalCollections = 0;
@@ -180,44 +219,59 @@ export class SalesReportsEngine {
     for (const order of orders) {
       if (order.status === 'COMPLETED') completedOrders++;
       if (order.status === 'CANCELLED') cancelledOrders++;
-      if (['NEW', 'UNDER REVIEW', 'ACCEPTED', 'PREPARING', 'READY'].includes(order.status)) pendingOrders++;
-      if (order.paymentStatus === 'REFUNDED') refundedOrders++;
+      if (['NEW', 'UNDER REVIEW', 'ACCEPTED', 'PAYMENT DUE', 'PREPARING', 'READY', 'OUT FOR DELIVERY'].includes(order.status)) pendingOrders++;
 
-      const isPaid = order.paymentStatus === 'PAID';
-      const isCancelled = order.status === 'CANCELLED';
-
-      if (isCancelled && order.paymentStatus === 'REFUNDED') {
-        totalRefunds += (Number(order.grandTotal) || 0);
+      const isSale = Boolean(order.paidAt) && order.paymentStatus !== 'FAILED';
+      if (!isSale) {
+        if (order.paymentStatus === 'UNPAID' || order.paymentStatus === 'PAYMENT DUE') {
+          outstandingReceivables += (Number(order.grandTotal) || 0);
+        }
         continue;
       }
 
-      if (isPaid && !isCancelled) {
-        grossItemSales += (Number(order.subtotal) || 0);
-        totalDiscounts += (Number(order.discount) || 0);
-        vatTaxCollected += (Number(order.tax) || 0);
-        serviceChargesCollected += (Number(order.serviceCharge) || 0);
-        totalCollections += (Number(order.grandTotal) || 0);
+      salesOrders.push(order);
 
-        const method = order.paymentMethod || 'CASH';
-        if (paymentMethods[method] !== undefined) {
-          paymentMethods[method] += (Number(order.grandTotal) || 0);
-        } else {
-          paymentMethods.CASH += (Number(order.grandTotal) || 0);
-        }
+      const items = stallFilter ? (order.items || []).filter(i => i.stallId === stallFilter) : (order.items || []);
+      const orderSubtotal = stallFilter
+        ? items.reduce((s, i) => s + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0)
+        : (Number(order.subtotal) || 0);
+      const ratio = (!stallFilter || !order.subtotal) ? 1 : Math.min(1, orderSubtotal / (Number(order.subtotal) || 1));
+      const orderDiscount = (Number(order.discount) || 0) * ratio;
+      const orderVat = (Number(order.tax) || 0) * ratio;
+      const orderService = (Number(order.serviceCharge) || 0) * ratio;
+      const orderGrand = (Number(order.grandTotal) || 0) * ratio;
 
-        for (const item of (order.items || [])) {
-          if (!stallId || stallId === 'ALL' || item.stallId === stallId) {
-            totalQuantitySold += (Number(item.quantity) || 1);
-          }
-        }
-      } else if (!isCancelled && (order.paymentStatus === 'UNPAID' || order.paymentStatus === 'PAYMENT DUE')) {
-        outstandingReceivables += (Number(order.grandTotal) || 0);
+      grossItemSales += orderSubtotal;
+      totalDiscounts += orderDiscount;
+      vatTaxCollected += orderVat;
+      serviceChargesCollected += orderService;
+      totalCollections += orderGrand;
+
+      const method = order.paymentMethod || 'CASH';
+      if (paymentMethods[method] !== undefined) {
+        paymentMethods[method] += orderGrand;
+      } else {
+        paymentMethods.CASH += orderGrand;
       }
+
+      totalQuantitySold += items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
     }
 
-    netSales = Math.max(0, grossItemSales - totalDiscounts - totalRefunds) + serviceChargesCollected;
-    const averageOrderValue = (completedOrders + pendingOrders) > 0
-      ? Math.round(totalCollections / (completedOrders + pendingOrders))
+    // Refunds actually paid out inside this window (any original sale date).
+    const refundsInRange = this._refundsInRange({ dateFrom, dateTo });
+    totalRefunds = refundsInRange.total;
+    refundedOrders = refundsInRange.rows.length;
+    for (const r of refundsInRange.rows) {
+      const m = r.method || 'CASH';
+      if (paymentMethods[m] !== undefined) paymentMethods[m] -= r.amount;
+      else paymentMethods.CASH -= r.amount;
+    }
+
+    // Net Sales = eligible item sales - discounts - refunds (+ waiter service revenue).
+    // VAT collected is a liability, not revenue, so it is excluded.
+    netSales = (grossItemSales - totalDiscounts - totalRefunds) + serviceChargesCollected;
+    const averageOrderValue = salesOrders.length > 0
+      ? Math.round(totalCollections / salesOrders.length)
       : 0;
 
     // Operating expenses in same period
@@ -227,8 +281,9 @@ export class SalesReportsEngine {
       return true;
     }).reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
-    // COGS estimation (from recipe or standard food cost ratio if unconfigured)
-    const cogs = 0; // calculated dynamically in Income Statement / Ledger
+    // COGS from real recipe/unit costs only (never a benchmark ratio).
+    const cogsInfo = computeCogs(this.db, salesOrders, { dateFrom, dateTo });
+    const cogs = cogsInfo.cogs;
     const grossProfit = netSales - cogs;
     const netProfit = grossProfit - expenses;
 
@@ -240,8 +295,10 @@ export class SalesReportsEngine {
       const prevDateFrom = new Date(new Date(dateFrom).getTime() - 86400000 - diffMs).toISOString().slice(0, 10);
 
       const prevOrders = this._filterOrders({ dateFrom: prevDateFrom, dateTo: prevDateTo, stallId })
-        .filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
-      const prevRevenue = prevOrders.reduce((s, o) => s + (Number(o.grandTotal) || 0), 0);
+        .filter(o => Boolean(o.paidAt) && o.paymentStatus !== 'FAILED');
+      const prevGross = prevOrders.reduce((s, o) => s + (Number(o.grandTotal) || 0), 0);
+      const prevRefunds = this._refundsInRange({ dateFrom: prevDateFrom, dateTo: prevDateTo }).total;
+      const prevRevenue = prevGross - prevRefunds;
       const prevOrdersCount = prevOrders.length;
 
       const revenueChange = prevRevenue > 0 ? Number((((totalCollections - prevRevenue) / prevRevenue) * 100).toFixed(1)) : null;
@@ -275,9 +332,16 @@ export class SalesReportsEngine {
       paymentMethods,
       averageOrderValue,
       cogs,
+      cogsBreakdown: {
+        ingredients: cogsInfo.ingredientCogs,
+        wastage: cogsInfo.wastage,
+        adjustments: cogsInfo.adjustments
+      },
+      cogsCoveragePercent: cogsInfo.coveragePercent,
       grossProfit,
       operatingExpenses: expenses,
       netProfit,
+      refunds: refundsInRange.rows,
       comparison,
       dateFrom,
       dateTo
@@ -452,7 +516,8 @@ export class SalesReportsEngine {
    */
   getStallWiseSales({ dateFrom = null, dateTo = null } = {}) {
     const orders = this._filterOrders({ dateFrom, dateTo });
-    const validOrders = orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
+    // Sales are any order that was actually paid (later refunds are booked separately).
+    const validOrders = orders.filter(o => Boolean(o.paidAt) && o.paymentStatus !== 'FAILED');
 
     const stallStats = {};
     for (const s of this.db.stalls) {
@@ -472,6 +537,13 @@ export class SalesReportsEngine {
         paymentBreakdown: { CASH: 0, bKash: 0, Nagad: 0, 'Online Card': 0, 'NFC / Contactless': 0 },
         itemCounts: {}
       };
+    }
+
+    // Refunds paid inside this window, grouped by original order.
+    const refundsInRange = this._refundsInRange({ dateFrom, dateTo });
+    const refundByOrder = new Map();
+    for (const r of refundsInRange.rows) {
+      refundByOrder.set(r.orderId, (refundByOrder.get(r.orderId) || 0) + r.amount);
     }
 
     for (const order of validOrders) {
@@ -494,6 +566,10 @@ export class SalesReportsEngine {
         stallStats[sid].discounts += itemDisc;
         stallStats[sid].netSales += itemNet;
 
+        // Real configured recipe/unit cost only.
+        const unitCost = getMenuItemCost(this.db, item.menuItemId);
+        if (unitCost !== null) stallStats[sid].cogs += unitCost * qty;
+
         // Best seller tracking
         stallStats[sid].itemCounts[item.name] = (stallStats[sid].itemCounts[item.name] || 0) + qty;
 
@@ -502,6 +578,24 @@ export class SalesReportsEngine {
           stallStats[sid].paymentBreakdown[method] += itemNet;
         } else {
           stallStats[sid].paymentBreakdown.CASH += itemNet;
+        }
+      }
+
+      // Allocate this order's refunds (paid in this window) across its stalls.
+      const orderRefund = refundByOrder.get(order.id) || 0;
+      if (orderRefund > 0) {
+        const orderNet = (order.items || []).reduce((s, i) => {
+          const g = (Number(i.price) || 0) * (Number(i.quantity) || 1);
+          return s + (g - Math.round(g * orderDiscountRate));
+        }, 0) || 1;
+        for (const item of (order.items || [])) {
+          const sid = item.stallId;
+          if (!stallStats[sid]) continue;
+          const g = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+          const itemNet = g - Math.round(g * orderDiscountRate);
+          const share = Math.round(orderRefund * (itemNet / orderNet));
+          stallStats[sid].refunds += share;
+          stallStats[sid].netSales -= share;
         }
       }
 
@@ -520,14 +614,18 @@ export class SalesReportsEngine {
         }
       }
 
-      // 15% standard food hall commission model for Vivacity
-      const commission = Math.round(s.netSales * 0.15);
+      // Commission rate is configured on the business settings, not hardcoded.
+      const configuredRate = Number(this.db.settings?.foodCourtCommissionRate);
+      const rate = Number.isFinite(configuredRate) && configuredRate >= 0
+        ? Math.min(1, configuredRate)
+        : 0.15;
+      const commission = Math.round(s.netSales * rate);
       const merchantPayout = s.netSales - commission;
 
       return {
         ...s,
         bestSellingItem: bestItem,
-        commissionRate: '15%',
+        commissionRate: `${Math.round(rate * 1000) / 10}%`,
         managementCommission: commission,
         merchantPayout,
         grossProfit: s.netSales - s.cogs,

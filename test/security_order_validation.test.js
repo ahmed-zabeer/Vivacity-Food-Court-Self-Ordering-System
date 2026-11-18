@@ -51,7 +51,7 @@ test('createOrder rejects empty, oversized, malformed, and unknown carts', () =>
   );
 });
 
-test('production payment confirmations fail closed without gateway verification', async () => {
+test('production payment confirmation validates the order instead of failing closed', async () => {
   const app = express();
   app.use(express.json());
   app.use('/api', apiRouter);
@@ -62,16 +62,28 @@ test('production payment confirmations fail closed without gateway verification'
   const previousNodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
   try {
-    const response = await fetch(
+    // The simulated gateway is the product design: production must not answer
+    // 503 for every payment. It must validate the request and the order state.
+    const missingOrder = await fetch(
       `http://127.0.0.1:${server.address().port}/api/orders/not-a-real-order/payment`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethod: 'CASH', transactionId: 'FORGED' })
+        body: JSON.stringify({ paymentMethod: 'bKash', transactionId: 'TEST' })
       }
     );
-    assert.equal(response.status, 503);
-    assert.match((await response.json()).error, /verified payment gateway/);
+    assert.equal(missingOrder.status, 404);
+
+    const badMethod = await fetch(
+      `http://127.0.0.1:${server.address().port}/api/orders/not-a-real-order/payment`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethod: 'FORGED', transactionId: 'FORGED' })
+      }
+    );
+    assert.equal(badMethod.status, 400);
+    assert.match((await badMethod.json()).error, /valid payment method/);
   } finally {
     if (previousNodeEnv === undefined) {
       delete process.env.NODE_ENV;

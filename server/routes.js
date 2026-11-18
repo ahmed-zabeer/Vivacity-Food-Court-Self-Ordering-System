@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { db } from './db.js';
+import { db, DATA_DIR } from './db.js';
 import { eventBus } from './events.js';
+import { kvEnabled } from './persist.js';
 import os from 'os';
 
 const router = Router();
@@ -30,7 +31,78 @@ router.get('/events', (req, res) => {
   // Send initial connection ping
   res.write(`data: ${JSON.stringify({ type: 'CONNECTED', time: new Date().toISOString() })}\n\n`);
 
-  eventBus.addClient(res);
+  // Attach subscription metadata so guest notifications can be targeted to the
+  // correct table/order instead of being broadcast to every connected client.
+  const clientId = typeof req.query.clientId === 'string' ? req.query.clientId : null;
+  const tableId = typeof req.query.tableId === 'string' ? req.query.tableId : null;
+  const role = typeof req.query.role === 'string' ? req.query.role : null;
+  const orderIds = typeof req.query.orderIds === 'string'
+    ? req.query.orderIds.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+
+  eventBus.addClient(res, { clientId, tableId, role, orderIds });
+});
+
+// Late-binding subscription: the EventSource may connect before the guest page
+// knows its order/table metadata, so the client registers them here.
+router.post('/events/subscribe', (req, res) => {
+  const { clientId, tableId, orderId, orderIds, role } = req.body || {};
+  if (!clientId) {
+    return res.status(400).json({ error: 'clientId is required to subscribe.' });
+  }
+  eventBus.subscribeClient(clientId, { tableId, orderId, orderIds, role });
+  res.json({ success: true, clientId });
+});
+
+// --- Polling sync endpoint (used on serverless deployments where SSE cannot
+// broadcast between function instances). Returns a compact change feed.
+router.get('/sync/state', (req, res) => {
+  const sinceMs = req.query.since ? Date.parse(String(req.query.since)) : NaN;
+  const includeIds = req.query.includeIds === '1';
+
+  const touchTime = (o) => {
+    let t = Date.parse(o.createdAt || '') || 0;
+    if (o.paidAt) t = Math.max(t, Date.parse(o.paidAt) || 0);
+    if (o.refundedAt) t = Math.max(t, Date.parse(o.refundedAt) || 0);
+    for (const h of o.history || []) {
+      const v = Date.parse(h.time || '');
+      if (Number.isFinite(v) && v > t) t = v;
+    }
+    for (const s of o.stalls || []) {
+      for (const key of ['prepStartedAt', 'readyAt', 'counterConfirmedAt', 'collectedAt', 'notifiedAt']) {
+        const v = Date.parse(s[key] || '');
+        if (Number.isFinite(v) && v > t) t = v;
+      }
+    }
+    return t;
+  };
+
+  const hashOf = (value) => {
+    const str = JSON.stringify(value);
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+    return String(h);
+  };
+
+  const now = new Date().toISOString();
+  const changedOrders = Number.isFinite(sinceMs)
+    ? db.orders.filter(o => touchTime(o) >= sinceMs)
+    : [];
+
+  const hashes = {
+    tables: hashOf(db.getAllTables().map(t => [t.id, t.status, t.currentSessionId || t.sessionId || null])),
+    stalls: hashOf(db.stalls.map(s => [s.id, s.status || s.isPaused, s.isPaused])),
+    menu: hashOf(db.menuItems.map(m => [m.id, m.isAvailable, m.available, m.price])),
+    inventory: hashOf(Object.entries(db.inventory).map(([id, i]) => [id, i.preparedQty, i.isAvailable]))
+  };
+
+  res.json({
+    now,
+    orderIds: includeIds ? db.orders.map(o => o.id) : undefined,
+    orders: changedOrders,
+    hashes,
+    revenue: db.getRevenueSummary()
+  });
 });
 
 // --- Tables API ---
@@ -222,7 +294,10 @@ router.post('/orders', (req, res) => {
       customerName,
       customerPhone,
       customerAddress,
-      serviceType
+      serviceType,
+      cartSessionId,
+      clientId,
+      clientOrderId
     } = req.body;
 
     if (!rawItems || !Array.isArray(rawItems) || rawItems.length === 0) {
@@ -264,7 +339,11 @@ router.post('/orders', (req, res) => {
       serviceType,
       customerNotes,
       paymentMethod,
-      couponCode
+      couponCode,
+      cartSessionId: cartSessionId || null,
+      clientId: clientId || null,
+      clientOrderId: clientOrderId || null,
+      orderSource: 'QR_CODE'
     });
     res.status(201).json(order);
   } catch (err) {
@@ -422,16 +501,35 @@ router.post('/orders/:id/remove-unavailable', (req, res) => {
 
 // Payment API
 router.post('/orders/:id/payment', (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(503).json({
-      error: 'Payment confirmation is unavailable until a verified payment gateway is configured.'
-    });
-  }
+  try {
+    const { paymentMethod, transactionId, cashierName } = req.body || {};
 
-  const { paymentMethod, transactionId, cashierName } = req.body;
-  const order = db.confirmPayment(req.params.id, paymentMethod, transactionId, cashierName);
-  if (!order) return res.status(404).json({ error: 'Order not found' });
-  res.json(order);
+    // Payment confirmation is a real state transition on the server, not a UI
+    // flag. It is available in every environment (including the deployment) and
+    // validates the order state inside db.confirmPayment().
+    const allowedMethods = ['bKash', 'Nagad', 'Online Card', 'NFC / Contactless', 'Card / Physical POS Terminal', 'CASH'];
+    if (!paymentMethod || !allowedMethods.includes(paymentMethod)) {
+      return res.status(400).json({ error: 'Please select a valid payment method.' });
+    }
+
+    const order = db.getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.paymentStatus === 'PAID') {
+      return res.json(order);
+    }
+
+    const updated = db.confirmPayment(
+      req.params.id,
+      paymentMethod,
+      transactionId || null,
+      cashierName || 'Guest Online Payment'
+    );
+    if (!updated) return res.status(404).json({ error: 'Order not found' });
+    res.json(updated);
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ error: error.message });
+  }
 });
 
 router.post('/orders/:id/refund', (req, res) => {
@@ -1094,15 +1192,58 @@ export function getNetworkInfo(port = process.env.PORT || 3000) {
     primaryIp = 'localhost';
   }
 
+  const isVercel = Boolean(process.env.VERCEL);
+  const isLoopback = (url) => /localhost|127\.0\.0\.1/i.test(String(url || ''));
+  const isPrivateOrLoopback = (url) =>
+    /localhost|127\.0\.0\.1|^https?:\/\/(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/i.test(String(url || ''));
+
+  const cleanUrl = (url) => String(url || '').trim().replace(/\/+$/, '');
+  const envBase = cleanUrl(process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL);
+  const vercelBase = cleanUrl(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+  );
+  const savedBase = cleanUrl(db.settings?.qrBaseUrl);
+
   const recommendedBaseUrl = `http://${primaryIp}:${port}`;
-  const activeQrBaseUrl = db.settings.qrBaseUrl || process.env.APP_BASE_URL || recommendedBaseUrl;
+  const localhostUrl = `http://localhost:${port}`;
+  const isReachableOnLan = Boolean(primaryIp && primaryIp !== 'localhost' && primaryIp !== '127.0.0.1');
+
+  // Resolve the base URL that table QR codes should contain.
+  //  - Vercel: always the deployed public domain (never localhost / LAN IP).
+  //  - Localhost: always the reachable LAN IP so a phone on the same Wi-Fi can open it.
+  //  - An explicit APP_BASE_URL always wins.
+  let activeQrBaseUrl;
+  if (envBase) {
+    activeQrBaseUrl = envBase;
+  } else if (isVercel) {
+    activeQrBaseUrl = (vercelBase && !isPrivateOrLoopback(vercelBase))
+      ? vercelBase
+      : ((savedBase && !isPrivateOrLoopback(savedBase)) ? savedBase : '');
+  } else {
+    activeQrBaseUrl = isReachableOnLan ? recommendedBaseUrl : localhostUrl;
+  }
 
   return {
     lanIps,
     primaryIp,
     port: Number(port),
+    isVercel,
+    environment: isVercel ? 'vercel' : 'localhost',
+    isReachableOnLan,
+    localhostUrl,
     recommendedBaseUrl,
-    activeQrBaseUrl
+    activeQrBaseUrl,
+    savedQrBaseUrl: savedBase || null,
+    storage: {
+      durable: kvEnabled,
+      backend: kvEnabled ? 'kv' : 'filesystem',
+      dataDir: DATA_DIR,
+      warning: !kvEnabled && isVercel
+        ? 'Orders will not survive a cold start. Configure KV_REST_API_URL and KV_REST_API_TOKEN (or Upstash equivalents).'
+        : null
+    }
   };
 }
 
@@ -1120,6 +1261,466 @@ router.post('/settings/qr-base-url', (req, res) => {
   db.logAudit("QR_BASE_URL_UPDATED", `QR base URL updated to ${db.settings.qrBaseUrl}`, { qrBaseUrl: db.settings.qrBaseUrl });
   eventBus.broadcast("settings_updated", db.settings);
   res.json({ success: true, qrBaseUrl: db.settings.qrBaseUrl });
+});
+
+// ========================================================
+// CART RESERVATIONS, CUSTOMIZATIONS & REVIEWS
+// ========================================================
+router.post('/cart/reserve', (req, res) => {
+  const { sessionId, menuItemId, quantity } = req.body || {};
+  if (!sessionId || !menuItemId) {
+    return res.status(400).json({ error: 'sessionId and menuItemId are required.' });
+  }
+  try {
+    res.json(db.reserveCartItem(sessionId, menuItemId, quantity));
+  } catch (error) {
+    res.status(409).json({ error: error.message });
+  }
+});
+
+router.post('/cart/release-item', (req, res) => {
+  const { sessionId, menuItemId } = req.body || {};
+  if (!sessionId || !menuItemId) {
+    return res.status(400).json({ error: 'sessionId and menuItemId are required.' });
+  }
+  res.json(db.releaseCartItem(sessionId, menuItemId));
+});
+
+router.post('/cart/release-all', (req, res) => {
+  const { sessionId } = req.body || {};
+  if (!sessionId) return res.status(400).json({ error: 'sessionId is required.' });
+  res.json(db.releaseCartSession(sessionId));
+});
+
+router.post('/cart/heartbeat', (req, res) => {
+  const { sessionId } = req.body || {};
+  res.json(db.touchCartSession(sessionId));
+});
+
+router.get('/cart/reservations', (_req, res) => {
+  res.json(db.getCartReservations());
+});
+
+router.get('/cart/reservations/:sessionId', (req, res) => {
+  res.json(db.getCartReservations(req.params.sessionId));
+});
+
+// --- Menu Customization (add-on price configuration) ---
+router.get('/customizations/config', (_req, res) => {
+  res.json(db.getCustomizationConfig());
+});
+
+router.patch('/customizations/config', (req, res) => {
+  if (!requireManagerRole(req, res)) return;
+  const { categoryKey, addOnId, price } = req.body || {};
+  if (!categoryKey || !addOnId || price === undefined) {
+    return res.status(400).json({ error: 'categoryKey, addOnId and price are required.' });
+  }
+  try {
+    res.json(db.updateCustomizationPrice(categoryKey, addOnId, price));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// --- Order Reviews ---
+router.get('/reviews', (req, res) => {
+  const limit = req.query.limit ? Number(req.query.limit) : 100;
+  res.json(db.getReviews({
+    orderId: typeof req.query.orderId === 'string' ? req.query.orderId : null,
+    limit
+  }));
+});
+
+router.post('/reviews', (req, res) => {
+  try {
+    res.status(201).json(db.submitReview(req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// --- Guest item replacement (out of stock while order is open) ---
+router.post('/orders/:id/replace-unavailable', (req, res) => {
+  const { oldItemId, newMenuItemId, quantity, notes } = req.body || {};
+  if (!oldItemId || !newMenuItemId) {
+    return res.status(400).json({ error: 'oldItemId and newMenuItemId are required.' });
+  }
+  try {
+    const order = db.customerReplaceUnavailableItem(
+      req.params.id,
+      oldItemId,
+      newMenuItemId,
+      quantity ? Number(quantity) : 1,
+      notes
+    );
+    if (!order) return res.status(404).json({ error: 'Order or item not found' });
+    res.json(order);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ========================================================
+// REPORTING & BUSINESS INTELLIGENCE API
+// ========================================================
+const REPORT_ROLES = new Set(['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER']);
+
+function requireReportAccess(req, res) {
+  const role = getRequestRole(req);
+  if (!role || REPORT_ROLES.has(role)) return true;
+  res.status(403).json({ error: 'Unauthorized: Only Manager and Chief Administrator can access reports.' });
+  return false;
+}
+
+// --- Sales Reports ---
+router.get('/reports/sales/top-selling', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getTopSellingItems({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    stallId: req.query.stallId || null,
+    category: req.query.category || null,
+    limit: req.query.limit ? Number(req.query.limit) : 50,
+    sortBy: req.query.sortBy || 'quantity',
+    search: req.query.search || ''
+  }));
+});
+
+router.get('/reports/sales/summary', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getSalesSummary({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    stallId: req.query.stallId || null
+  }));
+});
+
+router.get('/reports/sales/details', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getSalesDetails({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    stallId: req.query.stallId || null,
+    paymentMethod: req.query.paymentMethod || null,
+    search: req.query.search || '',
+    page: req.query.page ? Number(req.query.page) : 1,
+    limit: req.query.limit ? Number(req.query.limit) : 50
+  }));
+});
+
+router.get('/reports/sales/by-user', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getSalesByUser({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.get('/reports/sales/order-type', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getOrderTypeSummary({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.get('/reports/sales/stall-wise', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getStallWiseSales({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.get('/reports/sales/category-wise', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getCategoryWiseSales({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    stallId: req.query.stallId || null
+  }));
+});
+
+router.get('/reports/sales/hourly', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getHourlySales({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    stallId: req.query.stallId || null
+  }));
+});
+
+router.get('/reports/sales/payment-methods', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getPaymentMethodReport({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.get('/reports/sales/discounts-refunds', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.salesReports.getDiscountsRefundsReport({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+// --- Expense Reports ---
+router.get('/reports/expenses/by-category', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.expenseReports.getExpenseByCategory({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.get('/reports/expenses/by-supplier', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.expenseReports.getExpenseBySupplier({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.get('/reports/expenses/dues', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.expenseReports.getDueExpenses());
+});
+
+router.get('/reports/expenses/list', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.expenseReports.getExpenseList({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    category: req.query.category || null,
+    search: req.query.search || '',
+    page: req.query.page ? Number(req.query.page) : 1,
+    limit: req.query.limit ? Number(req.query.limit) : 50
+  }));
+});
+
+router.get('/reports/expenses/summary', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.expenseReports.getExpenseSummary({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.post('/reports/expenses/:id/pay', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  try {
+    res.json(db.recordExpensePayment(req.params.id, {
+      ...req.body,
+      recordedBy: req.body?.recordedBy || getRequestName(req)
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// --- Purchase Reports ---
+router.get('/reports/purchases/orders', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.purchaseReports.getPurchaseOrderList({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    supplier: req.query.supplier || null,
+    status: req.query.status || null,
+    search: req.query.search || '',
+    page: req.query.page ? Number(req.query.page) : 1,
+    limit: req.query.limit ? Number(req.query.limit) : 50
+  }));
+});
+
+router.get('/reports/purchases/by-supplier', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.purchaseReports.getPurchaseBySupplier({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.get('/reports/purchases/items', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.purchaseReports.getPurchaseItemDetails({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    supplier: req.query.supplier || null,
+    search: req.query.search || ''
+  }));
+});
+
+router.get('/reports/purchases/summary', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.purchaseReports.getPurchaseSummary({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.post('/reports/purchases/:id/pay', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  try {
+    res.json(db.recordPurchasePayment(req.params.id, {
+      ...req.body,
+      recordedBy: req.body?.recordedBy || getRequestName(req)
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/reports/purchases/:id/receive', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  try {
+    res.json(db.recordGoodsReceipt(req.params.id, {
+      ...req.body,
+      receivedBy: req.body?.receivedBy || getRequestName(req)
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// --- Inventory Reports ---
+router.get('/reports/inventory/valuation', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getInventoryValuation({
+    stallId: req.query.stallId || null,
+    category: req.query.category || null,
+    search: req.query.search || ''
+  }));
+});
+
+router.get('/reports/inventory/stock-summary', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getStockSummary({
+    stallId: req.query.stallId || null,
+    status: req.query.status || null,
+    search: req.query.search || ''
+  }));
+});
+
+router.get('/reports/inventory/movements', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getStockMovements({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    itemId: req.query.itemId || null,
+    movementType: req.query.movementType || null,
+    search: req.query.search || '',
+    page: req.query.page ? Number(req.query.page) : 1,
+    limit: req.query.limit ? Number(req.query.limit) : 50
+  }));
+});
+
+router.get('/reports/inventory/stock-in', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getStockInReport({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    supplier: req.query.supplier || null,
+    search: req.query.search || ''
+  }));
+});
+
+router.get('/reports/inventory/stock-out', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getStockOutReport({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    reason: req.query.reason || null,
+    search: req.query.search || ''
+  }));
+});
+
+router.get('/reports/inventory/low-stock', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getLowStockReport({
+    stallId: req.query.stallId || null
+  }));
+});
+
+router.get('/reports/inventory/wastage', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getWastageReport({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null
+  }));
+});
+
+router.post('/reports/inventory/wastage', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  try {
+    res.status(201).json(db.recordInventoryWastage({
+      ...req.body,
+      user: req.body?.user || getRequestName(req)
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/reports/inventory/adjustment', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  try {
+    res.json(db.recordStockAdjustment({
+      ...req.body,
+      user: req.body?.user || getRequestName(req)
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reports/inventory/consumption', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getIngredientConsumptionReport({
+    dateFrom: req.query.dateFrom || null,
+    dateTo: req.query.dateTo || null,
+    stallId: req.query.stallId || null
+  }));
+});
+
+router.get('/reports/inventory/forecast', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.inventoryReports.getInventoryForecast({
+    days: req.query.days ? Number(req.query.days) : 14,
+    stallId: req.query.stallId || null
+  }));
+});
+
+// --- Daily Closing & Cash Reconciliation ---
+router.get('/reports/daily-closing', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.dailyClosing.getDailyClosingReport(req.query.date || null));
+});
+
+router.post('/reports/daily-closing/reconcile-cash', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  try {
+    res.json(db.dailyClosing.recordCashReconciliation({
+      ...req.body,
+      closedBy: req.body?.closedBy || getRequestName(req)
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// --- Business Intelligence ---
+router.get('/reports/bi/health', (req, res) => {
+  if (!requireReportAccess(req, res)) return;
+  res.json(db.biInsights.getHealthOverview());
+});
+
+// Unknown API routes must answer with JSON. Without this, the Vite dev server /
+// SPA fallback returns index.html and the client fails with "Unexpected token '<'".
+router.use((req, res) => {
+  res.status(404).json({ error: `API route not found: ${req.method} ${req.originalUrl}` });
 });
 
 export default router;

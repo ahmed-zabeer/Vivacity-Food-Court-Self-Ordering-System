@@ -96,7 +96,7 @@ export const ManualPOSPage: React.FC = () => {
   // Physical Card POS Terminal System
   const [cardTerminalName, setCardTerminalName] = useState<string>('Terminal #1 (Ingenico Desk 3500)');
   const [cardApprovalCode, setCardApprovalCode] = useState<string>('');
-  const [cardPosStatus, setCardPosStatus] = useState<'APPROVED' | 'PENDING' | 'DECLINED'>('APPROVED');
+  const [cardPosStatus, setCardPosStatus] = useState<'APPROVED' | 'PENDING' | 'DECLINED' | ''>('');
 
   // Customization modal
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
@@ -483,7 +483,7 @@ export const ManualPOSPage: React.FC = () => {
     setCashReceivedInput('');
     setMobileTrxRef('');
     setCardApprovalCode('');
-    setCardPosStatus('APPROVED');
+    setCardPosStatus('');
     setSubmitError(null);
     setCurrentStep('SELECT_FOOD');
   };
@@ -1616,6 +1616,7 @@ export const ManualPOSPage: React.FC = () => {
                       onChange={e => setCardPosStatus(e.target.value as any)}
                       className="w-full px-3 py-2 bg-white border border-blue-300 rounded-xl text-xs font-bold text-zinc-800 focus:outline-hidden"
                     >
+                      <option value="">— Select terminal result —</option>
                       <option value="APPROVED">APPROVED (Transaction Success)</option>
                       <option value="PENDING">PENDING</option>
                       <option value="DECLINED">DECLINED</option>

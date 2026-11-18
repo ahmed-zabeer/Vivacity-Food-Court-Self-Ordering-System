@@ -52,10 +52,26 @@ export const CheckoutPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Double-submit protection. The React state flag alone is not enough because
+  // two taps can land before the disabled button re-renders.
+  const submitLockRef = React.useRef(false);
+
+  // Stable idempotency key for this checkout attempt. If the response is lost
+  // and the guest taps again, the server returns the order it already created.
+  const clientOrderIdRef = React.useRef<string>('');
+  const getClientOrderId = () => {
+    if (!clientOrderIdRef.current) {
+      clientOrderIdRef.current = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return clientOrderIdRef.current;
+  };
+
   // Simulated Payment Modal State (for bKash / Card / NFC)
   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
   const [pendingOrder, setPendingOrder] = useState<Order | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState<boolean>(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const paymentLockRef = React.useRef(false);
   const [bkashPin, setBkashPin] = useState<string>('12345');
 
   // Calculated Values & scroll to top on page open
@@ -150,6 +166,8 @@ export const CheckoutPage: React.FC = () => {
 
   // Submit Master Order
   const handlePlaceOrder = async () => {
+    if (submitLockRef.current) return;
+
     setErrorMessage(null);
     setOrderTypeError(null);
     setServiceTypeError(null);
@@ -184,6 +202,7 @@ export const CheckoutPage: React.FC = () => {
     }
 
     setIsSubmitting(true);
+    submitLockRef.current = true;
 
     try {
       const rawItems = items.map(i => ({
@@ -210,10 +229,13 @@ export const CheckoutPage: React.FC = () => {
         paymentMethod: paymentMethod!,
         couponCode,
         cartSessionId: sessionId,
-        clientId: cid
+        clientId: cid,
+        clientOrderId: getClientOrderId()
       });
 
       setPendingOrder(newOrder);
+      // The order is safely stored; the next attempt is a new order.
+      clientOrderIdRef.current = '';
 
       // Subscribe SSE to this new order immediately
       realtime.subscribe({
@@ -259,12 +281,16 @@ export const CheckoutPage: React.FC = () => {
       setErrorMessage(err.message || 'Failed to place order');
     } finally {
       setIsSubmitting(false);
+      submitLockRef.current = false;
     }
   };
 
   // Complete Online Payment Simulation (Clean, professional - no celebratory burst/confetti)
   const handleCompleteOnlinePayment = async () => {
     if (!pendingOrder) return;
+    if (paymentLockRef.current) return;
+    paymentLockRef.current = true;
+    setPaymentError(null);
     setPaymentProcessing(true);
 
     try {
@@ -288,10 +314,21 @@ export const CheckoutPage: React.FC = () => {
       if (document.body) document.body.scrollTop = 0;
       setLocation(`/orders/${updated.id}`);
     } catch (e: any) {
-      alert('Payment processing failed. Please try again.');
+      setPaymentError(e?.message || 'Payment processing failed. Please try again.');
     } finally {
       setPaymentProcessing(false);
+      paymentLockRef.current = false;
     }
+  };
+
+  // The order already exists in an unpaid state. Let the guest leave the payment
+  // sheet instead of trapping them in a failing modal.
+  const handlePayLater = () => {
+    if (!pendingOrder) return;
+    setShowPaymentModal(false);
+    clearCart();
+    clearCustomerDetails();
+    setLocation(`/orders/${pendingOrder.id}`);
   };
 
   return (
@@ -1006,6 +1043,12 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               )}
 
+              {paymentError && (
+                <p className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  {paymentError}
+                </p>
+              )}
+
               <button
                 type="button"
                 disabled={paymentProcessing}
@@ -1015,6 +1058,15 @@ export const CheckoutPage: React.FC = () => {
                 }`}
               >
                 {paymentProcessing ? 'Processing Transaction...' : `Confirm & Pay ৳${pendingOrder.grandTotal}`}
+              </button>
+
+              <button
+                type="button"
+                disabled={paymentProcessing}
+                onClick={handlePayLater}
+                className="w-full py-2.5 rounded-xl border border-zinc-300 text-zinc-600 font-bold text-[11px] hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Pay at Central Counter instead
               </button>
             </div>
           </div>

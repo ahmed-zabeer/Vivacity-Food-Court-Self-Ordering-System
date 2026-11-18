@@ -1,4 +1,6 @@
 import { getDhakaDateParts } from '../db.js';
+import { computeCogs } from './cogs.js';
+import { getOrderRefunds, getRefundDateStr } from './refunds.js';
 
 export class DailyClosingEngine {
   constructor(db) {
@@ -11,19 +13,27 @@ export class DailyClosingEngine {
   getDailyClosingReport(targetDate = null) {
     const dateStr = targetDate || getDhakaDateParts(new Date()).dateStr;
 
-    // Filter today's orders
-    const dayOrders = this.db.orders.filter(o => {
-      const oDate = getDhakaDateParts(new Date(o.paidAt || o.createdAt)).dateStr;
-      return oDate === dateStr;
+    // Sales are recognised on the payment date. Orders paid on another day that
+    // are refunded today must not remove revenue from this day's sales.
+    const paidTodayOrders = this.db.orders.filter(o => {
+      if (!o.paidAt) return false;
+      if (o.paymentStatus !== 'PAID' && o.paymentStatus !== 'REFUNDED') return false;
+      return getDhakaDateParts(new Date(o.paidAt)).dateStr === dateStr;
     });
 
+    // Orders created today (operational counters only).
+    const dayOrders = this.db.orders.filter(o =>
+      getDhakaDateParts(new Date(o.createdAt)).dateStr === dateStr
+    );
+
     // Sales Metrics
-    let totalOrders = dayOrders.length;
+    let totalOrders = paidTodayOrders.length;
     let completedOrders = 0;
     let cancelledOrders = 0;
     let totalFoodQty = 0;
     let grossSales = 0;
     let totalDiscounts = 0;
+    let totalServiceCharges = 0;
     let totalRefunds = 0;
     let netSales = 0;
 
@@ -45,52 +55,60 @@ export class DailyClosingEngine {
     let cashSalesReceived = 0;
     let cashRefunds = 0;
 
-    for (const order of dayOrders) {
+    for (const order of paidTodayOrders) {
       if (order.status === 'COMPLETED') completedOrders++;
       if (order.status === 'CANCELLED') cancelledOrders++;
 
-      const isPaid = order.paymentStatus === 'PAID' && order.status !== 'CANCELLED';
-      const isRefunded = order.paymentStatus === 'REFUNDED';
+      const grand = Number(order.grandTotal) || 0;
+      grossSales += (Number(order.subtotal) || 0);
+      totalDiscounts += (Number(order.discount) || 0);
+      totalServiceCharges += (Number(order.serviceCharge) || 0);
 
-      if (isRefunded) {
-        const amt = Number(order.grandTotal) || 0;
-        totalRefunds += amt;
-        if (order.paymentMethod === 'CASH') cashRefunds += amt;
-        continue;
+      const m = order.paymentMethod || 'CASH';
+      if (salesByPaymentMethod[m] !== undefined) {
+        salesByPaymentMethod[m] += grand;
+      } else {
+        salesByPaymentMethod.CASH += grand;
       }
 
-      if (isPaid) {
-        grossSales += (Number(order.subtotal) || 0);
-        totalDiscounts += (Number(order.discount) || 0);
-        const grand = Number(order.grandTotal) || 0;
-        netSales += grand;
+      if (m === 'CASH') cashSalesReceived += grand;
 
-        const m = order.paymentMethod || 'CASH';
-        if (salesByPaymentMethod[m] !== undefined) {
-          salesByPaymentMethod[m] += grand;
-        } else {
-          salesByPaymentMethod.CASH += grand;
-        }
+      if (order.orderSource === 'MANUAL_COUNTER') {
+        manualSalesCount++;
+        manualSalesAmount += grand;
+      } else {
+        qrSalesCount++;
+        qrSalesAmount += grand;
+      }
 
-        if (m === 'CASH') cashSalesReceived += grand;
-
-        if (order.orderSource === 'MANUAL_COUNTER') {
-          manualSalesCount++;
-          manualSalesAmount += grand;
-        } else {
-          qrSalesCount++;
-          qrSalesAmount += grand;
-        }
-
-        for (const item of (order.items || [])) {
-          totalFoodQty += (Number(item.quantity) || 1);
-          const sid = item.stallId;
-          const stall = this.db.stalls.find(s => s.id === sid);
-          const sName = stall?.name || sid;
-          salesByStall[sName] = (salesByStall[sName] || 0) + (Number(item.price) || 0) * (Number(item.quantity) || 1);
-        }
+      for (const item of (order.items || [])) {
+        totalFoodQty += (Number(item.quantity) || 1);
+        const sid = item.stallId;
+        const stall = this.db.stalls.find(s => s.id === sid);
+        const sName = stall?.name || sid;
+        salesByStall[sName] = (salesByStall[sName] || 0) + (Number(item.price) || 0) * (Number(item.quantity) || 1);
       }
     }
+
+    // Refunds actually paid out on this date (whatever the original sale date).
+    for (const order of this.db.orders) {
+      for (const refund of getOrderRefunds(order)) {
+        if (getRefundDateStr(refund, order) !== dateStr) continue;
+        const amount = Number(refund.amount) || 0;
+        if (amount <= 0) continue;
+        totalRefunds += amount;
+        const rm = refund.method || 'CASH';
+        if (salesByPaymentMethod[rm] !== undefined) {
+          salesByPaymentMethod[rm] -= amount;
+        } else {
+          salesByPaymentMethod.CASH -= amount;
+        }
+        if (rm === 'CASH') cashRefunds += amount;
+      }
+    }
+
+    // Net sales exclude VAT (a liability) and include waiter service revenue.
+    netSales = grossSales - totalDiscounts - totalRefunds + totalServiceCharges;
 
     // Expense Metrics
     const dayExpenses = (this.db.expenses || []).filter(e => {
@@ -159,7 +177,10 @@ export class DailyClosingEngine {
       }
     }
 
-    const cogs = Math.round(netSales * 0.40) + dayWastageValue; // 40% standard benchmark or direct
+    // COGS from real recipe / configured unit costs plus wastage & adjustments
+    // booked on this date. Never a benchmark percentage of sales.
+    const cogsInfo = computeCogs(this.db, paidTodayOrders, { dateFrom: dateStr, dateTo: dateStr });
+    const cogs = cogsInfo.cogs;
     const grossProfit = netSales - cogs;
     const netProfit = grossProfit - totalExpenses;
 
@@ -238,6 +259,12 @@ export class DailyClosingEngine {
       profitability: {
         netSales,
         cogs,
+        cogsBreakdown: {
+          ingredients: cogsInfo.ingredientCogs,
+          wastage: cogsInfo.wastage,
+          adjustments: cogsInfo.adjustments
+        },
+        cogsCoveragePercent: cogsInfo.coveragePercent,
         grossProfit,
         operatingExpenses: totalExpenses,
         netProfit,

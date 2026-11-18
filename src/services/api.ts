@@ -210,6 +210,7 @@ export const api = {
     couponCode?: string | null;
     cartSessionId?: string | null;
     clientId?: string | null;
+    clientOrderId?: string | null;
   }): Promise<Order> {
     const res = await fetch(`${API_BASE}/orders`, {
       method: 'POST',
@@ -651,6 +652,9 @@ export const api = {
     localhostUrl: string;
     recommendedBaseUrl: string;
     activeQrBaseUrl: string;
+    isVercel?: boolean;
+    environment?: 'vercel' | 'localhost';
+    savedQrBaseUrl?: string | null;
   }> {
     const res = await fetch(`${API_BASE}/network-info`);
     if (!res.ok) throw new Error('Failed to fetch network information');

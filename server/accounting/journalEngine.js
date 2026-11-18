@@ -1,4 +1,5 @@
 import { CHART_OF_ACCOUNTS, ACCOUNT_TYPES, getAccountByPaymentMethod, getAccountByExpenseCategory } from './chartOfAccounts.js';
+import { getMenuItemCost } from './cogs.js';
 
 export function getDhakaDate(isoOrDate = new Date()) {
   const d = typeof isoOrDate === 'string' || typeof isoOrDate === 'number' ? new Date(isoOrDate) : isoOrDate;
@@ -29,12 +30,9 @@ export class JournalEngine {
   generateJournalEntries({ dateFrom = null, dateTo = null } = {}) {
     const entries = [];
 
-    // 1. ORDERS (Sales, Payments, Dues, Refunds)
+    // 1. ORDERS (Sales on payment date, refunds on refund date, COGS)
     for (const order of this.db.orders) {
       if (!order) continue;
-      const orderDate = getDhakaDate(order.paidAt || order.createdAt);
-      if (dateFrom && orderDate < dateFrom) continue;
-      if (dateTo && orderDate > dateTo) continue;
 
       const subtotal = Number(order.subtotal) || 0;
       const discount = Number(order.discount) || 0;
@@ -42,124 +40,238 @@ export class JournalEngine {
       const serviceCharge = Number(order.serviceCharge) || 0;
       const grandTotal = Number(order.grandTotal) || 0;
 
-      // Handle Cancelled / Refunded orders
-      if (order.status === 'CANCELLED' || order.paymentStatus === 'REFUNDED') {
-        const refundMethodAcc = getAccountByPaymentMethod(order.paymentMethod);
-        const refundDate = getDhakaDate(order.history?.find(h => h.status === 'CANCELLED')?.time || order.paidAt || order.createdAt);
-        
+      // Canonical refund list: `refunds[]` is authoritative; legacy orders fall
+      // back to `refundDetails`. An order cancelled before payment has none.
+      const refundList = [];
+      if (Array.isArray(order.refunds)) {
+        for (const r of order.refunds) {
+          const amount = Number(r.refundAmount ?? r.amount) || 0;
+          if (amount <= 0) continue;
+          refundList.push({
+            amount,
+            at: r.refundedAt || r.date || null,
+            method: r.paymentMethod || r.method || order.paymentMethod,
+            by: r.refundedBy || 'Manager',
+            reason: r.reason || ''
+          });
+        }
+      } else if (order.paymentStatus === 'REFUNDED' && order.refundDetails) {
+        const amount = Number(order.refundDetails.refundAmount) || 0;
+        if (amount > 0) {
+          refundList.push({
+            amount,
+            at: order.refundDetails.refundedAt || null,
+            method: order.refundDetails.paymentMethod || order.paymentMethod,
+            by: order.refundDetails.refundedBy || 'Manager',
+            reason: order.refundDetails.reason || ''
+          });
+        }
+      }
+      const totalRefunded = refundList.reduce((s, r) => s + r.amount, 0);
+
+      // Revenue is recognised only when money was actually collected. A pending
+      // or cancelled-unpaid order has no ledger impact.
+      const wasPaid = Boolean(order.paidAt) &&
+        (order.paymentStatus === 'PAID' || order.paymentStatus === 'REFUNDED');
+      const saleDate = getDhakaDate(order.paidAt || order.createdAt);
+
+      if (wasPaid && (!dateFrom || saleDate >= dateFrom) && (!dateTo || saleDate <= dateTo)) {
+        const paymentAcc = getAccountByPaymentMethod(order.paymentMethod);
+        const lines = [];
+
+        if (grandTotal > 0) {
+          lines.push({
+            accountCode: paymentAcc.code,
+            accountName: paymentAcc.name,
+            accountType: ACCOUNT_TYPES.ASSET,
+            debit: grandTotal,
+            credit: 0,
+            memo: `Payment via ${order.paymentMethod}`
+          });
+        }
+
+        if (discount > 0) {
+          lines.push({
+            accountCode: '4020',
+            accountName: CHART_OF_ACCOUNTS['4020'].name,
+            accountType: ACCOUNT_TYPES.REVENUE,
+            debit: discount,
+            credit: 0,
+            memo: `Discount for Order #${order.token}`
+          });
+        }
+
+        if (subtotal > 0) {
+          lines.push({
+            accountCode: '4010',
+            accountName: CHART_OF_ACCOUNTS['4010'].name,
+            accountType: ACCOUNT_TYPES.REVENUE,
+            debit: 0,
+            credit: subtotal,
+            memo: `Sales subtotal for Order #${order.token}`
+          });
+        }
+
+        if (tax > 0) {
+          lines.push({
+            accountCode: '2030',
+            accountName: CHART_OF_ACCOUNTS['2030'].name,
+            accountType: ACCOUNT_TYPES.LIABILITY,
+            debit: 0,
+            credit: tax,
+            memo: `VAT/Tax collected on #${order.token}`
+          });
+        }
+
+        if (serviceCharge > 0) {
+          lines.push({
+            accountCode: '4040',
+            accountName: CHART_OF_ACCOUNTS['4040'].name,
+            accountType: ACCOUNT_TYPES.REVENUE,
+            debit: 0,
+            credit: serviceCharge,
+            memo: `Service charge collected on #${order.token}`
+          });
+        }
+
+        const totalDebits = lines.reduce((s, l) => s + l.debit, 0);
+        const totalCredits = lines.reduce((s, l) => s + l.credit, 0);
+
+        if (lines.length > 0 && Math.abs(totalDebits - totalCredits) === 0) {
+          entries.push({
+            id: `JE-ORD-${order.id}`,
+            entryNo: `JE-ORD-${order.token}`,
+            date: saleDate,
+            timestamp: order.paidAt,
+            type: 'SALES',
+            refNo: `ORD-${order.token}`,
+            description: `Sales - Order #${order.token} (${order.paymentMethod || 'CASH'})`,
+            sourceId: order.id,
+            lines
+          });
+        }
+
+        // Ingredient COGS from configured recipe / unit costs only.
+        let orderCogs = 0;
+        for (const item of (order.items || [])) {
+          const unitCost = getMenuItemCost(this.db, item.menuItemId);
+          if (!unitCost) continue;
+          orderCogs += unitCost * (Number(item.quantity) || 1);
+        }
+        orderCogs = Math.round(orderCogs);
+
+        if (orderCogs > 0) {
+          entries.push({
+            id: `JE-COGS-${order.id}`,
+            entryNo: `JE-COGS-${order.token}`,
+            date: saleDate,
+            timestamp: order.paidAt,
+            type: 'COGS',
+            refNo: `ORD-${order.token}`,
+            description: `Ingredient COGS - Order #${order.token}`,
+            sourceId: order.id,
+            lines: [
+              {
+                accountCode: '5010',
+                accountName: CHART_OF_ACCOUNTS['5010'].name,
+                accountType: ACCOUNT_TYPES.COGS,
+                debit: orderCogs,
+                credit: 0,
+                memo: `Recipe/unit cost of items sold on #${order.token}`
+              },
+              {
+                accountCode: '1200',
+                accountName: CHART_OF_ACCOUNTS['1200'].name,
+                accountType: ACCOUNT_TYPES.ASSET,
+                debit: 0,
+                credit: orderCogs,
+                memo: `Inventory consumed for #${order.token}`
+              }
+            ]
+          });
+        }
+      }
+
+      // Refunds are booked separately, on the date the money left the till.
+      for (let i = 0; i < refundList.length; i++) {
+        const refund = refundList[i];
+        const refundDate = getDhakaDate(refund.at || order.createdAt);
+        if (dateFrom && refundDate < dateFrom) continue;
+        if (dateTo && refundDate > dateTo) continue;
+
+        const refundMethodAcc = getAccountByPaymentMethod(refund.method || order.paymentMethod);
         entries.push({
-          id: `JE-REF-${order.id}`,
-          entryNo: `JE-REF-${order.token}`,
+          id: `JE-REF-${order.id}-${i}`,
+          entryNo: `JE-REF-${order.token}-${i + 1}`,
           date: refundDate,
-          timestamp: order.paidAt || order.createdAt,
+          timestamp: refund.at || order.createdAt,
           type: 'REFUND',
           refNo: `ORD-${order.token}`,
-          description: `Customer Refund - Order #${order.token} (${order.paymentMethod || 'CASH'})`,
+          description: `Customer Refund - Order #${order.token} (${refund.method || order.paymentMethod || 'CASH'})`,
           sourceId: order.id,
           lines: [
             {
               accountCode: '4030',
               accountName: CHART_OF_ACCOUNTS['4030'].name,
               accountType: ACCOUNT_TYPES.REVENUE,
-              debit: grandTotal,
+              debit: refund.amount,
               credit: 0,
-              memo: `Sales Refund for Order #${order.token}`
+              memo: `Sales refund for Order #${order.token}`
             },
             {
               accountCode: refundMethodAcc.code,
               accountName: refundMethodAcc.name,
               accountType: ACCOUNT_TYPES.ASSET,
               debit: 0,
-              credit: grandTotal,
-              memo: `Refund payout via ${order.paymentMethod}`
+              credit: refund.amount,
+              memo: `Refund payout via ${refund.method || order.paymentMethod}`
             }
           ]
         });
-        continue; // Do not record revenue for refunded orders
       }
 
-      // Check if order is fully paid vs pending/due
-      const isPaid = order.paymentStatus === 'PAID';
-      const paymentAcc = isPaid ? getAccountByPaymentMethod(order.paymentMethod) : CHART_OF_ACCOUNTS['1100'];
-
-      const lines = [];
-
-      // Primary debit: Payment received (Cash/Bank/MFS) or Accounts Receivable
-      if (grandTotal > 0) {
-        lines.push({
-          accountCode: paymentAcc.code,
-          accountName: paymentAcc.name,
-          accountType: ACCOUNT_TYPES.ASSET,
-          debit: grandTotal,
-          credit: 0,
-          memo: isPaid ? `Payment via ${order.paymentMethod}` : `Unpaid receivable #${order.token}`
-        });
-      }
-
-      // Discount debit (contra-revenue)
-      if (discount > 0) {
-        lines.push({
-          accountCode: '4020',
-          accountName: CHART_OF_ACCOUNTS['4020'].name,
-          accountType: ACCOUNT_TYPES.REVENUE,
-          debit: discount,
-          credit: 0,
-          memo: `Discount coupon for Order #${order.token}`
-        });
-      }
-
-      // Sales revenue credit
-      if (subtotal > 0) {
-        lines.push({
-          accountCode: '4010',
-          accountName: CHART_OF_ACCOUNTS['4010'].name,
-          accountType: ACCOUNT_TYPES.REVENUE,
-          debit: 0,
-          credit: subtotal,
-          memo: `Sales subtotal for Order #${order.token}`
-        });
-      }
-
-      // Tax / VAT payable credit
-      if (tax > 0) {
-        lines.push({
-          accountCode: '2030',
-          accountName: CHART_OF_ACCOUNTS['2030'].name,
-          accountType: ACCOUNT_TYPES.LIABILITY,
-          debit: 0,
-          credit: tax,
-          memo: `VAT/Tax collected on #${order.token}`
-        });
-      }
-
-      // Service charge credit
-      if (serviceCharge > 0) {
-        lines.push({
-          accountCode: '4040',
-          accountName: CHART_OF_ACCOUNTS['4040'].name,
-          accountType: ACCOUNT_TYPES.REVENUE,
-          debit: 0,
-          credit: serviceCharge,
-          memo: `Service charge collected on #${order.token}`
-        });
-      }
-
-      // Verify line balance
-      const totalDebits = lines.reduce((s, l) => s + l.debit, 0);
-      const totalCredits = lines.reduce((s, l) => s + l.credit, 0);
-
-      if (lines.length > 0 && Math.abs(totalDebits - totalCredits) === 0) {
-        entries.push({
-          id: `JE-ORD-${order.id}`,
-          entryNo: `JE-ORD-${order.token}`,
-          date: orderDate,
-          timestamp: order.paidAt || order.createdAt,
-          type: isPaid ? 'SALES' : 'CUSTOMER_DUE',
-          refNo: `ORD-${order.token}`,
-          description: `Sales - Order #${order.token} (${order.paymentMethod || 'CASH'})${isPaid ? '' : ' [UNPAID]'}`,
-          sourceId: order.id,
-          lines
-        });
+      // Reverse the consumed ingredient cost proportionally to the refunded
+      // share of the order (inventory is restored by db.refundOrder).
+      if (totalRefunded > 0 && grandTotal > 0) {
+        let orderCogs = 0;
+        for (const item of (order.items || [])) {
+          const unitCost = getMenuItemCost(this.db, item.menuItemId);
+          if (!unitCost) continue;
+          orderCogs += unitCost * (Number(item.quantity) || 1);
+        }
+        orderCogs = Math.round(orderCogs);
+        const cogsReversal = Math.round(orderCogs * Math.min(1, totalRefunded / grandTotal));
+        const lastRefundDate = getDhakaDate(refundList[refundList.length - 1]?.at || order.createdAt);
+        if (cogsReversal > 0 && (!dateFrom || lastRefundDate >= dateFrom) && (!dateTo || lastRefundDate <= dateTo)) {
+          entries.push({
+            id: `JE-COGSREV-${order.id}`,
+            entryNo: `JE-COGSREV-${order.token}`,
+            date: lastRefundDate,
+            timestamp: refundList[refundList.length - 1]?.at || order.createdAt,
+            type: 'COGS_REVERSAL',
+            refNo: `ORD-${order.token}`,
+            description: `COGS reversal on refund - Order #${order.token}`,
+            sourceId: order.id,
+            lines: [
+              {
+                accountCode: '1200',
+                accountName: CHART_OF_ACCOUNTS['1200'].name,
+                accountType: ACCOUNT_TYPES.ASSET,
+                debit: cogsReversal,
+                credit: 0,
+                memo: `Inventory restored for refunded items on #${order.token}`
+              },
+              {
+                accountCode: '5010',
+                accountName: CHART_OF_ACCOUNTS['5010'].name,
+                accountType: ACCOUNT_TYPES.COGS,
+                debit: 0,
+                credit: cogsReversal,
+                memo: `COGS reversed for refunded items on #${order.token}`
+              }
+            ]
+          });
+        }
       }
     }
 

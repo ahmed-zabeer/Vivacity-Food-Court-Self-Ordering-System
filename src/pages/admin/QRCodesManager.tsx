@@ -19,10 +19,16 @@ export const QRCodesManager: React.FC = () => {
     localhostUrl: string;
     recommendedBaseUrl: string;
     activeQrBaseUrl: string;
+    isVercel?: boolean;
+    environment?: 'vercel' | 'localhost';
+    savedQrBaseUrl?: string | null;
   } | null>(null);
   const [copiedBaseUrl, setCopiedBaseUrl] = useState(false);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
-  const [qrTargetMode, setQrTargetMode] = useState<'vercel' | 'lan'>('vercel');
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  // Locally we want LAN QR codes by default (phones cannot open localhost).
+  // On a deployed host we want the public domain by default.
+  const [qrTargetMode, setQrTargetMode] = useState<'vercel' | 'lan'>(isLocalhost ? 'lan' : 'vercel');
 
   const fetchNetwork = () => {
     api.getNetworkInfo().then(info => setNetworkInfo(info)).catch(() => {});
@@ -44,14 +50,19 @@ export const QRCodesManager: React.FC = () => {
     };
   }, []);
 
-  const vercelBaseUrl = 'https://vivacityfoodcourt.vercel.app';
-  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const lanBaseUrl = (networkInfo && networkInfo.isReachableOnLan)
-    ? (networkInfo.activeQrBaseUrl || networkInfo.recommendedBaseUrl)
+  // Never hardcode a deployment domain: prefer an explicitly configured public
+  // URL, then the URL this admin page is actually served from, then the server's
+  // detected deployment base URL.
+  const configuredPublicUrl = String(import.meta.env.VITE_PUBLIC_APP_URL || '').trim().replace(/\/+$/, '');
+  const vercelBaseUrl = configuredPublicUrl
+    || (networkInfo?.isVercel ? networkInfo.activeQrBaseUrl : '')
+    || (!isLocalhost && typeof window !== 'undefined' ? window.location.origin : '');
+  const lanBaseUrl = networkInfo?.isReachableOnLan
+    ? (networkInfo.recommendedBaseUrl || networkInfo.activeQrBaseUrl)
     : null;
   const effectiveBaseUrl = qrTargetMode === 'vercel'
-    ? vercelBaseUrl
-    : (lanBaseUrl || (!isLocalhost && typeof window !== 'undefined' ? window.location.origin : (networkInfo?.recommendedBaseUrl || 'http://localhost:3000')));
+    ? (vercelBaseUrl || (typeof window !== 'undefined' ? window.location.origin : ''))
+    : (lanBaseUrl || (networkInfo?.localhostUrl || 'http://localhost:3000'));
 
   const handleCopy = (tableId: string) => {
     const base = effectiveBaseUrl || (networkInfo?.recommendedBaseUrl || window.location.origin);

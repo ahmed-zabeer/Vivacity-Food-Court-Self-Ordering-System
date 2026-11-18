@@ -14,12 +14,40 @@ export const getClientId = (): string => {
   return cid;
 };
 
+/**
+ * Server-Sent Events need one long-lived connection to one server process.
+ * That works on localhost / a LAN server, but on serverless hosting (Vercel)
+ * every request may be handled by a different instance, so broadcasts never
+ * reach the browser. There we poll a compact change feed instead.
+ */
+const shouldUseSse = (): boolean => {
+  const override = String(import.meta.env.VITE_REALTIME_MODE || '').toLowerCase();
+  if (override === 'poll') return false;
+  if (override === 'sse') return true;
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+  if (/^10\./.test(host)) return true;
+  if (/^192\.168\./.test(host)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
+  return false;
+};
+
 class RealtimeEventsClient {
   private eventSource: EventSource | null = null;
   private listeners: Map<string, Set<EventHandler>> = new Map();
   private registeredEvents: Set<string> = new Set();
   private reconnectAttempts = 0;
   private isConnected = false;
+
+  // Polling fallback state
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollInFlight = false;
+  private lastSync: string | null = null;
+  private knownOrderIds: Set<string> = new Set();
+  private lastHashes: Record<string, string> = {};
+  private lastRevenue = '';
+  private hasBaseline = false;
 
   private defaultEvents = [
     'order_created',
@@ -50,6 +78,11 @@ class RealtimeEventsClient {
 
   connect() {
     if (this.eventSource || typeof window === 'undefined') return;
+
+    if (!shouldUseSse()) {
+      this.startPolling();
+      return;
+    }
 
     try {
       const cid = getClientId();
@@ -84,6 +117,12 @@ class RealtimeEventsClient {
         } catch {}
         this.eventSource = null;
         this.registeredEvents.clear();
+        // Some hosts (reverse proxies, serverless) cannot keep an event stream
+        // open. After a few failures, switch to the polling change feed.
+        if (this.reconnectAttempts >= 3) {
+          this.startPolling();
+          return;
+        }
         const delay = Math.min(8000, 1500 * Math.min(this.reconnectAttempts, 4));
         setTimeout(() => this.connect(), delay);
       }
@@ -126,6 +165,88 @@ class RealtimeEventsClient {
       connected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Polling fallback (serverless deployments)
+  // ---------------------------------------------------------------------------
+  private startPolling(intervalMs = 5000) {
+    if (this.pollTimer || typeof window === 'undefined') return;
+    this.pollTimer = setInterval(() => {
+      this.pollOnce();
+    }, intervalMs);
+    this.pollOnce();
+  }
+
+  private stopPolling() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  private async pollOnce() {
+    if (this.pollInFlight) return;
+    this.pollInFlight = true;
+    try {
+      const params = new URLSearchParams();
+      if (this.lastSync) params.append('since', this.lastSync);
+      else params.append('includeIds', '1');
+
+      const res = await fetch(`${API_BASE}/sync/state?${params.toString()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Sync failed (${res.status})`);
+      const data = await res.json();
+
+      if (!this.isConnected) {
+        this.isConnected = true;
+        this.reconnectAttempts = 0;
+        this.trigger('connection_status', { connected: true, attempts: 0 });
+      }
+
+      if (!this.hasBaseline) {
+        (data.orderIds || []).forEach((id: string) => this.knownOrderIds.add(id));
+        this.lastHashes = data.hashes || {};
+        this.lastRevenue = JSON.stringify(data.revenue || {});
+        this.lastSync = data.now;
+        this.hasBaseline = true;
+        return;
+      }
+
+      const orders: any[] = Array.isArray(data.orders) ? data.orders : [];
+      for (const order of orders) {
+        if (!order || !order.id) continue;
+        if (!this.knownOrderIds.has(order.id)) {
+          this.knownOrderIds.add(order.id);
+          this.trigger('order_created', order);
+        }
+        this.trigger('order_updated', order);
+      }
+
+      const hashes = data.hashes || {};
+      if (this.lastHashes.tables !== hashes.tables) this.trigger('table_updated', null);
+      if (this.lastHashes.stalls !== hashes.stalls) this.trigger('stall_updated', null);
+      if (this.lastHashes.menu !== hashes.menu) this.trigger('menu_item_updated', null);
+      if (this.lastHashes.inventory !== hashes.inventory) this.trigger('inventory_updated', null);
+      this.lastHashes = hashes;
+
+      const revenueJson = JSON.stringify(data.revenue || {});
+      if (revenueJson !== this.lastRevenue) {
+        this.lastRevenue = revenueJson;
+        this.trigger('revenue_updated', data.revenue);
+        this.trigger('financial_updated', null);
+        this.trigger('analytics_updated', null);
+      }
+
+      this.lastSync = data.now;
+    } catch (err) {
+      if (this.isConnected) {
+        this.isConnected = false;
+        this.reconnectAttempts++;
+        this.trigger('connection_status', { connected: false, attempts: this.reconnectAttempts });
+      }
+    } finally {
+      this.pollInFlight = false;
+    }
   }
 
   private registerEvent(name: string) {

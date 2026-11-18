@@ -1,4 +1,5 @@
 import { getDhakaDateParts } from '../db.js';
+import { computeCogs } from './cogs.js';
 
 export class BusinessIntelligenceEngine {
   constructor(db) {
@@ -30,7 +31,8 @@ export class BusinessIntelligenceEngine {
       return d === today;
     }).reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
-    const todayCOGS = Math.round(todaySales * 0.40);
+    const todayCOGSInfo = computeCogs(this.db, todayOrders, { dateFrom: today, dateTo: today });
+    const todayCOGS = todayCOGSInfo.cogs;
     const todayGrossProfit = todaySales - todayCOGS;
     const todayNetProfit = todayGrossProfit - todayExpenses;
 

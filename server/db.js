@@ -11,10 +11,11 @@ import { PurchaseReportsEngine } from './accounting/purchaseReports.js';
 import { InventoryReportsEngine } from './accounting/inventoryReports.js';
 import { DailyClosingEngine } from './accounting/dailyClosing.js';
 import { BusinessIntelligenceEngine } from './accounting/biInsights.js';
+import { hydrateFromKv, markDurableDirty } from './persist.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = process.env.DATA_DIR
+export const DATA_DIR = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
   : (process.env.VERCEL ? path.join('/tmp', 'vivacity_data') : path.join(__dirname, 'data'));
 const RESETS_FILE = path.join(DATA_DIR, 'revenue_resets.json');
@@ -82,10 +83,13 @@ class Database {
       serviceChargeRate: 0.03, // 3% service fee (configurable)
       taxEnabled: false,
       serviceChargeEnabled: false,
+      // Food court commission retained from each stall's net sales. Configurable
+      // so the settlement report never has to hardcode a ratio.
+      foodCourtCommissionRate: 0.15,
       demoMode: true,
       businessName: "Vivacity Food Court",
       tagline: "Premier Food Court Hub",
-      qrBaseUrl: process.env.APP_BASE_URL || 'https://vivacityfoodcourt.vercel.app'
+      qrBaseUrl: process.env.APP_BASE_URL || ''
     };
 
     this.tokenCounter = 48; // Starts after seed token #0047
@@ -371,21 +375,11 @@ class Database {
         const parsed = JSON.parse(rawOrders);
         if (Array.isArray(parsed)) {
           this.orders = parsed.map(order => {
-            // Reconcile any historical manual counter orders stuck in PAYMENT DUE
-            if (order.orderSource === 'MANUAL_COUNTER' && order.paymentStatus === 'PAYMENT DUE') {
-              order.paymentStatus = 'PAID';
-              if (!order.paidAt) order.paidAt = order.createdAt || new Date().toISOString();
-              if (order.status === 'NEW') order.status = 'PREPARING';
-              if (!order.kotGenerated) {
-                order.kotGenerated = true;
-                order.kotNumber = order.kotNumber || `KOT-${order.token}`;
-                order.kotGeneratedAt = order.kotGeneratedAt || order.paidAt;
-              }
-              if (Array.isArray(order.stalls)) {
-                order.stalls.forEach(s => {
-                  if (s.status === 'NEW' || s.status === 'PENDING') s.status = 'PREPARING';
-                });
-              }
+            // Legacy compatibility: orders that were already released to the kitchen
+            // were deducted from stock at release time. Mark them so a later
+            // re-release / re-confirm can never deduct the same stock twice.
+            if (order.kotGenerated && order._inventoryDeducted === undefined) {
+              order._inventoryDeducted = true;
             }
             if (Array.isArray(order.stalls)) {
               order.stalls = order.stalls.map(s => {
@@ -432,6 +426,7 @@ class Database {
 
   saveData() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
@@ -454,6 +449,7 @@ class Database {
 
   _saveResetHistory() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(RESET_HISTORY_FILE, JSON.stringify(this.resetHistory, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving reset history:', e); }
@@ -461,6 +457,7 @@ class Database {
 
   _saveArchivedOrders() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(ARCHIVED_ORDERS_FILE, JSON.stringify(this.archivedOrders, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving archived orders:', e); }
@@ -468,6 +465,7 @@ class Database {
 
   _saveArchivedVoidRequests() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(ARCHIVED_VOID_REQUESTS_FILE, JSON.stringify(this.archivedVoidRequests, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving archived void requests:', e); }
@@ -475,6 +473,7 @@ class Database {
 
   _saveRemovedWastage() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(REMOVED_WASTAGE_FILE, JSON.stringify(this.removedWastage, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving removed wastage:', e); }
@@ -482,6 +481,7 @@ class Database {
 
   _saveMovements() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(MOVEMENTS_FILE, JSON.stringify(this.inventoryMovements, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving movements:', e); }
@@ -489,6 +489,7 @@ class Database {
 
   _saveCashReconciliations() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(CASH_RECONCILIATION_FILE, JSON.stringify(this.cashReconciliations, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving cash reconciliations:', e); }
@@ -496,6 +497,7 @@ class Database {
 
   _saveRecipes() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(RECIPES_FILE, JSON.stringify(this.recipes, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving recipes:', e); }
@@ -503,6 +505,7 @@ class Database {
 
   _saveInventory() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(INVENTORY_FILE, JSON.stringify(this.inventory, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving inventory:', e); }
@@ -510,6 +513,7 @@ class Database {
 
   _saveStallStatus() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(STALL_STATUS_FILE, JSON.stringify(this.stallStatus, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving stall status:', e); }
@@ -517,6 +521,7 @@ class Database {
 
   _saveCartReservations() {
     try {
+      markDurableDirty();
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(CART_RESERVATIONS_FILE, JSON.stringify(this.cartReservations, null, 2), 'utf-8');
     } catch (e) { console.error('Error saving cart reservations:', e); }
@@ -1075,6 +1080,7 @@ class Database {
     cartSessionId = null,
     guestCount = 0,
     clientId = null,
+    clientOrderId = null,
     orderSource = "QR_CODE",
     cashierName = null,
     cashierId = null,
@@ -1092,6 +1098,16 @@ class Database {
     autoConfirmPayment = false
   }) {
     const invalidOrder = message => Object.assign(new Error(message), { statusCode: 400 });
+
+    // Idempotency: if the same checkout attempt is submitted twice (double tap,
+    // retry after a lost response), return the order that was already created
+    // instead of charging/creating a second one.
+    if (clientOrderId) {
+      const existing = this.orders.find(
+        o => o.clientOrderId === clientOrderId && o.status !== "CANCELLED"
+      );
+      if (existing) return existing;
+    }
 
     if (!serviceType || (serviceType !== "SELF_SERVICE" && serviceType !== "TABLE_SERVICE")) {
       throw invalidOrder("Please select Self-Service or Table Service to continue.");
@@ -1280,15 +1296,17 @@ class Database {
           discount = coupon.value;
         }
       }
+    } else if (discountAmount > 0) {
+      // The cashier UI already computed the exact discount; use it so the saved
+      // order matches the amount shown at the counter.
+      discount = Math.min(subtotal, Math.max(0, Math.round(discountAmount)));
     } else if (discountPercent > 0) {
       discount = Math.round((subtotal * Math.min(100, Math.max(0, discountPercent))) / 100);
-    } else if (discountAmount > 0) {
-      discount = Math.min(subtotal, Math.max(0, Math.round(discountAmount)));
     }
 
-    const resolvedDiscountPercent = discountPercent > 0
-      ? discountPercent
-      : (discount > 0 && subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0);
+    const resolvedDiscountPercent = discount > 0 && subtotal > 0
+      ? Math.round((discount / subtotal) * 100)
+      : 0;
 
     const isManual = orderSource === "MANUAL_COUNTER";
     const shouldAutoConfirm = Boolean(autoConfirmPayment || isManual);
@@ -1378,6 +1396,7 @@ class Database {
     const order = {
       id: orderId,
       clientId: clientId || cartSessionId || null,
+      clientOrderId: clientOrderId || null,
       token: tokenNum,
       invoiceNo: String(88000 + Number(tokenNum)),
       guestCount: Number.isInteger(guestCount) && guestCount > 0 ? guestCount : 0,
@@ -1520,7 +1539,33 @@ class Database {
     return this.recipes?.[menuItemId] || null;
   }
 
+  /**
+   * Real, configured cost of a menu item.
+   * Uses the stall recipe (sum of its ingredient line costs) when one exists.
+   * Returns null when no recipe/cost is configured - we never invent a cost.
+   */
+  getMenuItemCost(menuItemId) {
+    const recipe = this.getRecipe(menuItemId);
+    if (recipe && Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0) {
+      // `cost` is the configured line cost for that ingredient quantity.
+      const total = recipe.ingredients.reduce((sum, ing) => {
+        const lineCost = Number(ing.cost);
+        if (!Number.isFinite(lineCost) || lineCost <= 0) return sum;
+        return sum + lineCost;
+      }, 0);
+      if (total > 0) return Math.round(total);
+    }
+    const inv = this.inventory?.[menuItemId];
+    const invCost = Number(inv?.unitCost);
+    if (Number.isFinite(invCost) && invCost > 0) return Math.round(invCost);
+    return null;
+  }
+
   _deductInventory(order) {
+    // Idempotency guard: stock must only ever be consumed once per order.
+    if (order._inventoryDeducted) return;
+    order._inventoryDeducted = true;
+
     // Move from reserved to sold (actual deduction at kitchen release)
     let changed = false;
     for (const item of (order.items || [])) {
@@ -1541,6 +1586,9 @@ class Database {
         }
       }
 
+      // Only real configured costs are recorded - no benchmark/estimated ratios.
+      const unitCost = this.getMenuItemCost(item.menuItemId);
+
       this.recordStockMovement({
         menuItemId: item.menuItemId,
         itemName: item.name,
@@ -1551,11 +1599,13 @@ class Database {
         quantityOut: item.quantity,
         previousBalance: prevBal,
         newBalance: newBal,
-        unitCost: Number(inv.unitCost) || Math.round((Number(item.price) || 100) * 0.45),
-        totalValue: (item.quantity) * (Number(inv.unitCost) || Math.round((Number(item.price) || 100) * 0.45)),
+        unitCost: unitCost || 0,
+        totalValue: unitCost ? item.quantity * unitCost : 0,
         refNo: `ORD-${order.token}`,
         user: order.confirmedBy || 'Central Counter',
-        notes: `Order #${order.token} kitchen release`
+        notes: unitCost
+          ? `Order #${order.token} kitchen release`
+          : `Order #${order.token} kitchen release (no recipe cost configured)`
       });
 
       changed = true;
@@ -1570,7 +1620,9 @@ class Database {
   _reverseInventoryDeduction(order) {
     // Reverse a deduction (used for refunds) - Idempotency guard: prevent duplicate reversals
     if (order._inventoryReversed) return;
+    if (!order._inventoryDeducted) return;
     order._inventoryReversed = true;
+    order._inventoryDeducted = false;
     let changed = false;
     for (const item of (order.items || [])) {
       const inv = this.inventory[item.menuItemId];
@@ -1754,16 +1806,52 @@ class Database {
     const order = this.getOrder(orderId);
     if (!order) return null;
 
-    order.paymentStatus = "REFUNDED";
+    // Idempotency: never refund the same order twice.
+    if (order.paymentStatus === "REFUNDED") return order;
+
+    const nowIso = new Date().toISOString();
+    // Only money that was actually collected can be refunded.
+    const wasPaid = order.paymentStatus === "PAID" || order.paymentStatus === "PARTIALLY_REFUNDED";
+    const alreadyRefunded = Array.isArray(order.refunds)
+      ? order.refunds.reduce((s, r) => s + (Number(r.refundAmount) || 0), 0)
+      : 0;
+    const refundAmount = wasPaid ? Math.max(0, (Number(order.grandTotal) || 0) - alreadyRefunded) : 0;
+
     order.status = "CANCELLED";
+    order.paymentStatus = wasPaid ? "REFUNDED" : "CANCELLED";
+
+    if (wasPaid && refundAmount > 0) {
+      const refundTransactionId = `REF-${Date.now().toString().slice(-6)}`;
+      if (!Array.isArray(order.refunds)) order.refunds = [];
+      order.refunds.push({
+        refundAmount,
+        refundedAt: nowIso,
+        refundedBy: staffName,
+        reason,
+        paymentMethod: order.paymentMethod,
+        transactionId: refundTransactionId
+      });
+      order.refundDetails = {
+        refundedAmount: alreadyRefunded + refundAmount,
+        refundAmount,
+        refundedAt: nowIso,
+        refundedBy: staffName,
+        reason,
+        paymentMethod: order.paymentMethod,
+        transactionId: refundTransactionId
+      };
+    }
+
     order.history.push({
       status: "CANCELLED",
-      time: new Date().toISOString(),
-      note: `Payment refunded and order cancelled: ${reason} by ${staffName}.`
+      time: nowIso,
+      note: wasPaid
+        ? `Payment refunded (৳${refundAmount}) and order cancelled: ${reason} by ${staffName}.`
+        : `Order cancelled before payment (no money collected): ${reason} by ${staffName}.`
     });
 
     this.saveData();
-    this.logAudit("ORDER_REFUNDED", `Order #${order.token} refunded (${order.grandTotal}) by ${staffName}: ${reason}`, { orderId });
+    this.logAudit("ORDER_REFUNDED", `Order #${order.token} ${wasPaid ? `refunded (৳${refundAmount})` : 'cancelled (unpaid)'} by ${staffName}: ${reason}`, { orderId });
 
     // Reverse inventory deduction for refunded orders
     this._reverseInventoryDeduction(order);
@@ -1835,7 +1923,8 @@ class Database {
       newSubtotal = Math.max(0, order.subtotal - removalPrice);
       const isTableService = order.serviceType === 'TABLE_SERVICE';
       const waiterCharge = isTableService ? Math.round(newSubtotal * 0.05) : 0;
-      newGrandTotal = Math.max(0, newSubtotal - (order.discount || 0) + waiterCharge);
+      const vatAmount = this.settings.taxEnabled ? Math.round(newSubtotal * (Number(this.settings.taxRate) || 0)) : 0;
+      newGrandTotal = Math.max(0, newSubtotal - (order.discount || 0) + vatAmount + waiterCharge);
       differenceAmount = Math.max(0, order.grandTotal - newGrandTotal);
       if (order.paymentStatus === 'PAID' && differenceAmount > 0) {
         refundRequired = true;
@@ -2114,15 +2203,17 @@ class Database {
         }
       }
 
-      // Recompute subtotal, waiter service charge, and grand total
+      // Recompute subtotal, waiter service charge, VAT and grand total
       const newSubtotal = order.items.reduce((sum, it) => sum + (it.price * it.quantity), 0);
       const isTableService = order.serviceType === 'TABLE_SERVICE';
       const waiterCharge = isTableService ? Math.round(newSubtotal * 0.05) : 0;
-      const newGrandTotal = Math.max(0, newSubtotal - (order.discount || 0) + waiterCharge);
+      const vatAmount = this.settings.taxEnabled ? Math.round(newSubtotal * (Number(this.settings.taxRate) || 0)) : 0;
+      const newGrandTotal = Math.max(0, newSubtotal - (order.discount || 0) + vatAmount + waiterCharge);
       const diffAmount = Math.max(0, originalGrandTotal - newGrandTotal);
 
       order.subtotal = newSubtotal;
       order.serviceCharge = waiterCharge;
+      order.tax = vatAmount;
       order.grandTotal = newGrandTotal;
 
       if (order.paymentStatus === 'PAID' && diffAmount > 0) {
@@ -2584,14 +2675,34 @@ class Database {
       return order;
     }
 
+    // A cancelled or already-refunded order must never be charged again.
+    if (order.status === "CANCELLED" || ["REFUNDED", "CANCELLED"].includes(order.paymentStatus)) {
+      throw Object.assign(
+        new Error(`Cannot confirm payment: order #${order.token} is ${order.status === "CANCELLED" ? "cancelled" : "already refunded"}.`),
+        { statusCode: 400 }
+      );
+    }
+
     // Do not charge or release an incomplete order
     if (order.status === "ACTION REQUIRED" || order.items.some(i => i.isUnavailable)) {
       throw new Error("Cannot confirm payment: order contains unavailable food items. Incomplete orders cannot be charged or released.");
     }
 
+    // Physical card terminal must be approved with a reference before it can be paid.
+    if (paymentMethod === "Card / Physical POS Terminal" || order.paymentMethod === "Card / Physical POS Terminal") {
+      const status = order.cardPosStatus;
+      const ref = order.cardPosRef || order.transactionId;
+      if (status !== "APPROVED" || !ref) {
+        throw Object.assign(
+          new Error("Cannot confirm payment: physical POS card terminal payment is not APPROVED with a transaction reference."),
+          { statusCode: 400 }
+        );
+      }
+    }
+
     order.paymentStatus = "PAID";
     if (paymentMethod) order.paymentMethod = paymentMethod;
-    order.transactionId = transactionId || "TXN-" + randomUUID().slice(0, 10).toUpperCase();
+    order.transactionId = transactionId || order.transactionId || "TXN-" + randomUUID().slice(0, 10).toUpperCase();
     order.paidAt = new Date().toISOString();
 
     order.history.push({
@@ -2602,8 +2713,10 @@ class Database {
 
     this.logAudit("PAYMENT_CONFIRMED", `Payment confirmed for Order #${order.token} (৳${order.grandTotal}) via ${order.paymentMethod}`);
 
-    // Generate KOT and release order to kitchen
-    this.releaseOrderToKitchen(orderId);
+    // Generate KOT and release order to kitchen (only once)
+    if (!order.kotGenerated) {
+      this.releaseOrderToKitchen(orderId);
+    }
 
     this.saveData();
 
@@ -2620,6 +2733,11 @@ class Database {
   releaseOrderToKitchen(orderId) {
     const order = this.getOrder(orderId);
     if (!order) return;
+
+    // Idempotency: an order that already has a KOT must not be released twice.
+    if (order.kotGenerated && ["PREPARING", "READY", "COMPLETED", "OUT FOR DELIVERY", "DELIVERED"].includes(order.status)) {
+      return order;
+    }
 
     order.status = "PREPARING";
     order.kotGenerated = true;
@@ -3059,8 +3177,11 @@ class Database {
           }
         }
       }
-      const commissionRate = 0.15; // 15% food court commission
-      const commission = Math.round(gross * commissionRate);
+      const commissionRate = Number(this.settings?.foodCourtCommissionRate);
+      const effectiveRate = Number.isFinite(commissionRate) && commissionRate >= 0
+        ? Math.min(1, commissionRate)
+        : 0.15;
+      const commission = Math.round(gross * effectiveRate);
       const netSettlement = gross - commission;
 
       return {
@@ -3069,7 +3190,7 @@ class Database {
         orders: orderCount,
         grossSales: gross,
         discount: 0,
-        commissionRate: "15%",
+        commissionRate: `${Math.round(effectiveRate * 1000) / 10}%`,
         commission,
         netSettlement
       };
@@ -4193,26 +4314,59 @@ class Database {
       }
     }
 
-    // Revenue from actual eligible paid orders (avoid duplicate counting, exclude unpaid/pending/cancelled)
+    // Revenue from orders actually paid on this date. Refunded orders keep their
+    // original sale in gross revenue; the money paid back is subtracted below.
     const dayOrders = this.orders.filter(o => {
-      if (o.paymentStatus !== 'PAID' || o.status === 'CANCELLED') return false;
-      const paidDateTimestamp = o.paidAt || o.createdAt;
-      if (!paidDateTimestamp) return false;
-      const orderPaidMs = new Date(paidDateTimestamp).getTime();
+      if (!o.paidAt) return false;
+      if (o.paymentStatus !== 'PAID' && o.paymentStatus !== 'REFUNDED') return false;
+      const orderPaidMs = new Date(o.paidAt).getTime();
+      if (!Number.isFinite(orderPaidMs)) return false;
       const orderParts = getDhakaDateParts(new Date(orderPaidMs));
       if (orderParts.dateStr !== dateStr) return false;
       if (dailyResetCutoff > 0 && orderPaidMs <= dailyResetCutoff) return false;
       return true;
     });
-    const revenue = dayOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || 0), 0);
+    const grossRevenue = dayOrders.reduce((sum, o) => sum + (Number(o.grandTotal) || 0), 0);
+
+    // Refunds actually paid out on this date (regardless of the original sale
+    // date). An unpaid cancellation is not a refund and must not reduce revenue.
+    let refunds = 0;
+    for (const order of this.orders) {
+      const list = Array.isArray(order.refunds) ? order.refunds : [];
+      if (list.length > 0) {
+        for (const r of list) {
+          const amount = Number(r.refundAmount ?? r.amount) || 0;
+          const at = r.refundedAt || r.date || null;
+          if (amount <= 0 || !at) continue;
+          if (getDhakaDateParts(new Date(at)).dateStr !== dateStr) continue;
+          refunds += amount;
+        }
+        continue;
+      }
+      // Legacy orders written before `refunds[]` existed.
+      if (order.paymentStatus === 'REFUNDED' && order.refundDetails) {
+        const amount = Number(order.refundDetails.refundAmount) || 0;
+        const at = order.refundDetails.refundedAt || null;
+        if (amount > 0 && at && getDhakaDateParts(new Date(at)).dateStr === dateStr) {
+          refunds += amount;
+        }
+      }
+    }
 
     // Expenses on that date
     const dayExpenses = this.expenses.filter(e => e.date === dateStr);
     const expenses = dayExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
+    // `revenue` stays the figure shown on the dashboard: money kept for the day
+    // (gross collections minus refunds paid out that day).
+    const revenue = grossRevenue - refunds;
+
     return {
       date: dateStr,
       revenue,
+      grossRevenue,
+      refunds,
+      netRevenue: revenue,
       expenses,
       profit: revenue - expenses,
       revenueOrders: dayOrders.length,
@@ -4647,6 +4801,16 @@ class Database {
       history
     };
   }
+}
+
+// Serverless deployments: restore the durable copy of the data files before the
+// in-memory database is constructed, so orders survive cold starts.
+const hydrationResult = await hydrateFromKv(DATA_DIR);
+if (hydrationResult.hydrated > 0 || hydrationResult.seeded > 0) {
+  console.log(
+    `[storage] Restored ${hydrationResult.hydrated} data file(s) from durable storage` +
+    (hydrationResult.seeded > 0 ? ` (${hydrationResult.seeded} config file(s) seeded).` : '.')
+  );
 }
 
 export const db = new Database();

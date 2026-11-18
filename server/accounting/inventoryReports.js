@@ -1,4 +1,5 @@
 import { getDhakaDateParts } from '../db.js';
+import { getMenuItemCost } from './cogs.js';
 
 export class InventoryReportsEngine {
   constructor(db) {
@@ -19,7 +20,7 @@ export class InventoryReportsEngine {
         soldQty: 0,
         reservedQty: 0,
         manuallyDisabled: false,
-        unitCost: Math.round(item.price * 0.45), // standard 45% default food cost if unconfigured
+        unitCost: null,
         minStock: 10,
         reorderLevel: 15,
         maxStock: 100,
@@ -32,7 +33,13 @@ export class InventoryReportsEngine {
       const reserved = Number(inv.reservedQty) || 0;
       const physicalStock = Math.max(0, prep - sold);
       const availableStock = Math.max(0, physicalStock - reserved);
-      const unitCost = Number(inv.unitCost) || Math.round((Number(item.price) || 100) * 0.45);
+      // Cost comes from the recipe / configured unit cost only. Unknown cost is
+      // reported as 0 and flagged, never guessed from the selling price.
+      const configuredCost = Number(inv.unitCost);
+      const unitCost = Number.isFinite(configuredCost) && configuredCost > 0
+        ? configuredCost
+        : (getMenuItemCost(this.db, item.id) || 0);
+      const costConfigured = unitCost > 0;
 
       const minStock = inv.minStock !== undefined ? Number(inv.minStock) : 10;
       const reorderLevel = inv.reorderLevel !== undefined ? Number(inv.reorderLevel) : 15;
@@ -60,6 +67,7 @@ export class InventoryReportsEngine {
         preparedQty: prep,
         soldQty: sold,
         unitCost,
+        costConfigured,
         stockValue: Math.round(physicalStock * unitCost),
         minStock,
         reorderLevel,
@@ -89,6 +97,7 @@ export class InventoryReportsEngine {
     const totalReservedStock = items.reduce((s, i) => s + i.reservedStock, 0);
     const totalAvailableStock = items.reduce((s, i) => s + i.availableStock, 0);
     const totalValuation = items.reduce((s, i) => s + i.stockValue, 0);
+    const costedItems = items.filter(i => i.costConfigured).length;
 
     return {
       items: items.sort((a, b) => b.stockValue - a.stockValue),
@@ -96,7 +105,10 @@ export class InventoryReportsEngine {
       totalReservedStock,
       totalAvailableStock,
       totalValuation,
-      totalItemCount: items.length
+      totalItemCount: items.length,
+      costedItemCount: costedItems,
+      uncostedItemCount: items.length - costedItems,
+      costCoveragePercent: items.length > 0 ? Number(((costedItems / items.length) * 100).toFixed(1)) : 0
     };
   }
 
