@@ -4,15 +4,19 @@ import {
   MenuItem,
   Order,
   MenuVariant,
-  MenuAddOn
+  MenuAddOn,
+  Table
 } from '../../types';
+import { realtime } from '../../services/events';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from 'wouter';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 import {
   ArrowLeft,
+  ArrowRight,
   Search,
+  ShoppingCart,
   Plus,
   Minus,
   Trash2,
@@ -25,15 +29,12 @@ import {
   User,
   Lock,
   RotateCcw,
+  Sparkles,
   Delete,
-  UtensilsCrossed,
-  Zap,
-  Wallet,
-  Percent,
-  X
+  Check,
+  Receipt
 } from 'lucide-react';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 interface CartItem {
   cartId: string;
   menuItem: MenuItem;
@@ -45,50 +46,40 @@ interface CartItem {
   totalPrice: number;
 }
 
-type POSStep = 'ORDER' | 'PAYMENT';
-type DiscountType = 'NONE' | '5' | '10' | '15' | 'CUSTOM';
-type PaymentMethodId = 'CASH' | 'bKash' | 'Nagad' | 'Card / Physical POS Terminal' | 'NFC / Contactless';
-
-// ─── Stall colour palette ─────────────────────────────────────────────────────
-const STALL_COLORS: Record<string, string> = {
-  'fusion-cafe':     '#f97316',
-  'top-town':        '#8b5cf6',
-  'momo-buzz':       '#10b981',
-  'waffle-city':     '#ec4899',
-  'live-station':    '#ef4444',
-  'burger-bar':      '#f59e0b',
-  'drinks-beverage': '#06b6d4',
-  ALL:               '#6b7280',
-};
-
-// ─── Component ────────────────────────────────────────────────────────────────
 export const ManualPOSPage: React.FC = () => {
   const [, setLocation] = useLocation();
   const { currentUser } = useAuth();
 
-  // Master data
+  // TWO-STEP WORKFLOW STATE
+  // STEP 1: 'SELECT_FOOD' (Browse food, customize, add to cart, configure table)
+  // STEP 2: 'PAYMENT' (Order summary, optional discount, cash calculator, keypad, charge)
+  const [currentStep, setCurrentStep] = useState<'SELECT_FOOD' | 'PAYMENT'>('SELECT_FOOD');
+
+  // Master Data
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Navigation & filters
+  // Filters & Navigation
   const [selectedStallId, setSelectedStallId] = useState<string>('ALL');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Cart
+  // Cart State (Empty initially)
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Order details
+  // Order Details: CLEAN INITIAL STATE (Unselected)
   const [orderType, setOrderType] = useState<'DINE_IN' | 'TAKEAWAY' | null>(null);
-  const [tableId, setTableId] = useState<string>('');
-  const [serviceType, setServiceType] = useState<'SELF_SERVICE' | 'TABLE_SERVICE' | null>(null);
+  const [tableId, setTableId] = useState<string>(''); // Unselected initially
+  const [lastTableId, setLastTableId] = useState<string>('');
+  const [tables, setTables] = useState<Table[]>([]);
+  const [serviceType, setServiceType] = useState<'SELF_SERVICE' | 'TABLE_SERVICE' | null>(null); // Unselected initially
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [customerNotes, setCustomerNotes] = useState<string>('');
 
-  // Discount
-  const [discountType, setDiscountType] = useState<DiscountType>('NONE');
+  // Discount System (100% Optional, defaults to 0% / NONE)
+  const [discountType, setDiscountType] = useState<'NONE' | '5' | '10' | '15' | 'CUSTOM'>('NONE');
   const [customDiscountMode, setCustomDiscountMode] = useState<'PERCENT' | 'FIXED'>('PERCENT');
   const [customDiscountPercent, setCustomDiscountPercent] = useState<string>('');
   const [customDiscountAmount, setCustomDiscountAmount] = useState<string>('');
@@ -96,86 +87,215 @@ export const ManualPOSPage: React.FC = () => {
   const [managerPin, setManagerPin] = useState<string>('');
   const [managerApproved, setManagerApproved] = useState<boolean>(false);
   const [pinError, setPinError] = useState<string | null>(null);
-  const [showDiscountPanel, setShowDiscountPanel] = useState(false);
 
-  // Payment
-  const [step, setStep] = useState<POSStep>('ORDER');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>('CASH');
+  // Payment System
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'bKash' | 'Nagad' | 'Card / Physical POS Terminal' | 'NFC / Contactless'>('CASH');
   const [cashReceivedInput, setCashReceivedInput] = useState<string>('');
   const [mobileTrxRef, setMobileTrxRef] = useState<string>('');
+
+  // Physical Card POS Terminal System
   const [cardTerminalName, setCardTerminalName] = useState<string>('Terminal #1 (Ingenico Desk 3500)');
   const [cardApprovalCode, setCardApprovalCode] = useState<string>('');
   const [cardPosStatus, setCardPosStatus] = useState<'APPROVED' | 'PENDING' | 'DECLINED'>('APPROVED');
 
-  // Customisation modal
+  // Customization modal
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
   const [tempVariant, setTempVariant] = useState<MenuVariant | null>(null);
   const [tempAddOns, setTempAddOns] = useState<MenuAddOn[]>([]);
   const [tempNotes, setTempNotes] = useState<string>('');
 
-  // Receipt / status
+  // Order success modal / receipt modal
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Live clock
+  // Live Clock
   const [currentTime, setCurrentTime] = useState<string>('');
   useEffect(() => {
-    const update = () =>
-      setCurrentTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
-    update();
-    const t = setInterval(update, 1000);
-    return () => clearInterval(t);
+    const updateTime = () => {
+      const d = new Date();
+      setCurrentTime(d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Tables
-  const allTables = useMemo(() =>
-    Array.from({ length: 55 }, (_, i) => `T${(i + 1).toString().padStart(2, '0')}`), []);
+  // All Configured Dining Tables (Loaded from DB with T01-T55 fallback)
+  const allTables = useMemo(() => {
+    if (tables && tables.length > 0) {
+      return tables.map(t => ({
+        id: t.id,
+        name: t.name || `Table ${t.id}`,
+        zone: t.zone || '',
+        seats: t.seats || 4,
+        status: t.status || 'AVAILABLE'
+      }));
+    }
+    return Array.from({ length: 55 }, (_, i) => {
+      const id = `T${(i + 1).toString().padStart(2, '0')}`;
+      return {
+        id,
+        name: `Table ${id}`,
+        zone: i < 15 ? 'Zone A (Central Piazza)' : i < 30 ? 'Zone B (Garden Terrace)' : i < 45 ? 'Zone C (Family Hall)' : 'Executive VIP Lounge',
+        seats: 4,
+        status: 'AVAILABLE' as const
+      };
+    });
+  }, [tables]);
+  // Helper to extract actual configured stock information (never fake or hardcoded)
+  const getItemStockInfo = useCallback((item: MenuItem) => {
+    const isManuallyDisabled = item.isAvailable === false || item.inv?.manuallyDisabled === true;
+    const hasConfig = (item.inv && item.inv.preparedQty !== null && item.inv.preparedQty !== undefined) ||
+                      (item.available !== null && item.available !== undefined);
 
-  // Fetch data
+    if (!hasConfig) {
+      return {
+        hasStockConfig: false,
+        availableQty: null as number | null,
+        isOutOfStock: isManuallyDisabled
+      };
+    }
+
+    const availableQty = typeof item.inv?.available === 'number'
+      ? item.inv.available
+      : (typeof item.available === 'number' ? item.available : 0);
+
+    const isOutOfStock = isManuallyDisabled || item.inv?.stockOut === true || availableQty <= 0;
+
+    return {
+      hasStockConfig: true,
+      availableQty,
+      isOutOfStock
+    };
+  }, []);
+
+
+  // Fetch stalls and menu
   useEffect(() => {
+    let isMounted = true;
     setLoading(true);
-    Promise.all([api.getStalls().catch(() => []), api.getMenuItems().catch(() => [])])
-      .then(([s, m]) => { setStalls(s || []); setMenuItems(m || []); })
-      .finally(() => setLoading(false));
+
+    Promise.all([
+      api.getStalls().catch(() => []),
+      api.getMenuItems().catch(() => []),
+      api.getTables().catch(() => [])
+    ])
+      .then(([stallsData, itemsData, tablesData]) => {
+        if (!isMounted) return;
+        setStalls(stallsData || []);
+        setMenuItems(itemsData || []);
+        if (tablesData && Array.isArray(tablesData) && tablesData.length > 0) {
+          setTables(tablesData);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // Derived
-  const availableCategories = useMemo(() => {
-    const src = selectedStallId === 'ALL' ? menuItems : menuItems.filter(i => i.stallId === selectedStallId);
-    const cats = new Set<string>();
-    src.forEach(i => { if (i.category) cats.add(i.category); });
-    return Array.from(cats);
-  }, [selectedStallId, menuItems]);
 
-  const filteredMenuItems = useMemo(() =>
-    menuItems.filter(item => {
-      if (selectedStallId !== 'ALL' && item.stallId !== selectedStallId) return false;
-      if (selectedCategory !== 'ALL' && item.category !== selectedCategory) return false;
+  // Real-time synchronization for stock updates, tables, and orders
+  useEffect(() => {
+    const refreshMenuItems = () => {
+      api.getMenuItems().then(items => {
+        if (items && Array.isArray(items)) setMenuItems(items);
+      }).catch(() => {});
+    };
+
+    const refreshTables = () => {
+      api.getTables().then(tbls => {
+        if (tbls && Array.isArray(tbls) && tbls.length > 0) setTables(tbls);
+      }).catch(() => {});
+    };
+
+    const unsubInv = realtime.on('inventory_updated', refreshMenuItems);
+    const unsubMenu = realtime.on('menu_item_updated', refreshMenuItems);
+    const unsubOrder = realtime.on('order_updated', () => {
+      refreshMenuItems();
+      refreshTables();
+    });
+    const unsubTable = realtime.on('table_updated', refreshTables);
+
+    return () => {
+      unsubInv();
+      unsubMenu();
+      unsubOrder();
+      unsubTable();
+    };
+  }, []);
+
+  // Current categories for the selected stall
+  const availableCategories = useMemo(() => {
+    if (selectedStallId === 'ALL') {
+      const cats = new Set<string>();
+      menuItems.forEach(i => {
+        if (i.category) cats.add(i.category);
+      });
+      return Array.from(cats);
+    }
+    const stall = stalls.find(s => s.id === selectedStallId);
+    if (stall && stall.categories && stall.categories.length > 0) {
+      return stall.categories;
+    }
+    const cats = new Set<string>();
+    menuItems.filter(i => i.stallId === selectedStallId).forEach(i => {
+      if (i.category) cats.add(i.category);
+    });
+    return Array.from(cats);
+  }, [selectedStallId, stalls, menuItems]);
+
+  // Filtered menu items
+  const filteredMenuItems = useMemo(() => {
+    return menuItems.filter(item => {
+      if (selectedStallId !== 'ALL' && item.stallId !== selectedStallId) {
+        return false;
+      }
+      if (selectedCategory !== 'ALL' && item.category !== selectedCategory) {
+        return false;
+      }
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        if (!item.name.toLowerCase().includes(q) &&
-            !item.category?.toLowerCase().includes(q) &&
-            !item.description?.toLowerCase().includes(q)) return false;
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = item.name.toLowerCase().includes(q);
+        const matchesCategory = item.category?.toLowerCase().includes(q);
+        const matchesDesc = item.description?.toLowerCase().includes(q);
+        if (!matchesName && !matchesCategory && !matchesDesc) {
+          return false;
+        }
       }
       return true;
-    }), [menuItems, selectedStallId, selectedCategory, searchQuery]);
+    });
+  }, [menuItems, selectedStallId, selectedCategory, searchQuery]);
 
-  // Financials
-  const subtotal = useMemo(() => cart.reduce((s, i) => s + i.totalPrice, 0), [cart]);
-  const serviceCharge = useMemo(() => serviceType === 'TABLE_SERVICE' ? Math.round(subtotal * 0.05) : 0, [serviceType, subtotal]);
+  // Financial Calculations
+  const subtotal = useMemo(() => {
+    return cart.reduce((sum, item) => sum + item.totalPrice, 0);
+  }, [cart]);
+
+  // Table Service adds exactly 5% waiter service fee on subtotal; Self-Service is ৳0
+  const serviceCharge = useMemo(() => {
+    return serviceType === 'TABLE_SERVICE' ? Math.round(subtotal * 0.05) : 0;
+  }, [serviceType, subtotal]);
+
+  // Discount calculations (Optional)
   const effectiveDiscountPercent = useMemo(() => {
     if (discountType === '5') return 5;
     if (discountType === '10') return 10;
     if (discountType === '15') return 15;
     if (discountType === 'CUSTOM') {
       if (customDiscountMode === 'PERCENT') {
-        const v = parseFloat(customDiscountPercent);
-        return !isNaN(v) && v > 0 ? Math.min(100, v) : 0;
+        const val = parseFloat(customDiscountPercent);
+        return !isNaN(val) && val > 0 ? Math.min(100, val) : 0;
       } else {
-        const a = parseFloat(customDiscountAmount);
-        if (!isNaN(a) && a > 0 && subtotal > 0) return Math.min(100, Math.round((a / subtotal) * 100));
+        const amt = parseFloat(customDiscountAmount);
+        if (!isNaN(amt) && amt > 0 && subtotal > 0) {
+          return Math.min(100, Math.round((amt / subtotal) * 100));
+        }
       }
     }
     return 0;
@@ -184,210 +304,450 @@ export const ManualPOSPage: React.FC = () => {
   const discountAmount = useMemo(() => {
     if (subtotal <= 0 || discountType === 'NONE') return 0;
     if (discountType === 'CUSTOM' && customDiscountMode === 'FIXED') {
-      const a = parseFloat(customDiscountAmount);
-      return !isNaN(a) && a > 0 ? Math.min(subtotal, Math.round(a)) : 0;
+      const amt = parseFloat(customDiscountAmount);
+      return !isNaN(amt) && amt > 0 ? Math.min(subtotal, Math.round(amt)) : 0;
     }
-    return effectiveDiscountPercent > 0 ? Math.round((subtotal * effectiveDiscountPercent) / 100) : 0;
+    if (effectiveDiscountPercent <= 0) return 0;
+    return Math.round((subtotal * effectiveDiscountPercent) / 100);
   }, [subtotal, discountType, customDiscountMode, customDiscountAmount, effectiveDiscountPercent]);
 
+  // Discount requires Manager Approval if:
+  // User is Cashier and discount > 10%
   const requiresManagerApproval = useMemo(() => {
-    const isHigh = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'].includes(currentUser.role);
-    return !isHigh && effectiveDiscountPercent > 10;
+    const isHighRank = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER'].includes(currentUser.role);
+    if (isHighRank) return false;
+    return effectiveDiscountPercent > 10;
   }, [currentUser.role, effectiveDiscountPercent]);
 
-  const netPayable = useMemo(() => Math.max(0, subtotal - discountAmount + serviceCharge), [subtotal, discountAmount, serviceCharge]);
-  const cashReceived = useMemo(() => { const n = parseFloat(cashReceivedInput); return isNaN(n) ? 0 : n; }, [cashReceivedInput]);
-  const changeToReturn = useMemo(() => paymentMethod === 'CASH' && cashReceived >= netPayable ? cashReceived - netPayable : 0, [paymentMethod, cashReceived, netPayable]);
-  const remainingDue = useMemo(() => paymentMethod === 'CASH' && cashReceived < netPayable ? netPayable - cashReceived : 0, [paymentMethod, cashReceived, netPayable]);
-  const totalItems = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart]);
+  const netPayable = useMemo(() => {
+    return Math.max(0, subtotal - discountAmount + serviceCharge);
+  }, [subtotal, discountAmount, serviceCharge]);
 
-  // Cart handlers
-  const handleAddToCart = useCallback((item: MenuItem) => {
-    if (item.isAvailable === false) return;
-    if ((item.variants?.length ?? 0) > 0 || (item.addOns?.length ?? 0) > 0) {
+  // Cash Calculation
+  const cashReceivedNumber = useMemo(() => {
+    const num = parseFloat(cashReceivedInput);
+    return isNaN(num) ? 0 : num;
+  }, [cashReceivedInput]);
+
+  const changeToReturn = useMemo(() => {
+    if (paymentMethod !== 'CASH') return 0;
+    return cashReceivedNumber >= netPayable ? cashReceivedNumber - netPayable : 0;
+  }, [paymentMethod, cashReceivedNumber, netPayable]);
+
+  const remainingCashDue = useMemo(() => {
+    if (paymentMethod !== 'CASH') return 0;
+    return cashReceivedNumber < netPayable ? netPayable - cashReceivedNumber : 0;
+  }, [paymentMethod, cashReceivedNumber, netPayable]);
+
+  // Add Item to Cart (with stock validation)
+  const handleAddToCart = (item: MenuItem) => {
+    const stockInfo = getItemStockInfo(item);
+    if (stockInfo.isOutOfStock) {
+      setSubmitError(`"${item.name}" is currently out of stock.`);
+      return;
+    }
+
+    if (stockInfo.hasStockConfig && stockInfo.availableQty !== null) {
+      const currentInCart = cart
+        .filter(c => c.menuItem.id === item.id)
+        .reduce((sum, c) => sum + c.quantity, 0);
+      if (currentInCart >= stockInfo.availableQty) {
+        setSubmitError(`Cannot add more "${item.name}". Only ${stockInfo.availableQty} portion(s) available in stock.`);
+        return;
+      }
+    }
+
+    // If item has variants or add-ons, open customization modal
+    if ((item.variants && item.variants.length > 0) || (item.addOns && item.addOns.length > 0) || (item.burgerPatties && item.burgerPatties.length > 0)) {
       setCustomizingItem(item);
       setTempVariant(item.variants ? item.variants[0] : null);
       setTempAddOns([]);
       setTempNotes('');
       return;
     }
-    setCart(prev => {
-      const idx = prev.findIndex(c => c.menuItem.id === item.id && !c.selectedVariant && c.selectedAddOns.length === 0);
-      if (idx > -1) {
-        const u = [...prev];
-        u[idx] = { ...u[idx], quantity: u[idx].quantity + 1, totalPrice: (u[idx].quantity + 1) * u[idx].unitPrice };
-        return u;
-      }
-      return [...prev, { cartId: `${item.id}-std-${Date.now()}`, menuItem: item, quantity: 1, selectedAddOns: [], unitPrice: item.price, totalPrice: item.price }];
-    });
-  }, []);
 
-  const handleConfirmCustomization = useCallback(() => {
-    if (!customizingItem) return;
-    let unitPrice = customizingItem.price;
-    if (tempVariant) unitPrice = tempVariant.price;
-    unitPrice += tempAddOns.reduce((s, a) => s + a.price, 0);
-    const cartId = `${customizingItem.id}-${tempVariant?.id || 'base'}-${Date.now()}`;
-    setCart(prev => [...prev, { cartId, menuItem: customizingItem, quantity: 1, selectedVariant: tempVariant || undefined, selectedAddOns: tempAddOns, notes: tempNotes.trim() || undefined, unitPrice, totalPrice: unitPrice }]);
-    setCustomizingItem(null);
-  }, [customizingItem, tempVariant, tempAddOns, tempNotes]);
+    // Direct add without customization
+    const cartId = `${item.id}-std-${Date.now()}`;
+    const existingIndex = cart.findIndex(c => c.menuItem.id === item.id && !c.selectedVariant && c.selectedAddOns.length === 0);
 
-  const handleQty = useCallback((cartId: string, delta: number) => {
-    setCart(prev => prev.map(i => {
-      if (i.cartId !== cartId) return i;
-      const q = i.quantity + delta;
-      return q <= 0 ? null! : { ...i, quantity: q, totalPrice: q * i.unitPrice };
-    }).filter(Boolean) as CartItem[]);
-  }, []);
-
-  const handleRemove = useCallback((cartId: string) => {
-    setCart(prev => prev.filter(i => i.cartId !== cartId));
-  }, []);
-
-  const resetPOSForm = useCallback(() => {
-    setCart([]); setOrderType(null); setTableId(''); setServiceType(null);
-    setCustomerName(''); setCustomerPhone(''); setCustomerNotes('');
-    setDiscountType('NONE'); setCustomDiscountMode('PERCENT');
-    setCustomDiscountPercent(''); setCustomDiscountAmount('');
-    setDiscountReason(''); setManagerPin(''); setManagerApproved(false);
-    setPinError(null); setPaymentMethod('CASH'); setCashReceivedInput('');
-    setMobileTrxRef(''); setCardApprovalCode(''); setCardPosStatus('APPROVED');
-    setSubmitError(null); setStep('ORDER'); setShowDiscountPanel(false);
-  }, []);
-
-  const handleClearCart = useCallback(() => {
-    if (window.confirm('Clear cart and start fresh?')) resetPOSForm();
-  }, [resetPOSForm]);
-
-  const handleKeypadPress = useCallback((val: string) => {
-    if (val === 'C') { setCashReceivedInput(''); return; }
-    if (val === '⌫') { setCashReceivedInput(p => p.slice(0, -1)); return; }
-    if (val === '.') { setCashReceivedInput(p => p.includes('.') ? p : (p ? p + '.' : '0.')); return; }
-    if (val === '00') { setCashReceivedInput(p => (p && p !== '0') ? p + '00' : p); return; }
-    setCashReceivedInput(p => p === '0' ? val : p + val);
-  }, []);
-
-  const handleProceedToPayment = useCallback(() => {
+    if (existingIndex > -1) {
+      const updated = [...cart];
+      updated[existingIndex].quantity += 1;
+      updated[existingIndex].totalPrice = updated[existingIndex].quantity * updated[existingIndex].unitPrice;
+      setCart(updated);
+    } else {
+      setCart(prev => [
+        ...prev,
+        {
+          cartId,
+          menuItem: item,
+          quantity: 1,
+          selectedAddOns: [],
+          unitPrice: item.price,
+          totalPrice: item.price
+        }
+      ]);
+    }
     setSubmitError(null);
-    if (cart.length === 0) { setSubmitError('Cart is empty. Add food items first.'); return; }
-    if (!orderType) { setSubmitError('Select Dine-in or Takeaway.'); return; }
-    if (orderType === 'DINE_IN' && !tableId) { setSubmitError('Select a dining table (T01–T55).'); return; }
-    if (orderType === 'DINE_IN' && !serviceType) { setSubmitError('Select Service Style.'); return; }
-    setStep('PAYMENT');
-  }, [cart, orderType, tableId, serviceType]);
+  };
 
+  // Confirm Customization & Add to Cart
+  const handleConfirmCustomization = () => {
+    if (!customizingItem) return;
+
+    let unitPrice = customizingItem.price;
+    if (tempVariant) {
+      unitPrice = tempVariant.price;
+    }
+    const addOnsTotal = tempAddOns.reduce((sum, a) => sum + a.price, 0);
+    unitPrice += addOnsTotal;
+
+    const cartId = `${customizingItem.id}-${tempVariant?.id || 'base'}-${tempAddOns.map(a => a.id).sort().join('-')}-${Date.now()}`;
+
+    setCart(prev => [
+      ...prev,
+      {
+        cartId,
+        menuItem: customizingItem,
+        quantity: 1,
+        selectedVariant: tempVariant || undefined,
+        selectedAddOns: tempAddOns,
+        notes: tempNotes.trim() || undefined,
+        unitPrice,
+        totalPrice: unitPrice
+      }
+    ]);
+
+    setCustomizingItem(null);
+  };
+
+  const handleUpdateQuantity = (cartId: string, delta: number) => {
+    if (delta > 0) {
+      const target = cart.find(c => c.cartId === cartId);
+      if (target) {
+        const stockInfo = getItemStockInfo(target.menuItem);
+        if (stockInfo.hasStockConfig && stockInfo.availableQty !== null) {
+          const currentTotal = cart
+            .filter(c => c.menuItem.id === target.menuItem.id)
+            .reduce((sum, c) => sum + c.quantity, 0);
+          if (currentTotal + delta > stockInfo.availableQty) {
+            setSubmitError(`Only ${stockInfo.availableQty} portion(s) available for "${target.menuItem.name}".`);
+            return;
+          }
+        }
+      }
+    }
+
+    setCart(prev => {
+      return prev
+        .map(item => {
+          if (item.cartId === cartId) {
+            const newQty = item.quantity + delta;
+            if (newQty <= 0) return null;
+            return {
+              ...item,
+              quantity: newQty,
+              totalPrice: newQty * item.unitPrice
+            };
+          }
+          return item;
+        })
+        .filter(Boolean) as CartItem[];
+    });
+    setSubmitError(null);
+  };
+
+  const handleRemoveItem = (cartId: string) => {
+    setCart(prev => prev.filter(item => item.cartId !== cartId));
+  };
+
+  // Complete Reset to Clean Initial State (Called only after confirmed success or explicit clear)
+  const resetPOSForm = () => {
+    setCart([]);
+    setOrderType(null); // Unselected
+    setTableId('');     // Unselected
+    setLastTableId('');
+    setServiceType(null); // Unselected
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerNotes('');
+    setDiscountType('NONE');
+    setCustomDiscountMode('PERCENT');
+    setCustomDiscountPercent('');
+    setCustomDiscountAmount('');
+    setDiscountReason('');
+    setManagerPin('');
+    setManagerApproved(false);
+    setPinError(null);
+    setPaymentMethod('CASH');
+    setCashReceivedInput('');
+    setMobileTrxRef('');
+    setCardApprovalCode('');
+    setCardPosStatus('APPROVED');
+    setSubmitError(null);
+    setCurrentStep('SELECT_FOOD');
+  };
+
+  const handleClearCart = () => {
+    if (window.confirm('Are you sure you want to clear the entire cart and start fresh?')) {
+      resetPOSForm();
+    }
+  };
+
+  // Step 1 -> Step 2 validation
+  const handleProceedToPayment = () => {
+    setSubmitError(null);
+    if (cart.length === 0) {
+      setSubmitError('Cart is empty. Please select food items first.');
+      return;
+    }
+    if (!orderType) {
+      setSubmitError('Please select Dine-in or Takeaway to proceed.');
+      return;
+    }
+    if (orderType === 'DINE_IN' && !tableId) {
+      setSubmitError('Please select a Dining Table (T01–T55).');
+      return;
+    }
+    if (orderType === 'DINE_IN' && !serviceType) {
+      setSubmitError('Please select Service Style (Self-Service or Table Service).');
+      return;
+    }
+    setCurrentStep('PAYMENT');
+  };
+
+  // Verify Manager PIN for >10% discount
+  const handleVerifyManagerPin = () => {
+    setPinError(null);
+    if (managerPin === '1234') {
+      setManagerApproved(true);
+      setPinError(null);
+    } else {
+      setPinError('Invalid Manager PIN. Default is 1234.');
+    }
+  };
+
+  // Keypad Click Handler for Cash Calculator
+  const handleKeypadPress = (val: string) => {
+    if (val === 'CLEAR') {
+      setCashReceivedInput('');
+    } else if (val === 'BACKSPACE') {
+      setCashReceivedInput(prev => prev.slice(0, -1));
+    } else if (val === '.') {
+      if (!cashReceivedInput.includes('.')) {
+        setCashReceivedInput(prev => (prev ? prev + '.' : '0.'));
+      }
+    } else if (val === '00') {
+      if (cashReceivedInput && cashReceivedInput !== '0') {
+        setCashReceivedInput(prev => prev + '00');
+      }
+    } else {
+      if (cashReceivedInput === '0') {
+        setCashReceivedInput(val);
+      } else {
+        setCashReceivedInput(prev => prev + val);
+      }
+    }
+  };
+
+  // Submit Final Order & Payment to Server
   const handleSubmitOrder = async () => {
     if (submitting) return;
-    if (cart.length === 0) { setSubmitError('Cart is empty.'); return; }
-    if (!orderType) { setSubmitError('Select Dine-in or Takeaway.'); return; }
-    if (orderType === 'DINE_IN' && !tableId) { setSubmitError('Select a dining table.'); return; }
-    if (orderType === 'DINE_IN' && !serviceType) { setSubmitError('Select Service Style.'); return; }
-    if (requiresManagerApproval && !managerApproved) { setSubmitError('Discount > 10% requires Manager PIN.'); return; }
-    if (paymentMethod === 'CASH' && cashReceived < netPayable) { setSubmitError(`Cash insufficient. Remaining: ৳${remainingDue}.`); return; }
-    if (paymentMethod === 'Card / Physical POS Terminal' && !cardApprovalCode.trim()) { setSubmitError('Enter Card Approval Code.'); return; }
-    if (paymentMethod === 'Card / Physical POS Terminal' && cardPosStatus !== 'APPROVED') { setSubmitError('Card terminal must be APPROVED.'); return; }
+
+    if (cart.length === 0) {
+      setSubmitError('Cart is empty. Please add items before placing order.');
+      return;
+    }
+
+    if (!orderType) {
+      setSubmitError('Please select Dine-in or Takeaway.');
+      return;
+    }
+
+    if (orderType === 'DINE_IN' && !tableId) {
+      setSubmitError('Please select a dining table (T01–T55).');
+      return;
+    }
+
+    if (orderType === 'DINE_IN' && !serviceType) {
+      setSubmitError('Please select Service Style (Self-Service or Table Service).');
+      return;
+    }
+
+    // Verify Manager Authorization for Cashier >10%
+    if (requiresManagerApproval && !managerApproved) {
+      setSubmitError('Discounts exceeding 10% require Manager PIN approval.');
+      return;
+    }
+
+    // Verify Cash Received
+    if (paymentMethod === 'CASH') {
+      if (cashReceivedNumber < netPayable) {
+        setSubmitError(`Insufficient cash received. Remaining due is ৳${remainingCashDue}.`);
+        return;
+      }
+    }
+
+    // Verify Physical Card POS Approval Code
+    if (paymentMethod === 'Card / Physical POS Terminal') {
+      if (!cardApprovalCode.trim()) {
+        setSubmitError('Please enter the Approval Code from the Physical POS slip.');
+        return;
+      }
+      if (cardPosStatus !== 'APPROVED') {
+        setSubmitError('Card payment must be marked as APPROVED to complete.');
+        return;
+      }
+    }
 
     try {
-      setSubmitting(true); setSubmitError(null);
+      setSubmitting(true);
+      setSubmitError(null);
+
       const rawItems = cart.map(c => ({
-        menuItemId: c.menuItem.id, quantity: c.quantity,
-        variantId: c.selectedVariant?.id, variantName: c.selectedVariant?.name,
-        selectedAddOns: c.selectedAddOns.map(a => a.id), notes: c.notes || ''
+        menuItemId: c.menuItem.id,
+        quantity: c.quantity,
+        variantId: c.selectedVariant?.id,
+        variantName: c.selectedVariant?.name,
+        selectedAddOns: c.selectedAddOns.map(a => a.id),
+        notes: c.notes || ''
       }));
-      const payload = {
+
+      const orderPayload = {
         tableId: orderType === 'DINE_IN' ? tableId : null,
         type: orderType === 'TAKEAWAY' ? ('PARCEL' as const) : ('DINE_IN' as const),
-        customerOrderType: orderType, rawItems,
+        customerOrderType: orderType,
+        rawItems,
         customerName: customerName.trim() || 'Counter Guest',
         customerPhone: customerPhone.trim(),
         serviceType: (orderType === 'DINE_IN' && serviceType) ? serviceType : 'SELF_SERVICE',
-        customerNotes: customerNotes.trim(), paymentMethod,
-        discountType, discountPercent: effectiveDiscountPercent, discountAmount,
+        customerNotes: customerNotes.trim(),
+        paymentMethod,
+        discountType,
+        discountPercent: effectiveDiscountPercent,
+        discountAmount,
         discountReason: discountReason.trim() || (discountAmount > 0 ? 'Counter Discount' : ''),
         discountAppliedBy: currentUser.name,
-        discountApprovedBy: requiresManagerApproval ? 'Manager (PIN)' : (discountAmount > 0 ? currentUser.name : ''),
-        cashReceived: paymentMethod === 'CASH' ? cashReceived : null,
+        discountApprovedBy: requiresManagerApproval ? 'Manager (PIN Verified)' : (discountAmount > 0 ? currentUser.name : ''),
+        cashReceived: paymentMethod === 'CASH' ? cashReceivedNumber : null,
         changeReturned: paymentMethod === 'CASH' ? changeToReturn : null,
         cardPosTerminal: paymentMethod === 'Card / Physical POS Terminal' ? cardTerminalName : null,
         cardPosRef: paymentMethod === 'Card / Physical POS Terminal' ? cardApprovalCode.trim() : (mobileTrxRef.trim() || null),
         cardPosStatus: paymentMethod === 'Card / Physical POS Terminal' ? cardPosStatus : null,
-        cashierName: currentUser.name, cashierId: currentUser.id
+        cashierName: currentUser.name,
+        cashierId: currentUser.id
       };
-      const result = await api.createManualOrder(payload);
+
+      const result = await api.createManualOrder(orderPayload);
       setCreatedOrder(result);
       setShowReceiptModal(true);
+
+      // Clean Reset ONLY after confirmed successful order creation
       resetPOSForm();
     } catch (err: any) {
-      setSubmitError(err?.message || 'Failed to submit order. Please retry.');
+      console.error('Manual order submission failed:', err);
+      // PRESERVE CART AND INPUTS ON FAILURE SO CASHIER CAN RETRY
+      setSubmitError(err?.message || 'Failed to submit counter order. Please check network connection.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <div className="h-screen h-[100dvh] bg-[#1a1a2e] flex flex-col font-sans select-none overflow-hidden">
-
-      {/* ── TOP BAR ───────────────────────────────────────────────────────── */}
-      <header className="h-14 bg-[#16213e] border-b border-white/[0.06] px-4 flex items-center justify-between shrink-0 z-30">
-        {/* Left */}
+    <div className="h-screen h-[100dvh] bg-zinc-100 flex flex-col font-sans select-none overflow-hidden">
+      {/* =========================================================================
+          TOP FIXED HEADER: Cashier Identity, Back Button, Step Indicator, Clock
+         ========================================================================= */}
+      <header className="h-16 bg-zinc-950 text-white px-4 md:px-6 flex items-center justify-between shadow-md shrink-0 border-b border-zinc-800 z-30">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setLocation('/admin')}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.12] text-white/70 hover:text-white text-xs font-bold transition-all cursor-pointer border border-white/[0.08]"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 border border-white/10"
+            title="Return to Central Counter"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Central Counter</span>
+            <ArrowLeft className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">Back to Central Counter</span>
+            <span className="sm:hidden">Back</span>
           </button>
 
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
-              <UtensilsCrossed className="w-4 h-4 text-white" />
+          <div className="h-6 w-px bg-zinc-800 hidden sm:block" />
+
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-white text-zinc-950 flex items-center justify-center font-black shadow-xs">
+              <ShoppingCart className="w-4 h-4 text-zinc-950" />
             </div>
             <div>
-              <div className="text-sm font-black text-white leading-none">Manual POS Terminal</div>
-              <div className="text-[10px] text-white/40 mt-0.5 hidden sm:block">Vivacity Food Court · Central Counter</div>
+              <h1 className="text-sm font-black tracking-tight text-white flex items-center gap-2">
+                <span>Manual POS Terminal</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase">
+                  Central Counter
+                </span>
+              </h1>
+              <p className="text-[10px] text-zinc-400 hidden md:block">
+                Direct walk-in ordering • Multi-stall unified checkout
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Center: Step pills */}
-        <div className="hidden md:flex items-center gap-1 bg-white/[0.05] border border-white/[0.08] p-1 rounded-2xl">
-          {(['ORDER', 'PAYMENT'] as const).map((s, idx) => (
-            <button
-              key={s}
-              onClick={() => {
-                if (s === 'ORDER') setStep('ORDER');
-                else handleProceedToPayment();
-              }}
-              className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer
-                ${step === s ? 'bg-white text-zinc-900 shadow-sm' : 'text-white/50 hover:text-white/80'}`}
-            >
-              <span className={`w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-black ${step === s ? 'bg-zinc-900 text-white' : 'bg-white/10 text-white/60'}`}>{idx + 1}</span>
-              <span>{s === 'ORDER' ? 'Select Food' : 'Payment'}</span>
-            </button>
-          ))}
+        {/* Center: Step Indicator Pills (Clean Black & White) */}
+        <div className="hidden md:flex items-center gap-2 bg-zinc-900 border border-zinc-800 p-1 rounded-2xl">
+          <button
+            type="button"
+            onClick={() => setCurrentStep('SELECT_FOOD')}
+            className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+              currentStep === 'SELECT_FOOD'
+                ? 'bg-white text-zinc-950 shadow-xs'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <span className="w-4 h-4 rounded-full bg-zinc-800 text-white flex items-center justify-center text-[10px] font-bold">1</span>
+            <span>Select Food</span>
+          </button>
+
+          <span className="text-zinc-600 text-xs">→</span>
+
+          <button
+            type="button"
+            disabled={cart.length === 0}
+            onClick={() => cart.length > 0 && handleProceedToPayment()}
+            className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+              currentStep === 'PAYMENT'
+                ? 'bg-white text-zinc-950 shadow-xs'
+                : cart.length > 0
+                ? 'text-zinc-400 hover:text-white cursor-pointer'
+                : 'text-zinc-600 cursor-not-allowed opacity-50'
+            }`}
+          >
+            <span className="w-4 h-4 rounded-full bg-zinc-800 text-white flex items-center justify-center text-[10px] font-bold">2</span>
+            <span>Payment & Calculator</span>
+          </button>
         </div>
 
-        {/* Right */}
-        <div className="flex items-center gap-2.5">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/[0.07]">
-            <User className="w-3.5 h-3.5 text-white/40" />
-            <div>
-              <div className="text-[11px] font-black text-white/90 leading-none">{currentUser.name}</div>
-              <div className="text-[9px] text-amber-400 font-bold uppercase mt-0.5">{currentUser.role}</div>
+        {/* Right Info: Cashier Badge, Clock, Reset */}
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <div className="flex items-center gap-1.5 justify-end">
+              <User className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="text-xs font-bold text-white">{currentUser.name}</span>
             </div>
+            <span className="text-[10px] font-mono text-zinc-400">
+              Role: <strong className="text-amber-400">{currentUser.role}</strong>
+            </span>
           </div>
-          <div className="px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/[0.07] text-xs font-mono font-bold text-amber-400 flex items-center gap-1.5">
-            <Clock className="w-3 h-3 text-white/30" />
-            <span className="hidden sm:inline">{currentTime || '--:--:-- --'}</span>
+
+          <div className="h-6 w-px bg-zinc-800 hidden sm:block" />
+
+          <div className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2 text-xs font-mono font-bold text-amber-400">
+            <Clock className="w-3.5 h-3.5 text-zinc-400" />
+            <span>{currentTime || '12:00:00 PM'}</span>
           </div>
-          {(cart.length > 0 || orderType) && (
+
+          {(cart.length > 0 || orderType !== null || customerName) && (
             <button
               onClick={handleClearCart}
-              className="px-2.5 py-1.5 rounded-xl bg-red-500/[0.15] hover:bg-red-500/[0.25] text-red-400 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border border-red-500/20"
+              className="px-2.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer border border-red-500/30"
+              title="Clear current cart and start fresh"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Reset</span>
@@ -396,130 +756,188 @@ export const ManualPOSPage: React.FC = () => {
         </div>
       </header>
 
-      {/* ── MAIN BODY ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-
-        {/* ════ COLUMN A: FOOD BROWSER (ORDER step only) ══════════════════ */}
-        {step === 'ORDER' && (
-          <div className="flex-1 flex flex-col bg-[#0f172a] overflow-hidden min-h-0 border-r border-white/[0.05]">
-
-            {/* Stall tabs */}
-            <div className="bg-[#0d1526] border-b border-white/[0.05] px-3 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+      {/* =========================================================================
+          STEP 1: SELECT FOOD WORKFLOW
+          - Fixed Left: Stalls tabs + Categories + Search
+          - Scrollable Left: Food Cards Grid (ONLY THIS SCROLLS)
+          - Fixed Right: Order Configuration + Cart items + Prominent "Confirm Order" Button
+         ========================================================================= */}
+      {currentStep === 'SELECT_FOOD' && (
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+          {/* LEFT COLUMN: Food Menu Explorer */}
+          <div className="flex-1 flex flex-col bg-zinc-50 border-r border-zinc-200 overflow-hidden min-h-0">
+            {/* 1. Stalls Horizontal Selector Tabs (FIXED) */}
+            <div className="bg-white border-b border-zinc-200 p-2.5 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 shadow-2xs">
               <button
-                onClick={() => { setSelectedStallId('ALL'); setSelectedCategory('ALL'); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black shrink-0 transition-all cursor-pointer border ${
-                  selectedStallId === 'ALL' ? 'bg-white/10 border-white/20 text-white' : 'border-transparent text-white/40 hover:text-white/70 hover:bg-white/[0.05]'
+                onClick={() => {
+                  setSelectedStallId('ALL');
+                  setSelectedCategory('ALL');
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition-all cursor-pointer flex items-center gap-2 ${
+                  selectedStallId === 'ALL'
+                    ? 'bg-zinc-950 text-white shadow-xs'
+                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-gray-500" />
-                All Stalls
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>All 7 Kitchens</span>
               </button>
-              {stalls.map(stall => {
-                const color = STALL_COLORS[stall.id] || '#6b7280';
-                const isActive = selectedStallId === stall.id;
-                return (
-                  <button
-                    key={stall.id}
-                    onClick={() => { setSelectedStallId(stall.id); setSelectedCategory('ALL'); }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black shrink-0 transition-all cursor-pointer border ${
-                      isActive ? 'border-white/20 text-white' : 'border-transparent text-white/40 hover:text-white/70 hover:bg-white/[0.05]'
-                    }`}
-                    style={{ background: isActive ? `${color}22` : undefined }}
-                  >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                    <span className="truncate max-w-[80px]">{stall.name}</span>
-                  </button>
-                );
-              })}
+
+              {stalls.map(stall => (
+                <button
+                  key={stall.id}
+                  onClick={() => {
+                    setSelectedStallId(stall.id);
+                    setSelectedCategory('ALL');
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-black shrink-0 transition-all cursor-pointer flex items-center gap-2 ${
+                    selectedStallId === stall.id
+                      ? 'bg-zinc-950 text-white shadow-xs'
+                      : 'bg-white text-zinc-700 hover:bg-zinc-100 border border-zinc-200'
+                  }`}
+                >
+                  {stall.avatar && (
+                    <img src={stall.avatar} alt={stall.name} className="w-4 h-4 rounded-full object-cover" />
+                  )}
+                  <span>{stall.name}</span>
+                </button>
+              ))}
             </div>
 
-            {/* Search + category bar */}
-            <div className="bg-[#0d1526] border-b border-white/[0.05] px-3 py-2 flex items-center gap-2 shrink-0">
+            {/* 2. Search & Category Filters Bar (FIXED) */}
+            <div className="p-2.5 sm:p-3 bg-white border-b border-zinc-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
               <div className="relative flex-1">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                 <input
-                  type="text" placeholder="Search food…"
-                  value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-6 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-xl text-xs font-medium text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-white/20"
+                  type="text"
+                  placeholder="Search food by name, ingredient, category..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 placeholder-zinc-400 focus:outline-hidden focus:ring-2 focus:ring-zinc-900"
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 cursor-pointer">
-                    <X className="w-3 h-3" />
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-0.5 text-xs font-bold cursor-pointer"
+                  >
+                    ✕
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-                <button onClick={() => setSelectedCategory('ALL')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black shrink-0 cursor-pointer transition-all ${selectedCategory === 'ALL' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'}`}>
-                  All
+
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <button
+                  onClick={() => setSelectedCategory('ALL')}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black shrink-0 cursor-pointer ${
+                    selectedCategory === 'ALL'
+                      ? 'bg-zinc-950 text-white shadow-2xs'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  All Categories
                 </button>
                 {availableCategories.map(cat => (
-                  <button key={cat} onClick={() => setSelectedCategory(cat)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 cursor-pointer transition-all whitespace-nowrap ${selectedCategory === cat ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'}`}>
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0 cursor-pointer ${
+                      selectedCategory === cat
+                        ? 'bg-zinc-950 text-white shadow-2xs'
+                        : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                    }`}
+                  >
                     {cat}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Food grid — ONLY THIS SCROLLS */}
-            <div className="flex-1 overflow-y-auto min-h-0 p-3">
+            {/* 3. Food Items Grid (ONLY THIS AREA SCROLLS VERTICALLY) */}
+            <div className="flex-1 overflow-y-auto min-h-0 p-3 sm:p-4">
               {loading ? (
-                <div className="h-full flex items-center justify-center text-white/30 text-xs">Loading menu…</div>
+                <div className="h-full flex items-center justify-center text-xs text-zinc-400">
+                  Loading menu items...
+                </div>
               ) : filteredMenuItems.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-white/25 text-xs space-y-2">
-                  <AlertCircle className="w-7 h-7 opacity-40" />
-                  <span>No items found</span>
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400">
+                  <AlertCircle className="w-8 h-8 mb-2 opacity-50" />
+                  <p className="text-xs font-bold">No food items matched your search or category filter.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                   {filteredMenuItems.map(item => {
-                    const oos = item.isAvailable === false;
+                    const stockInfo = getItemStockInfo(item);
+                    const isOutOfStock = stockInfo.isOutOfStock;
                     const stallObj = stalls.find(s => s.id === item.stallId);
-                    const color = STALL_COLORS[item.stallId] || '#6b7280';
-                    const cartItem = cart.find(c => c.menuItem.id === item.id);
+                    const isFanta = item.id === 'db-fanta';
+
                     return (
                       <div
                         key={item.id}
-                        onClick={() => !oos && handleAddToCart(item)}
-                        className={`group relative rounded-2xl border flex flex-col transition-all cursor-pointer overflow-hidden ${
-                          oos
-                            ? 'opacity-40 cursor-not-allowed border-white/[0.05] bg-white/[0.03]'
-                            : 'border-white/[0.07] bg-white/[0.05] hover:bg-white/[0.09] hover:border-white/15'
+                        onClick={() => !isOutOfStock && handleAddToCart(item)}
+                        className={`group relative rounded-2xl border p-2.5 flex flex-col justify-between transition-all select-none cursor-pointer ${
+                          isOutOfStock
+                            ? 'bg-zinc-50 border-zinc-200 opacity-60 cursor-not-allowed'
+                            : 'bg-white border-zinc-200 hover:border-zinc-950 hover:shadow-md'
                         }`}
                       >
-                        {/* Image */}
-                        <div className="relative w-full aspect-[4/3] overflow-hidden bg-black/30">
+                        {/* Food Image with object-contain to prevent stretching/cropping */}
+                        <div className="relative w-full aspect-4/3 rounded-xl overflow-hidden bg-zinc-100 mb-2 flex items-center justify-center p-1">
                           <img
                             src={item.image || '/assets/vivacity-chili-icon.png'}
                             alt={item.name}
-                            className={`w-full h-full ${item.id === 'db-fanta' ? 'object-contain p-1' : 'object-cover'} transition-transform group-hover:scale-105 ${oos ? 'grayscale' : ''}`}
-                            onError={e => { (e.target as HTMLImageElement).src = '/assets/vivacity-chili-icon.png'; }}
+                            className={`w-full h-full ${
+                              isFanta ? 'object-contain' : 'object-cover'
+                            } rounded-lg transition-transform group-hover:scale-105 ${
+                              isOutOfStock ? 'grayscale' : ''
+                            }`}
+                            onError={e => {
+                              (e.target as HTMLImageElement).src = '/assets/vivacity-chili-icon.png';
+                            }}
                           />
-                          <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold text-white truncate max-w-[90%]" style={{ background: `${color}cc` }}>
+                          {isOutOfStock ? (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
+                              <span className="px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[9px] uppercase tracking-wider">
+                                Out of Stock
+                              </span>
+                            </div>
+                          ) : stockInfo.hasStockConfig && stockInfo.availableQty !== null ? (
+                            <span className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider text-white shadow-xs ${
+                              stockInfo.availableQty <= 5 ? 'bg-amber-600/90' : 'bg-emerald-600/90'
+                            }`}>
+                              {stockInfo.availableQty <= 5 ? `Low Stock: ${stockInfo.availableQty}` : `Stock: ${stockInfo.availableQty}`}
+                            </span>
+                          ) : null}
+                          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[9px] font-bold text-white uppercase truncate max-w-[70%]">
                             {stallObj?.name || item.stallId}
                           </span>
-                          {oos && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                              <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase">Out of Stock</span>
-                            </div>
-                          )}
-                          {cartItem && (
-                            <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-amber-400 text-zinc-900 text-[9px] font-black flex items-center justify-center shadow-md">
-                              {cartItem.quantity}
-                            </span>
-                          )}
                         </div>
-                        {/* Info */}
-                        <div className="p-2.5 flex flex-col gap-1">
-                          <h3 className="text-[11px] font-black text-white/90 leading-tight line-clamp-2">{item.name}</h3>
-                          <div className="flex items-center justify-between mt-auto">
-                            <span className="text-sm font-black text-amber-400">৳{item.price}</span>
-                            {!oos && (
+
+                        {/* Title & Price */}
+                        <div>
+                          <h3 className="text-xs font-black text-zinc-900 leading-snug line-clamp-2 mb-1">
+                            {item.name}
+                          </h3>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-sm font-black text-zinc-900">
+                                ৳{item.price}
+                              </span>
+                              {stockInfo.hasStockConfig && stockInfo.availableQty !== null && !isOutOfStock && (
+                                <span className="text-[10px] font-bold text-zinc-400">
+                                  (${stockInfo.availableQty} left)
+                                </span>
+                              )}
+                            </div>
+                            {!isOutOfStock && (
                               <button
                                 type="button"
-                                onClick={e => { e.stopPropagation(); handleAddToCart(item); }}
-                                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer active:scale-90 border border-white/10"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  handleAddToCart(item);
+                                }}
+                                className="w-6 h-6 rounded-lg bg-zinc-950 group-hover:bg-black text-white flex items-center justify-center transition-colors shadow-2xs cursor-pointer active:scale-95"
+                                title="Add to Order"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                               </button>
@@ -533,461 +951,839 @@ export const ManualPOSPage: React.FC = () => {
               )}
             </div>
           </div>
-        )}
 
-        {/* ════ COLUMN B: ORDER / CART PANEL ═══════════════════════════════ */}
-        <div className={`${step === 'ORDER' ? 'w-full lg:w-[380px] xl:w-[420px]' : 'w-full lg:w-[440px] xl:w-[500px]'} bg-[#16213e] flex flex-col shrink-0 border-r border-white/[0.05] overflow-hidden min-h-0`}>
+          {/* RIGHT COLUMN: Cart Panel (Fixed layout with internal items scroll) */}
+          <div className="w-full lg:w-[420px] xl:w-[460px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 border-l border-zinc-200 shadow-lg overflow-hidden min-h-0">
+            {/* Top Fixed Order Configuration */}
+            <div className="p-3.5 border-b border-zinc-200 bg-zinc-50/70 space-y-2.5 shrink-0">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block">
+                Destination & Table
+              </span>
 
-          {/* Order config */}
-          <div className="p-3 border-b border-white/[0.05] space-y-2.5 shrink-0 bg-[#0f172a]">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Order Setup</span>
-              {step === 'PAYMENT' && (
-                <button onClick={() => setStep('ORDER')} className="flex items-center gap-1 text-[10px] font-bold text-white/40 hover:text-white/70 cursor-pointer transition-colors">
-                  <ArrowLeft className="w-3 h-3" /> Edit Order
-                </button>
-              )}
-            </div>
-
-            {/* Dine-in / Takeaway */}
-            <div className="grid grid-cols-2 gap-2">
-              {(['DINE_IN', 'TAKEAWAY'] as const).map(t => (
+              {/* Dine-In vs Takeaway Toggle (Clean Black and White, unselected initially) */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
-                  key={t}
+                  type="button"
                   onClick={() => {
-                    setOrderType(t);
-                    if (t === 'TAKEAWAY') { setTableId(''); setServiceType('SELF_SERVICE'); }
-                    else if (!serviceType) setServiceType('SELF_SERVICE');
+                    setOrderType('DINE_IN');
+                    if (!tableId && lastTableId) {
+                      setTableId(lastTableId);
+                    }
+                    if (!serviceType) setServiceType('SELF_SERVICE');
                   }}
-                  className={`py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
-                    orderType === t
-                      ? 'bg-white text-zinc-900 border-white shadow-md'
-                      : 'bg-white/[0.05] border-white/[0.07] text-white/50 hover:text-white/80 hover:bg-white/[0.08]'
+                  className={`py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    orderType === 'DINE_IN'
+                      ? 'bg-zinc-950 text-white shadow-xs'
+                      : 'bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-100'
                   }`}
                 >
-                  {t === 'DINE_IN' ? '🍽️ Dine-In' : '🥡 Takeaway'}
+                  <span>🍽️ Dine-In</span>
                 </button>
-              ))}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderType('TAKEAWAY');
+                    if (tableId) setLastTableId(tableId);
+                    setTableId('');
+                    setServiceType('SELF_SERVICE');
+                  }}
+                  className={`py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    orderType === 'TAKEAWAY'
+                      ? 'bg-zinc-950 text-white shadow-xs'
+                      : 'bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-100'
+                  }`}
+                >
+                  <span>🥡 Takeaway</span>
+                </button>
+              </div>
 
-            {/* Table + Service */}
-            {orderType === 'DINE_IN' && (
+              {/* Table & Service Type (Only required for Dine-in) */}
+              {orderType === 'DINE_IN' && (
+                <div className="grid grid-cols-2 gap-2 animate-in fade-in">
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                      Dining Table *
+                    </label>
+                    <select
+                      value={tableId}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setTableId(val);
+                        if (val) setLastTableId(val);
+                      }}
+                      className={`w-full px-3 py-1.5 bg-white border rounded-xl text-xs font-bold text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-zinc-900 transition-colors ${
+                        tableId ? 'border-zinc-950 bg-zinc-50/50' : 'border-zinc-200'
+                      }`}
+                    >
+                      <option value="">-- Select Table --</option>
+                      {allTables.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.name || `Table ${t.id}`} {t.zone ? `(${t.zone})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {tableId && (
+                      <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Active Table: <strong>{tableId}</strong></span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
+                      Service Style *
+                    </label>
+                    <select
+                      value={serviceType || ''}
+                      onChange={e => setServiceType(e.target.value as any)}
+                      className="w-full px-3 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-hidden focus:ring-2 focus:ring-zinc-900"
+                    >
+                      <option value="">-- Select Service --</option>
+                      <option value="SELF_SERVICE">Self-Service (৳0)</option>
+                      <option value="TABLE_SERVICE">Table Service (+5%)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Optional Customer Info */}
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Table *</label>
-                  <select value={tableId} onChange={e => setTableId(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-xl text-xs font-bold text-white focus:outline-none cursor-pointer">
-                    <option value="">-- Table --</option>
-                    {allTables.map(t => <option key={t} value={t}>Table {t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold text-white/30 uppercase tracking-wider mb-1">Service *</label>
-                  <select value={serviceType || ''} onChange={e => setServiceType(e.target.value as any)}
-                    className="w-full px-2.5 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-xl text-xs font-bold text-white focus:outline-none cursor-pointer">
-                    <option value="">-- Service --</option>
-                    <option value="SELF_SERVICE">Self-Service</option>
-                    <option value="TABLE_SERVICE">Table Service +5%</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {/* Guest info */}
-            <div className="grid grid-cols-2 gap-2">
-              <input type="text" placeholder="Guest Name" value={customerName} onChange={e => setCustomerName(e.target.value)}
-                className="px-2.5 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-xl text-xs font-medium text-white placeholder-white/20 focus:outline-none" />
-              <input type="text" placeholder="Phone" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
-                className="px-2.5 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-xl text-xs font-medium text-white placeholder-white/20 focus:outline-none" />
-            </div>
-          </div>
-
-          {/* Cart items — SCROLLABLE */}
-          <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-1.5">
-            {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-white/20 space-y-2">
-                <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
-                  <UtensilsCrossed className="w-5 h-5 opacity-40" />
-                </div>
-                <p className="text-xs font-bold">Cart is empty</p>
-                <p className="text-[11px]">Select food from the menu</p>
-              </div>
-            ) : (
-              cart.map((item, idx) => (
-                <div key={item.cartId} className="flex items-start gap-2 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.07] transition-colors">
-                  <span className="w-5 h-5 rounded-md bg-white/10 text-white/50 text-[9px] font-black flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-black text-white/90 truncate leading-snug">{item.menuItem.name}</div>
-                    {item.selectedVariant && <div className="text-[9px] text-white/40">{item.selectedVariant.name}</div>}
-                    {item.selectedAddOns.length > 0 && <div className="text-[9px] text-white/35">+{item.selectedAddOns.map(a => a.name).join(', ')}</div>}
-                    {item.notes && <div className="text-[9px] text-amber-400/70 italic truncate">"{item.notes}"</div>}
-                    <div className="text-[9px] text-white/35 font-mono mt-0.5">৳{item.unitPrice} each</div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => handleQty(item.cartId, -1)} className="w-6 h-6 rounded-lg bg-white/[0.07] hover:bg-white/[0.12] text-white/70 flex items-center justify-center cursor-pointer border border-white/[0.08] transition-colors">
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="w-5 text-center text-xs font-black text-white">{item.quantity}</span>
-                    <button onClick={() => handleQty(item.cartId, 1)} className="w-6 h-6 rounded-lg bg-white/[0.07] hover:bg-white/[0.12] text-white/70 flex items-center justify-center cursor-pointer border border-white/[0.08] transition-colors">
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <div className="flex flex-col items-end shrink-0 gap-1">
-                    <span className="text-sm font-black text-amber-400">৳{item.totalPrice}</span>
-                    <button onClick={() => handleRemove(item.cartId)} className="text-white/20 hover:text-red-400 transition-colors cursor-pointer">
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Bill summary footer */}
-          <div className="p-3 border-t border-white/[0.05] bg-[#0f172a] space-y-2 shrink-0">
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-white/40">
-                <span>Subtotal ({totalItems} items)</span>
-                <span className="font-bold text-white/70">৳{subtotal}</span>
-              </div>
-              {serviceCharge > 0 && (
-                <div className="flex justify-between text-[11px] text-white/40">
-                  <span>Table Service (5%)</span>
-                  <span className="font-bold text-white/70">+৳{serviceCharge}</span>
-                </div>
-              )}
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-[11px] text-emerald-400/80">
-                  <span>Discount ({effectiveDiscountPercent}%)</span>
-                  <span className="font-bold">-৳{discountAmount}</span>
-                </div>
-              )}
-              <div className="flex justify-between pt-1.5 border-t border-white/[0.07]">
-                <span className="text-xs font-black text-white/70 uppercase tracking-wider">Total</span>
-                <span className="text-xl font-black text-amber-400">৳{netPayable}</span>
+                <input
+                  type="text"
+                  placeholder="Guest Name (Optional)"
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-medium text-zinc-800 placeholder-zinc-400 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+                />
+                <input
+                  type="text"
+                  placeholder="Phone (Optional)"
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs font-medium text-zinc-800 placeholder-zinc-400 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+                />
               </div>
             </div>
 
-            {submitError && (
-              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-[11px] font-bold text-red-400 flex items-center gap-2">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            {/* Cart Items List (SCROLLABLE INSIDE CART) */}
+            <div className="p-3 flex-1 overflow-y-auto min-h-0 space-y-2">
+              {cart.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400 space-y-2">
+                  <ShoppingCart className="w-8 h-8 opacity-40 text-zinc-400" />
+                  <p className="text-xs font-bold text-zinc-600">Cart is empty.</p>
+                  <p className="text-[11px] text-zinc-400">Click any food card on the left to add items.</p>
+                </div>
+              ) : (
+                cart.map(item => (
+                  <div
+                    key={item.cartId}
+                    className="p-2.5 rounded-xl border border-zinc-200 bg-zinc-50 flex items-start justify-between gap-2 shadow-2xs"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-black text-zinc-900 leading-snug truncate">
+                        {item.menuItem.name}
+                      </h4>
+                      <div className="text-[10px] text-zinc-500">
+                        {item.selectedVariant && (
+                          <span className="text-brand-600 font-bold block">
+                            Size: {item.selectedVariant.name}
+                          </span>
+                        )}
+                        {item.selectedAddOns.length > 0 && (
+                          <span className="text-zinc-600 block">
+                            Add: {item.selectedAddOns.map(a => a.name).join(', ')}
+                          </span>
+                        )}
+                        {item.notes && (
+                          <span className="italic text-amber-700 block">
+                            Note: "{item.notes}"
+                          </span>
+                        )}
+                        <span className="font-bold text-zinc-700">
+                          ৳{item.unitPrice} each
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(item.cartId, -1)}
+                        className="w-6 h-6 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-100 flex items-center justify-center font-bold text-xs cursor-pointer"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-5 text-center text-xs font-black text-zinc-900">
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(item.cartId, 1)}
+                        className="w-6 h-6 rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-100 flex items-center justify-center font-bold text-xs cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                      <span className="text-xs font-black text-zinc-900 w-14 text-right">
+                        ৳{item.totalPrice}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(item.cartId)}
+                        className="p-1 text-zinc-400 hover:text-red-500 transition-colors ml-1 cursor-pointer"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Error in Step 1 if any */}
+            {submitError && currentStep === 'SELECT_FOOD' && (
+              <div className="p-2.5 mx-3 mb-1 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-600 flex items-center gap-2 shrink-0">
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{submitError}</span>
               </div>
             )}
 
-            {step === 'ORDER' ? (
+            {/* Bottom Fixed Action Bar: Summary & CONFIRM ORDER Button */}
+            <div className="p-3.5 border-t border-zinc-200 bg-white space-y-3 shrink-0">
+              <div className="flex items-center justify-between text-xs font-bold text-zinc-700 px-1">
+                <span>
+                  Items: <strong className="text-zinc-950 font-black">{cart.reduce((sum, i) => sum + i.quantity, 0)}</strong>
+                </span>
+                <span>
+                  Subtotal: <strong className="text-base text-zinc-950 font-black">৳{subtotal}</strong>
+                </span>
+              </div>
+
+              {/* Prominent CONFIRM ORDER Button (Clean Black & White Design) */}
               <button
-                onClick={handleProceedToPayment}
+                type="button"
                 disabled={cart.length === 0}
-                className={`w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  cart.length === 0 ? 'bg-white/[0.05] text-white/20 cursor-not-allowed' : 'bg-white text-zinc-900 hover:bg-zinc-100 shadow-lg active:scale-[0.99]'
+                onClick={handleProceedToPayment}
+                className={`w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer ${
+                  cart.length === 0
+                    ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed shadow-none'
+                    : 'bg-zinc-950 hover:bg-black text-white active:scale-[0.99] border-2 border-zinc-950'
                 }`}
               >
-                <span>Confirm Order</span>
-                {cart.length > 0 && <span className="w-5 h-5 rounded-full bg-zinc-900 text-white text-[10px] font-black flex items-center justify-center">{totalItems}</span>}
+                <span>Confirm Order ({cart.reduce((sum, i) => sum + i.quantity, 0)} Items)</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
-            ) : (
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          STEP 2: PAYMENT & CASH CALCULATOR WORKFLOW
+          - Dedicated 2-Column POS Checkout view within the same page (no popup)
+          - Left: Complete Order Summary, Items list, Optional Discount
+          - Right: Payment Methods, Dedicated Cash Calculator with Touch Numeric Keypad, Confirm Payment Button
+         ========================================================================= */}
+      {currentStep === 'PAYMENT' && (
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0 bg-zinc-100">
+          {/* LEFT COLUMN: Order Review & Optional Discount (38-42% width) */}
+          <div className="w-full lg:w-[440px] xl:w-[480px] bg-zinc-50 border-r border-zinc-200 flex flex-col shrink-0 overflow-y-auto min-h-0 p-4 space-y-4 shadow-sm">
+            {/* Back to Food Selection Button */}
+            <button
+              type="button"
+              onClick={() => setCurrentStep('SELECT_FOOD')}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-zinc-300 text-zinc-900 hover:bg-zinc-100 text-xs font-black transition-all cursor-pointer shadow-2xs w-fit"
+            >
+              <ArrowLeft className="w-4 h-4 text-zinc-900" />
+              <span>← Back to Edit Order</span>
+            </button>
+
+            {/* Order Details Banner */}
+            <div className="p-3 rounded-2xl bg-white border border-zinc-200 shadow-2xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                  Order Destination
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-zinc-900 text-white text-[10px] font-black uppercase">
+                  {orderType === 'DINE_IN' ? `Table ${tableId}` : 'Takeaway / Parcel'}
+                </span>
+              </div>
+              <p className="text-xs font-bold text-zinc-800">
+                {orderType === 'DINE_IN'
+                  ? `Dine-in at Table ${tableId} (${serviceType === 'TABLE_SERVICE' ? 'Table Service +5%' : 'Self-Service ৳0'})`
+                  : 'Takeaway / Parcel Order at Central Counter'}
+              </p>
+              {customerName && (
+                <p className="text-[11px] text-zinc-500">
+                  Guest: <strong className="text-zinc-800">{customerName}</strong> {customerPhone ? `(${customerPhone})` : ''}
+                </p>
+              )}
+            </div>
+
+            {/* Itemized Order List */}
+            <div className="p-3 rounded-2xl bg-white border border-zinc-200 shadow-2xs space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block">
+                Selected Food Items ({cart.reduce((s, i) => s + i.quantity, 0)})
+              </span>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {cart.map(item => (
+                  <div key={item.cartId} className="flex items-center justify-between text-xs py-1 border-b border-zinc-100 last:border-0">
+                    <div className="min-w-0 flex-1 pr-2">
+                      <span className="font-bold text-zinc-900">{item.quantity}x {item.menuItem.name}</span>
+                      {item.selectedVariant && (
+                        <span className="text-[10px] text-zinc-500 block">({item.selectedVariant.name})</span>
+                      )}
+                      {item.selectedAddOns.length > 0 && (
+                        <span className="text-[10px] text-zinc-500 block">+ {item.selectedAddOns.map(a => a.name).join(', ')}</span>
+                      )}
+                    </div>
+                    <span className="font-black text-zinc-900 shrink-0">৳{item.totalPrice}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* OPTIONAL DISCOUNT SECTION (Do Not Force It) */}
+            <div className="p-3.5 rounded-2xl bg-white border border-zinc-200 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                  Discount Offer (Optional)
+                </span>
+                {effectiveDiscountPercent > 0 ? (
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-300">
+                    {effectiveDiscountPercent}% OFF (-৳{discountAmount})
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-zinc-400">
+                    No Discount (৳0)
+                  </span>
+                )}
+              </div>
+
+              {/* Discount Preset Buttons */}
+              <div className="grid grid-cols-5 gap-1.5">
+                {(['NONE', '5', '10', '15', 'CUSTOM'] as const).map(dt => (
+                  <button
+                    key={dt}
+                    type="button"
+                    onClick={() => {
+                      setDiscountType(dt);
+                      if (dt !== '15' && dt !== 'CUSTOM') {
+                        setManagerApproved(false);
+                      }
+                    }}
+                    className={`py-2 rounded-xl text-xs font-black uppercase transition-all cursor-pointer ${
+                      discountType === dt
+                        ? 'bg-zinc-950 text-white shadow-xs'
+                        : 'bg-zinc-50 border border-zinc-200 text-zinc-700 hover:bg-zinc-100'
+                    }`}
+                  >
+                    {dt === 'NONE' ? '0%' : dt === 'CUSTOM' ? 'Custom' : `${dt}%`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Discount Input (% or Fixed Amount) */}
+              {discountType === 'CUSTOM' && (
+                <div className="p-2.5 rounded-xl bg-zinc-50 border border-zinc-200 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCustomDiscountMode('PERCENT')}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                        customDiscountMode === 'PERCENT'
+                          ? 'bg-zinc-950 text-white'
+                          : 'bg-white border border-zinc-200 text-zinc-600'
+                      }`}
+                    >
+                      Percentage (%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomDiscountMode('FIXED')}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                        customDiscountMode === 'FIXED'
+                          ? 'bg-zinc-950 text-white'
+                          : 'bg-white border border-zinc-200 text-zinc-600'
+                      }`}
+                    >
+                      Fixed Amount (৳)
+                    </button>
+                  </div>
+
+                  {customDiscountMode === 'PERCENT' ? (
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      placeholder="Enter % discount (e.g. 20)"
+                      value={customDiscountPercent}
+                      onChange={e => setCustomDiscountPercent(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+                    />
+                  ) : (
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Enter discount amount in ৳ (e.g. 50)"
+                      value={customDiscountAmount}
+                      onChange={e => setCustomDiscountAmount(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Manager Approval Box if discount > 10% */}
+              {requiresManagerApproval && (
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                    <Lock className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Manager Approval Required (&gt;10%)</span>
+                  </div>
+
+                  {managerApproved ? (
+                    <div className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100/60 p-1.5 rounded-lg">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Authorized by Manager PIN</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="password"
+                          placeholder="Manager PIN (1234)"
+                          value={managerPin}
+                          onChange={e => setManagerPin(e.target.value)}
+                          className="flex-1 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-zinc-800"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyManagerPin}
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          Verify
+                        </button>
+                      </div>
+                      {pinError && (
+                        <p className="text-[10px] text-red-600 font-bold">{pinError}</p>
+                      )}
+                    </div>
+                  )}
+
+                  <input
+                    type="text"
+                    placeholder="Reason for discount (VIP, Promo, Staff...)"
+                    value={discountReason}
+                    onChange={e => setDiscountReason(e.target.value)}
+                    className="w-full px-3 py-1 bg-white border border-amber-200 rounded-lg text-xs text-zinc-800 placeholder-zinc-400"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Financial Summary & Net Payable Card */}
+            <div className="p-4 rounded-2xl bg-zinc-950 text-white shadow-md space-y-2">
+              <div className="flex justify-between text-xs text-zinc-400">
+                <span>Subtotal:</span>
+                <span className="font-bold text-white">৳{subtotal}</span>
+              </div>
+              {serviceCharge > 0 && (
+                <div className="flex justify-between text-xs text-zinc-400">
+                  <span>Table Waiter Service (5%):</span>
+                  <span className="font-bold text-white">+৳{serviceCharge}</span>
+                </div>
+              )}
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-xs text-emerald-400 font-bold">
+                  <span>Discount ({effectiveDiscountPercent}%):</span>
+                  <span>-৳{discountAmount}</span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-zinc-800 flex justify-between items-center">
+                <span className="text-xs font-black uppercase tracking-wider text-zinc-300">Net Payable:</span>
+                <span className="text-2xl font-black text-amber-400">
+                  ৳{netPayable}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Payment Method Selection & Manual Cash Calculator (58-62% width) */}
+          <div className="flex-1 bg-white flex flex-col overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4">
+            {/* Payment Method Selector (Clean Black & White Design) */}
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-2">
+                1. Select Payment Method
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {(
+                  [
+                    { id: 'CASH', label: 'Cash', icon: DollarSign },
+                    { id: 'Card / Physical POS Terminal', label: 'Card POS', icon: CreditCard },
+                    { id: 'bKash', label: 'bKash', icon: Smartphone },
+                    { id: 'Nagad', label: 'Nagad', icon: Smartphone },
+                    { id: 'NFC / Contactless', label: 'NFC Tap', icon: CreditCard }
+                  ] as const
+                ).map(method => {
+                  const Icon = method.icon;
+                  const isSelected = paymentMethod === method.id;
+                  return (
+                    <button
+                      key={method.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(method.id)}
+                      className={`p-3 rounded-2xl text-xs font-black transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 border-2 ${
+                        isSelected
+                          ? 'bg-zinc-950 text-white border-zinc-950 shadow-md'
+                          : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100 hover:border-zinc-300'
+                      }`}
+                    >
+                      <Icon className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-zinc-600'}`} />
+                      <span className="truncate">{method.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* CASH PAYMENT CALCULATOR & TOUCH KEYPAD (Only shown when CASH is selected) */}
+            {paymentMethod === 'CASH' && (
+              <div className="p-4 sm:p-5 rounded-3xl bg-zinc-50 border-2 border-zinc-200 space-y-4 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-zinc-900 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-emerald-600" />
+                    <span>Cash Payment Calculator</span>
+                  </span>
+                  <span className="text-[11px] text-zinc-500 font-mono">
+                    Net: <strong className="text-zinc-900 font-black">৳{netPayable}</strong>
+                  </span>
+                </div>
+
+                {/* Quick Cash Presets Bar */}
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                  {[50, 100, 500, 1000].map(addVal => (
+                    <button
+                      key={addVal}
+                      type="button"
+                      onClick={() => setCashReceivedInput(String((cashReceivedNumber || 0) + addVal))}
+                      className="px-3 py-1.5 bg-white border border-zinc-300 rounded-xl text-xs font-black text-zinc-900 hover:bg-zinc-100 transition-colors shrink-0 cursor-pointer shadow-2xs"
+                    >
+                      +৳{addVal}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCashReceivedInput(String(netPayable))}
+                    className="px-3 py-1.5 bg-zinc-950 text-white rounded-xl text-xs font-black hover:bg-black transition-colors shrink-0 cursor-pointer shadow-2xs"
+                  >
+                    Exact (৳{netPayable})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCashReceivedInput('')}
+                    className="px-3 py-1.5 bg-white border border-zinc-300 text-zinc-600 rounded-xl text-xs font-bold hover:bg-zinc-100 transition-colors shrink-0 cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                {/* Cash Received Input Field & Keypad Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left: Input Box & Real-Time Change / Due Calculation */}
+                  <div className="space-y-3 flex flex-col justify-between">
+                    <div>
+                      <label className="block text-[11px] font-black uppercase tracking-wider text-zinc-600 mb-1.5">
+                        Cash Received from Guest (৳)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={cashReceivedInput}
+                        onChange={e => setCashReceivedInput(e.target.value)}
+                        className="w-full px-4 py-3 bg-white border-2 border-zinc-300 focus:border-zinc-950 rounded-2xl text-2xl font-black text-zinc-950 focus:outline-hidden"
+                      />
+                    </div>
+
+                    {/* Change to Return / Remaining Due Display (Never simultaneously) */}
+                    {cashReceivedInput ? (
+                      cashReceivedNumber >= netPayable ? (
+                        <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-emerald-500 flex items-center justify-between shadow-2xs">
+                          <div>
+                            <span className="text-xs font-black uppercase tracking-wider text-emerald-800 block">
+                              Change to Return
+                            </span>
+                            <span className="text-[10px] text-emerald-600">
+                              Received ৳{cashReceivedNumber} − Net ৳{netPayable}
+                            </span>
+                          </div>
+                          <span className="text-2xl font-black text-emerald-700">
+                            ৳{changeToReturn}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 rounded-2xl bg-red-50 border-2 border-red-400 flex items-center justify-between shadow-2xs">
+                          <div className="flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                            <div>
+                              <span className="text-xs font-black uppercase tracking-wider text-red-800 block">
+                                Remaining Due
+                              </span>
+                              <span className="text-[10px] text-red-600">
+                                Net ৳{netPayable} − Received ৳{cashReceivedNumber}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-xl font-black text-red-600">
+                            ৳{remainingCashDue}
+                          </span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="p-3 rounded-2xl bg-zinc-100 border border-zinc-200 text-xs text-zinc-500 text-center">
+                        Tap numeric keys or quick presets to record cash received.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Touchscreen POS Numeric Keypad (Clean Black & White) */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '00'].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => handleKeypadPress(num)}
+                        className="py-3 bg-white hover:bg-zinc-100 active:bg-zinc-200 border-2 border-zinc-200 text-zinc-900 rounded-xl font-black text-lg transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      >
+                        {num}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => handleKeypadPress('BACKSPACE')}
+                      className="py-3 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded-xl font-black text-sm flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                      title="Backspace"
+                    >
+                      <Delete className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleKeypadPress('CLEAR')}
+                      className="py-3 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl font-black text-sm transition-all cursor-pointer shadow-2xs col-span-2"
+                    >
+                      CLEAR (C)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PHYSICAL CARD POS TERMINAL WORKFLOW */}
+            {paymentMethod === 'Card / Physical POS Terminal' && (
+              <div className="p-4 sm:p-5 rounded-3xl bg-blue-50/70 border-2 border-blue-200 space-y-3 animate-in fade-in">
+                <div className="flex items-center gap-2 text-xs font-black text-blue-900">
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  <span>Physical Card POS Terminal Integration</span>
+                </div>
+
+                <p className="text-[11px] text-blue-800 leading-snug">
+                  Swipe, insert, or tap guest card on the physical device. Enter the Approval Code from the printed merchant slip.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-blue-900 mb-1">
+                      Terminal Machine
+                    </label>
+                    <select
+                      value={cardTerminalName}
+                      onChange={e => setCardTerminalName(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-blue-300 rounded-xl text-xs font-bold text-zinc-800 focus:outline-hidden"
+                    >
+                      <option value="Terminal #1 (Ingenico Desk 3500)">Terminal #1 (Ingenico)</option>
+                      <option value="Terminal #2 (Pax A920 Pro)">Terminal #2 (Pax A920)</option>
+                      <option value="Terminal #3 (Verifone V200c)">Terminal #3 (Verifone)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-blue-900 mb-1">
+                      Terminal Status *
+                    </label>
+                    <select
+                      value={cardPosStatus}
+                      onChange={e => setCardPosStatus(e.target.value as any)}
+                      className="w-full px-3 py-2 bg-white border border-blue-300 rounded-xl text-xs font-bold text-zinc-800 focus:outline-hidden"
+                    >
+                      <option value="APPROVED">APPROVED (Transaction Success)</option>
+                      <option value="PENDING">PENDING</option>
+                      <option value="DECLINED">DECLINED</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-blue-900 mb-1">
+                    Approval Code / RRN / Slip Ref *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. APP-849201 or RRN-99214"
+                    value={cardApprovalCode}
+                    onChange={e => setCardApprovalCode(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-blue-300 rounded-xl text-xs font-mono font-bold text-blue-950 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  />
+                  <p className="text-[10px] text-blue-700 mt-0.5">
+                    Printed at the top of the physical card slip.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* MOBILE WALLETS (bKash / Nagad / NFC Tap) */}
+            {(paymentMethod === 'bKash' || paymentMethod === 'Nagad' || paymentMethod === 'NFC / Contactless') && (
+              <div className="p-4 sm:p-5 rounded-3xl bg-zinc-50 border-2 border-zinc-200 space-y-3 animate-in fade-in">
+                <div className="flex items-center gap-2 text-xs font-black text-zinc-900">
+                  <Smartphone className="w-4 h-4 text-brand-600" />
+                  <span>{paymentMethod} Transaction Verification</span>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-600 mb-1">
+                    TrxID / Reference Code (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 9B384A91KD"
+                    value={mobileTrxRef}
+                    onChange={e => setMobileTrxRef(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-xl text-xs font-mono font-bold text-zinc-900 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Error Message Banner */}
+            {submitError && (
+              <div className="p-3 rounded-2xl bg-red-50 border border-red-200 text-xs font-bold text-red-600 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{submitError}</span>
+              </div>
+            )}
+
+            {/* Final Action Buttons (Clean Black & White Design) */}
+            <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
               <button
+                type="button"
+                onClick={() => setCurrentStep('SELECT_FOOD')}
+                className="py-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 bg-white hover:bg-zinc-100 text-zinc-900 border-2 border-zinc-900 shadow-xs cursor-pointer active:scale-[0.99]"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Edit Order</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={submitting || (paymentMethod === 'CASH' && cashReceivedNumber < netPayable)}
                 onClick={handleSubmitOrder}
-                disabled={submitting || (paymentMethod === 'CASH' && cashReceived < netPayable)}
-                className={`w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  submitting || (paymentMethod === 'CASH' && cashReceived < netPayable)
-                    ? 'bg-white/[0.05] text-white/20 cursor-not-allowed'
-                    : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-900/40 active:scale-[0.99]'
+                className={`py-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer ${
+                  submitting || (paymentMethod === 'CASH' && cashReceivedNumber < netPayable)
+                    ? 'bg-zinc-200 text-zinc-400 border-2 border-zinc-200 cursor-not-allowed shadow-none'
+                    : 'bg-zinc-950 hover:bg-black text-white border-2 border-zinc-950 active:scale-[0.99]'
                 }`}
               >
                 {submitting ? (
-                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Processing…</span></>
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Processing Payment & KOT...</span>
+                  </>
                 ) : (
-                  <><CheckCircle className="w-4 h-4" /><span>Confirm Payment · ৳{netPayable}</span></>
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Confirm Payment & Print Memo (৳{netPayable})</span>
+                  </>
                 )}
               </button>
-            )}
+            </div>
           </div>
         </div>
+      )}
 
-        {/* ════ COLUMN C: ACTION / PAYMENT SIDEBAR ═════════════════════════ */}
-        <div className="w-14 sm:w-[72px] lg:w-56 xl:w-64 bg-[#0d1526] flex flex-col border-l border-white/[0.04] shrink-0 overflow-y-auto overflow-x-hidden">
-          {step === 'ORDER' ? (
-            /* ORDER sidebar: discount + info */
-            <div className="flex flex-col h-full p-2 lg:p-3 gap-2">
-              <div className="hidden lg:block text-[9px] font-black uppercase tracking-widest text-white/20 mb-1">Quick Actions</div>
-
-              {/* Discount toggle */}
-              <button
-                onClick={() => setShowDiscountPanel(p => !p)}
-                className={`flex flex-col lg:flex-row items-center lg:items-center gap-1 lg:gap-2 p-2 lg:px-3 lg:py-2.5 rounded-xl transition-all cursor-pointer border ${
-                  discountAmount > 0 ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' : 'bg-white/[0.05] border-white/[0.06] text-white/40 hover:text-white/70 hover:bg-white/[0.08]'
-                }`}
-              >
-                <Percent className="w-4 h-4 shrink-0" />
-                <span className="hidden lg:block text-[11px] font-black">{discountAmount > 0 ? `${effectiveDiscountPercent}% OFF` : 'Discount'}</span>
-              </button>
-
-              {showDiscountPanel && (
-                <div className="hidden lg:block p-3 rounded-2xl bg-white/[0.05] border border-white/[0.07] space-y-2">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-white/30">Discount (Optional)</div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {(['NONE', '5', '10', '15', 'CUSTOM'] as const).map(dt => (
-                      <button key={dt}
-                        onClick={() => { setDiscountType(dt); if (dt !== '15' && dt !== 'CUSTOM') setManagerApproved(false); }}
-                        className={`py-1.5 rounded-lg text-[10px] font-black cursor-pointer transition-all ${discountType === dt ? 'bg-white text-zinc-900' : 'bg-white/[0.07] text-white/50 hover:bg-white/[0.12] hover:text-white/80'}`}>
-                        {dt === 'NONE' ? '0%' : dt === 'CUSTOM' ? 'Custom' : `${dt}%`}
-                      </button>
-                    ))}
-                  </div>
-                  {discountType === 'CUSTOM' && (
-                    <div className="space-y-1.5">
-                      <div className="flex gap-1">
-                        {(['PERCENT', 'FIXED'] as const).map(m => (
-                          <button key={m} onClick={() => setCustomDiscountMode(m)}
-                            className={`flex-1 py-1 rounded-lg text-[9px] font-black cursor-pointer ${customDiscountMode === m ? 'bg-white text-zinc-900' : 'bg-white/[0.07] text-white/40'}`}>
-                            {m === 'PERCENT' ? '%' : '৳'}
-                          </button>
-                        ))}
-                      </div>
-                      <input type="number" min="0"
-                        placeholder={customDiscountMode === 'PERCENT' ? 'e.g. 20' : 'e.g. 100'}
-                        value={customDiscountMode === 'PERCENT' ? customDiscountPercent : customDiscountAmount}
-                        onChange={e => customDiscountMode === 'PERCENT' ? setCustomDiscountPercent(e.target.value) : setCustomDiscountAmount(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-lg text-xs font-bold text-white placeholder-white/20 focus:outline-none" />
-                    </div>
-                  )}
-                  {requiresManagerApproval && !managerApproved && (
-                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-amber-400"><Lock className="w-3 h-3" /> Manager PIN</div>
-                      <div className="flex gap-1.5">
-                        <input type="password" placeholder="PIN" value={managerPin} onChange={e => setManagerPin(e.target.value)}
-                          className="flex-1 px-2 py-1 bg-white/[0.07] border border-amber-500/20 rounded-lg text-xs font-mono text-white focus:outline-none" />
-                        <button onClick={() => { if (managerPin === '1234') { setManagerApproved(true); setPinError(null); } else setPinError('Invalid'); }}
-                          className="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-white text-[10px] font-black rounded-lg cursor-pointer">OK</button>
-                      </div>
-                      {pinError && <p className="text-[9px] text-red-400 font-bold">{pinError}</p>}
-                    </div>
-                  )}
-                  {requiresManagerApproval && managerApproved && (
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-1.5">
-                      <CheckCircle className="w-3 h-3" /> Manager Approved
-                    </div>
-                  )}
-                  <input type="text" placeholder="Discount reason (optional)" value={discountReason} onChange={e => setDiscountReason(e.target.value)}
-                    className="w-full px-2.5 py-1 bg-white/[0.07] border border-white/[0.08] rounded-lg text-[10px] text-white placeholder-white/20 focus:outline-none" />
-                </div>
-              )}
-
-              {/* Info preview */}
-              <div className="mt-auto hidden lg:block p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.04] space-y-1">
-                <div className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-1">Receipt Preview</div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-white/30">Cashier</span>
-                  <span className="font-bold text-white/60 truncate max-w-[80px]">{currentUser.name}</span>
-                </div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-white/30">Type</span>
-                  <span className="font-bold text-white/60">{orderType ?? '—'}</span>
-                </div>
-                {orderType === 'DINE_IN' && tableId && (
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-white/30">Table</span>
-                    <span className="font-bold text-amber-400">{tableId}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-          ) : (
-            /* PAYMENT sidebar: methods + keypad */
-            <div className="flex flex-col p-2 lg:p-3 gap-2 overflow-y-auto">
-              <div className="hidden lg:block text-[9px] font-black uppercase tracking-widest text-white/20 mb-1">Payment Method</div>
-
-              {([
-                { id: 'CASH', label: 'Cash', Icon: DollarSign, color: '#10b981' },
-                { id: 'Card / Physical POS Terminal', label: 'Card POS', Icon: CreditCard, color: '#3b82f6' },
-                { id: 'bKash', label: 'bKash', Icon: Smartphone, color: '#e11d48' },
-                { id: 'Nagad', label: 'Nagad', Icon: Wallet, color: '#f97316' },
-                { id: 'NFC / Contactless', label: 'NFC Tap', Icon: Zap, color: '#8b5cf6' },
-              ] as const).map(({ id, label, Icon, color }) => {
-                const sel = paymentMethod === id;
-                return (
-                  <button key={id} onClick={() => setPaymentMethod(id as PaymentMethodId)}
-                    className={`flex flex-col lg:flex-row items-center lg:items-center gap-1 lg:gap-2.5 p-2 lg:px-3.5 lg:py-3 rounded-xl transition-all cursor-pointer border ${
-                      sel ? 'border-white/20 text-white' : 'bg-white/[0.04] border-white/[0.05] text-white/35 hover:text-white/60 hover:bg-white/[0.07]'
-                    }`}
-                    style={sel ? { background: `${color}22`, borderColor: `${color}55` } : undefined}>
-                    <Icon className="w-4 h-4 shrink-0" style={{ color: sel ? color : undefined }} />
-                    <span className="hidden lg:block text-[11px] font-black">{label}</span>
-                    {sel && <span className="hidden lg:block ml-auto w-1.5 h-1.5 rounded-full" style={{ background: color }} />}
-                  </button>
-                );
-              })}
-
-              {/* Discount (compact) */}
-              <div className="mt-1 hidden lg:block">
-                <div className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-1.5">Discount</div>
-                <div className="grid grid-cols-5 gap-1">
-                  {(['NONE', '5', '10', '15', 'CUSTOM'] as const).map(dt => (
-                    <button key={dt} onClick={() => { setDiscountType(dt); if (dt !== '15' && dt !== 'CUSTOM') setManagerApproved(false); }}
-                      className={`py-1.5 rounded-lg text-[9px] font-black cursor-pointer transition-all ${discountType === dt ? 'bg-white text-zinc-900' : 'bg-white/[0.06] text-white/40 hover:bg-white/[0.10] hover:text-white/70'}`}>
-                      {dt === 'NONE' ? '0%' : dt === 'CUSTOM' ? '…' : `${dt}%`}
-                    </button>
-                  ))}
-                </div>
-                {discountType === 'CUSTOM' && (
-                  <input type="number" min="0" placeholder={customDiscountMode === 'PERCENT' ? '% discount' : '৳ amount'}
-                    value={customDiscountMode === 'PERCENT' ? customDiscountPercent : customDiscountAmount}
-                    onChange={e => customDiscountMode === 'PERCENT' ? setCustomDiscountPercent(e.target.value) : setCustomDiscountAmount(e.target.value)}
-                    className="mt-1.5 w-full px-2.5 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-lg text-xs font-bold text-white placeholder-white/20 focus:outline-none" />
-                )}
-                {requiresManagerApproval && !managerApproved && (
-                  <div className="mt-1.5 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1">
-                    <div className="flex items-center gap-1 text-[9px] font-bold text-amber-400"><Lock className="w-3 h-3" /> Manager PIN</div>
-                    <div className="flex gap-1">
-                      <input type="password" placeholder="PIN" value={managerPin} onChange={e => setManagerPin(e.target.value)}
-                        className="flex-1 px-2 py-1 bg-white/[0.07] border border-amber-500/20 rounded-lg text-[10px] font-mono text-white focus:outline-none" />
-                      <button onClick={() => { if (managerPin === '1234') { setManagerApproved(true); setPinError(null); } else setPinError('Invalid'); }}
-                        className="px-2 py-1 bg-amber-500 text-white text-[9px] font-black rounded-lg cursor-pointer">OK</button>
-                    </div>
-                    {pinError && <p className="text-[9px] text-red-400">{pinError}</p>}
-                  </div>
-                )}
-                {requiresManagerApproval && managerApproved && (
-                  <div className="mt-1 flex items-center gap-1 text-[9px] font-bold text-emerald-400"><CheckCircle className="w-3 h-3" /> Manager Approved</div>
-                )}
-              </div>
-
-              {/* Card POS extra fields */}
-              {paymentMethod === 'Card / Physical POS Terminal' && (
-                <div className="hidden lg:block space-y-1.5 mt-1 p-2.5 rounded-xl bg-blue-500/[0.08] border border-blue-500/20">
-                  <div className="text-[9px] font-black text-blue-400 uppercase tracking-wider">Card POS Terminal</div>
-                  <select value={cardPosStatus} onChange={e => setCardPosStatus(e.target.value as any)}
-                    className="w-full px-2 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-lg text-[10px] font-bold text-white focus:outline-none cursor-pointer">
-                    <option value="APPROVED">APPROVED</option>
-                    <option value="PENDING">PENDING</option>
-                    <option value="DECLINED">DECLINED</option>
-                  </select>
-                  <input type="text" placeholder="Approval Code *" value={cardApprovalCode} onChange={e => setCardApprovalCode(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-lg text-[10px] font-mono font-bold text-white placeholder-white/20 focus:outline-none" />
-                </div>
-              )}
-
-              {/* Mobile wallet ref */}
-              {(paymentMethod === 'bKash' || paymentMethod === 'Nagad' || paymentMethod === 'NFC / Contactless') && (
-                <div className="hidden lg:block mt-1">
-                  <input type="text" placeholder="TrxID (Optional)" value={mobileTrxRef} onChange={e => setMobileTrxRef(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white/[0.07] border border-white/[0.08] rounded-lg text-[10px] font-mono font-bold text-white placeholder-white/20 focus:outline-none" />
-                </div>
-              )}
-
-              {/* Cash keypad */}
-              {paymentMethod === 'CASH' && (
-                <div className="hidden lg:block mt-1 space-y-2">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-white/20">Cash Received</div>
-
-                  <div className={`px-3 py-2.5 rounded-xl border text-right font-mono font-black text-xl transition-colors ${
-                    cashReceivedInput
-                      ? cashReceived >= netPayable ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border-red-500/30 text-red-400'
-                      : 'bg-white/[0.05] border-white/[0.08] text-white/40'
-                  }`}>
-                    {cashReceivedInput ? `৳${cashReceivedInput}` : '৳0'}
-                  </div>
-
-                  {cashReceivedInput && (
-                    cashReceived >= netPayable ? (
-                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                        <span className="text-[10px] font-bold text-emerald-300">Change</span>
-                        <span className="text-lg font-black text-emerald-400">৳{changeToReturn}</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
-                        <span className="text-[10px] font-bold text-red-300">Still Due</span>
-                        <span className="text-lg font-black text-red-400">৳{remainingDue}</span>
-                      </div>
-                    )
-                  )}
-
-                  {/* Presets */}
-                  <div className="grid grid-cols-3 gap-1">
-                    {[100, 500, 1000, 2000, 5000].map(v => (
-                      <button key={v} onClick={() => setCashReceivedInput(String((cashReceived || 0) + v))}
-                        className="py-1.5 rounded-lg bg-white/[0.07] hover:bg-white/[0.12] text-[10px] font-black text-white/60 hover:text-white transition-all cursor-pointer border border-white/[0.05]">
-                        +{v}
-                      </button>
-                    ))}
-                    <button onClick={() => setCashReceivedInput(String(netPayable))}
-                      className="py-1.5 rounded-lg bg-white/[0.07] hover:bg-white/[0.12] text-[10px] font-black text-amber-400 transition-all cursor-pointer border border-amber-500/20">
-                      Exact
-                    </button>
-                  </div>
-
-                  {/* Numeric keypad */}
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {['7','8','9','4','5','6','1','2','3','.','0','00'].map(k => (
-                      <button key={k} onClick={() => handleKeypadPress(k)}
-                        className="py-3.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.12] active:bg-white/[0.18] text-white/80 font-black text-base transition-all cursor-pointer border border-white/[0.05] active:scale-95">
-                        {k}
-                      </button>
-                    ))}
-                    <button onClick={() => handleKeypadPress('⌫')}
-                      className="py-3.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.12] text-white/60 flex items-center justify-center transition-all cursor-pointer border border-white/[0.05]">
-                      <Delete className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleKeypadPress('C')}
-                      className="col-span-2 py-3.5 rounded-xl bg-red-500/[0.15] hover:bg-red-500/[0.25] text-red-400 font-black text-sm transition-all cursor-pointer border border-red-500/20">
-                      CLEAR
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── ITEM CUSTOMISATION MODAL ──────────────────────────────────────── */}
+      {/* =========================================================================
+          ITEM CUSTOMIZATION MODAL (Variants, Add-Ons, Notes)
+         ========================================================================= */}
       {customizingItem && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#16213e] border border-white/10 rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-zinc-200">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-amber-400 mb-0.5">Customise</div>
-                <h3 className="text-base font-black text-white">{customizingItem.name}</h3>
+                <span className="text-[10px] font-black uppercase text-brand-600 tracking-wider">
+                  Customize Food Item
+                </span>
+                <h3 className="text-base font-black text-zinc-900">
+                  {customizingItem.name}
+                </h3>
               </div>
-              <button onClick={() => setCustomizingItem(null)} className="text-white/30 hover:text-white/70 cursor-pointer p-1 transition-colors">
-                <X className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={() => setCustomizingItem(null)}
+                className="text-zinc-400 hover:text-zinc-600 p-1 cursor-pointer"
+              >
+                ✕
               </button>
             </div>
 
+            {/* Variants Selector */}
             {customizingItem.variants && customizingItem.variants.length > 0 && (
               <div className="space-y-2">
-                <span className="text-xs font-bold text-white/60">Size / Portion:</span>
+                <span className="text-xs font-bold text-zinc-700 block">Select Portion / Size:</span>
                 <div className="grid grid-cols-2 gap-2">
                   {customizingItem.variants.map(v => (
-                    <button key={v.id} onClick={() => setTempVariant(v)}
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setTempVariant(v)}
                       className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all cursor-pointer ${
-                        tempVariant?.id === v.id ? 'bg-white text-zinc-900 border-white' : 'bg-white/[0.07] border-white/[0.08] text-white/70 hover:bg-white/[0.12]'
-                      }`}>
+                        tempVariant?.id === v.id
+                          ? 'border-zinc-950 bg-zinc-950 text-white shadow-2xs'
+                          : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                      }`}
+                    >
                       <div className="truncate">{v.name}</div>
-                      <div className="font-mono text-amber-400">৳{v.price}</div>
+                      <div className="font-mono text-xs">৳{v.price}</div>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
+            {/* Add-Ons Multi-Select */}
             {customizingItem.addOns && customizingItem.addOns.length > 0 && (
               <div className="space-y-2">
-                <span className="text-xs font-bold text-white/60">Add-ons:</span>
+                <span className="text-xs font-bold text-zinc-700 block">Optional Add-ons:</span>
                 <div className="space-y-1.5 max-h-36 overflow-y-auto">
                   {customizingItem.addOns.map(addon => {
-                    const sel = tempAddOns.some(a => a.id === addon.id);
+                    const isSelected = tempAddOns.some(a => a.id === addon.id);
                     return (
-                      <button key={addon.id}
-                        onClick={() => setTempAddOns(p => sel ? p.filter(a => a.id !== addon.id) : [...p, addon])}
-                        className={`w-full p-2 rounded-xl border text-left text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
-                          sel ? 'bg-white text-zinc-900 border-white' : 'bg-white/[0.07] border-white/[0.08] text-white/70 hover:bg-white/[0.12]'
-                        }`}>
+                      <button
+                        key={addon.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setTempAddOns(prev => prev.filter(a => a.id !== addon.id));
+                          } else {
+                            setTempAddOns(prev => [...prev, addon]);
+                          }
+                        }}
+                        className={`w-full p-2 rounded-xl border text-left text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-zinc-950 bg-zinc-950 text-white'
+                            : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                        }`}
+                      >
                         <span>{addon.name}</span>
-                        <span className="font-mono text-amber-400">+৳{addon.price}</span>
+                        <span className="font-mono text-[11px]">+৳{addon.price}</span>
                       </button>
                     );
                   })}
@@ -995,20 +1791,32 @@ export const ManualPOSPage: React.FC = () => {
               </div>
             )}
 
-            <div>
-              <label className="text-xs font-bold text-white/60 block mb-1">Special Kitchen Note:</label>
-              <input type="text" placeholder="e.g. less spicy, no onion"
-                value={tempNotes} onChange={e => setTempNotes(e.target.value)}
-                className="w-full px-3 py-2 bg-white/[0.07] border border-white/[0.08] rounded-xl text-xs font-medium text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-white/20" />
+            {/* Special Instructions Notes */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700 block">Special Kitchen Notes:</label>
+              <input
+                type="text"
+                placeholder="e.g. Less spicy, extra sauce, no mayo"
+                value={tempNotes}
+                onChange={e => setTempNotes(e.target.value)}
+                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium text-zinc-800 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+              />
             </div>
 
-            <div className="flex gap-2 pt-1 border-t border-white/[0.07]">
-              <button onClick={() => setCustomizingItem(null)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white/40 hover:text-white/70 hover:bg-white/[0.07] cursor-pointer transition-colors">
+            {/* Modal Actions (Clean Black and White) */}
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-zinc-100">
+              <button
+                type="button"
+                onClick={() => setCustomizingItem(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-100 cursor-pointer"
+              >
                 Cancel
               </button>
-              <button onClick={handleConfirmCustomization}
-                className="flex-1 py-2.5 rounded-xl bg-white text-zinc-900 text-xs font-black hover:bg-zinc-100 cursor-pointer transition-all shadow-md">
+              <button
+                type="button"
+                onClick={handleConfirmCustomization}
+                className="px-5 py-2.5 rounded-xl bg-zinc-950 hover:bg-black text-white text-xs font-black shadow-md cursor-pointer transition-all"
+              >
                 Add to Order
               </button>
             </div>
@@ -1016,11 +1824,16 @@ export const ManualPOSPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── RECEIPT MODAL ──────────────────────────────────────────────────── */}
+      {/* =========================================================================
+          RECEIPT MODAL (Guest Memo & Exact KOT Print after Payment Confirmation)
+         ========================================================================= */}
       {showReceiptModal && createdOrder && (
         <ReceiptModal
           order={createdOrder}
-          onClose={() => { setShowReceiptModal(false); setCreatedOrder(null); }}
+          onClose={() => {
+            setShowReceiptModal(false);
+            setCreatedOrder(null);
+          }}
         />
       )}
     </div>
