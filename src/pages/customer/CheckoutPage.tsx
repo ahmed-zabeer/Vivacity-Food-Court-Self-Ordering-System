@@ -39,10 +39,12 @@ export const CheckoutPage: React.FC = () => {
   // Validation Error States
   const [nameError, setNameError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
-
-  // Payment Method: starts null (unselected), customer must explicitly choose
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [orderTypeError, setOrderTypeError] = useState<string | null>(null);
+  const [serviceTypeError, setServiceTypeError] = useState<string | null>(null);
   const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null);
+
+  // Track which field last had focus for sequential validation navigation
+  const [lastFocusedField, setLastFocusedField] = useState<'order-type' | 'service-type' | 'name' | 'phone' | null>(null);
   const [customerNotes, setCustomerNotes] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('vivacity_customer_notes') || '';
@@ -123,81 +125,130 @@ export const CheckoutPage: React.FC = () => {
     return /^(?:\+?88)?01[3-9]\d{8}$/.test(clean);
   };
 
-  const validateFields = (): boolean => {
-    let valid = true;
+  // Scroll to and focus the first missing field for the validation step
+  const scrollToFirstMissingField = (field: 'order-type' | 'service-type' | 'name' | 'phone' | null) => {
+    if (!field) return;
+
+    const fieldMapping: Record<string, { element: HTMLInputElement | HTMLSelectElement | null; scroll: boolean }> = {
+      'order-type': {
+        element: document.getElementById('order-type-section') as HTMLInputElement | HTMLSelectElement | null,
+        scroll: true
+      },
+      'service-type': {
+        element: document.getElementById('service-type-section') as HTMLInputElement | HTMLSelectElement | null,
+        scroll: true
+      },
+      'name': {
+        element: document.getElementsByTagName('input')[0] as HTMLInputElement | null, // First input is name
+        scroll: true
+      },
+      'phone': {
+        element: document.getElementsByTagName('input')[1] as HTMLInputElement | null, // Second input is phone
+        scroll: true
+      }
+    };
+
+    const mapped = fieldMapping[field];
+    if (mapped.element) {
+      if (mapped.scroll) {
+        mapped.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      // Set focus with a slight delay to allow scrollIntoView to complete
+      setTimeout(() => {
+        try {
+          mapped.element?.focus();
+          mapped.element?.select();
+        } catch {}
+      }, 100);
+    }
+  };
+
+  // Validation priority order: first missing field wins.
+  // Returns the field key that is missing, or null if all valid.
+  // Also returns a boolean indicating validity.
+  const validateFields = (): { valid: boolean; firstMissing: keyof typeof orderTypeError | keyof typeof serviceTypeError | keyof typeof nameError | keyof typeof phoneError | keyof typeof paymentMethodError | null } => {
+    // Reset all error states first
     setNameError(null);
     setPhoneError(null);
     setOrderTypeError(null);
     setServiceTypeError(null);
     setPaymentMethodError(null);
 
+    // 1. Order Type must be selected (Dine-in or Takeaway)
     if (!orderType) {
       setOrderTypeError('Please select Dine-in or Takeaway to continue.');
-      valid = false;
+      return { valid: false, firstMissing: 'order-type' as const };
     }
 
+    // 2. Service Type must be selected (SELF_SERVICE or TABLE_SERVICE)
     if (!serviceType) {
       setServiceTypeError('Please select Self-Service or Table Service to continue.');
-      valid = false;
+      return { valid: false, firstMissing: 'service-type' as const };
     }
 
-    if (!paymentMethod) {
-      setPaymentMethodError('Please select a payment method to continue.');
-      valid = false;
-    }
-
+    // 3. Customer Name must be at least 2 characters
     const trimmedName = customerName.trim();
     if (!trimmedName || trimmedName.length < 2) {
       setNameError('Customer Name is required (at least 2 characters).');
-      valid = false;
+      return { valid: false, firstMissing: 'name' as const };
     }
 
+    // 4. Phone Number must be present and valid Bangladesh format
     const cleanPhone = customerPhone.trim().replace(/[\s\-]/g, '');
     if (!cleanPhone) {
       setPhoneError('Phone Number is required.');
-      valid = false;
+      return { valid: false, firstMissing: 'phone' as const };
     } else if (!validatePhone(cleanPhone)) {
       setPhoneError('Please enter a valid Bangladesh mobile number (e.g. 017XXXXXXXX).');
-      valid = false;
+      return { valid: false, firstMissing: 'phone' as const };
     }
 
-    return valid;
+    // 5. Payment Method must be selected
+    if (!paymentMethod) {
+      setPaymentMethodError('Please select a payment method to continue.');
+      return { valid: false, firstMissing: 'payment-method' as const };
+    }
+
+    return { valid: true, firstMissing: null };
   };
 
   // Submit Master Order
   const handlePlaceOrder = async () => {
     if (submitLockRef.current) return;
 
-    setErrorMessage(null);
-    setOrderTypeError(null);
-    setServiceTypeError(null);
-    setPaymentMethodError(null);
-
-    if (hasUnavailableItems) {
-      setErrorMessage('Some items in your tray are currently out of stock. Please return to your tray and remove them before ordering.');
+    // Validate fields and get the first missing one
+    const validation = validateFields();
+    if (!validation.valid) {
+      // If coming from a previous partial fix, skip already-fixed fields
+      const validationOrder: ('order-type' | 'service-type' | 'name' | 'phone' | 'payment-method')[] = [
+        'order-type', 'service-type', 'name', 'phone', 'payment-method'
+      ];
+      let effectiveFirstMissing = validation.firstMissing;
+      if (lastFocusedField && validationOrder.includes(lastFocusedField as any)) {
+        const startIdx = validationOrder.indexOf(lastFocusedField as any);
+        // Find first missing field at or after the position after lastFocusedField
+        for (let i = startIdx + 1; i < validationOrder.length; i++) {
+          const field = validationOrder[i];
+          let missing = false;
+          if (field === 'order-type') missing = !orderType;
+          else if (field === 'service-type') missing = !serviceType;
+          else if (field === 'name') {
+            const n = customerName.trim(); missing = !n || n.length < 2;
+          } else if (field === 'phone') {
+            const p = customerPhone.trim().replace(/[\s\-]/g, ''); missing = !p || !validatePhone(p);
+          } else if (field === 'payment-method') missing = !paymentMethod;
+          if (missing) { effectiveFirstMissing = field; break; }
+        }
+      }
+      setLastFocusedField(effectiveFirstMissing as any);
+      scrollToFirstMissingField(effectiveFirstMissing);
       return;
     }
 
-    if (!validateFields()) {
-      if (!orderType) {
-        setErrorMessage('Please select Dine-in or Takeaway to continue.');
-        const section = document.getElementById('order-type-section');
-        if (section) {
-          section.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      } else if (!serviceType) {
-        setErrorMessage('Please select Self-Service or Table Service to continue.');
-        const section = document.getElementById('service-type-section');
-        if (section) {
-          section.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      } else if (!paymentMethod) {
-        setErrorMessage('Please select a payment method to continue.');
-        const section = document.getElementById('payment-method-section');
-        if (section) {
-          section.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
+    setErrorMessage(null);
+
+    if (hasUnavailableItems) {
+      setErrorMessage('Some items in your tray are currently out of stock. Please return to your tray and remove them before ordering.');
       return;
     }
 
