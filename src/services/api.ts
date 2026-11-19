@@ -352,7 +352,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return res.json();
+    const body = await res.json().catch(() => ({} as any));
+    if (!res.ok || body?.error) {
+      throw new Error(body?.error || `Payment failed (${res.status})`);
+    }
+    return body;
   },
 
   async updateStallStatus(orderId: string, stallId: string, status: string, staffName?: string, role?: string, userStallId?: string | null): Promise<Order> {

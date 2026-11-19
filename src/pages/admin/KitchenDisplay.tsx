@@ -97,9 +97,9 @@ export const KitchenDisplay: React.FC = () => {
     }
   };
 
-  // Only show orders that are PREPARING or READY (released to kitchen)
-  const kitchenOrders = orders.filter(o => 
-    ['PREPARING', 'READY'].includes(o.status)
+  // Only show orders that are paid and released to the kitchen.
+  const kitchenOrders = orders.filter(o =>
+    o.paymentStatus === 'PAID' && ['PREPARING', 'READY'].includes(o.status)
   );
 
   return (

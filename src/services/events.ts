@@ -49,6 +49,13 @@ class RealtimeEventsClient {
   private lastRevenue = '';
   private hasBaseline = false;
 
+  // Guest notification targeting for the polling fallback. Serverless platforms
+  // cannot share an SSE stream between instances, so ready-to-collect popups are
+  // reconstructed from the order records returned by /sync/state.
+  private subscribedOrderIds: Set<string> = new Set();
+  private subscribedTableId: string | null = null;
+  private seenNotificationEvents: Set<string> = new Set();
+
   private defaultEvents = [
     'order_created',
     'order_updated',
@@ -87,9 +94,15 @@ class RealtimeEventsClient {
     try {
       const cid = getClientId();
       const tid = sessionStorage.getItem('vivacity_table_id') || localStorage.getItem('vivacity_table_id') || '';
+      let role = '';
+      try {
+        const storedUser = JSON.parse(localStorage.getItem('vivacity_user') || 'null');
+        role = storedUser?.role || '';
+      } catch {}
       const params = new URLSearchParams();
       if (cid) params.append('clientId', cid);
       if (tid) params.append('tableId', tid.trim().toUpperCase());
+      if (role) params.append('role', role);
       const url = `${API_BASE}/events${params.toString() ? '?' + params.toString() : ''}`;
       this.eventSource = new EventSource(url);
     } catch (e) {
@@ -136,6 +149,18 @@ class RealtimeEventsClient {
   }
 
   subscribe(opts: { tableId?: string; orderId?: string; orderIds?: string[]; role?: string }) {
+    // Remember the subscription locally: it is what lets the polling fallback
+    // deliver a ready notification only to the matching order/table.
+    if (opts.tableId) {
+      this.subscribedTableId = String(opts.tableId).trim().toUpperCase();
+    }
+    if (opts.orderId) {
+      this.subscribedOrderIds.add(opts.orderId);
+    }
+    for (const id of opts.orderIds || []) {
+      if (id) this.subscribedOrderIds.add(id);
+    }
+
     const cid = getClientId();
     if (typeof window !== 'undefined' && 'fetch' in window) {
       fetch(`${API_BASE}/events/subscribe`, {
@@ -220,6 +245,7 @@ class RealtimeEventsClient {
           this.trigger('order_created', order);
         }
         this.trigger('order_updated', order);
+        this.emitPendingNotifications(order);
       }
 
       const hashes = data.hashes || {};
@@ -246,6 +272,53 @@ class RealtimeEventsClient {
       }
     } finally {
       this.pollInFlight = false;
+    }
+  }
+
+  /**
+   * Build the same `stall_ready_confirmed` payload SSE delivers, from a polled
+   * order record. Emits once per notification event id so a reminder is never
+   * repeated on every poll.
+   */
+  private emitPendingNotifications(order: any) {
+    if (!order || !order.id) return;
+
+    const orderTable = order.tableId ? String(order.tableId).trim().toUpperCase() : null;
+    const targetsThisGuest =
+      this.subscribedOrderIds.has(order.id) ||
+      Boolean(this.subscribedTableId && orderTable && this.subscribedTableId === orderTable);
+
+    if (!targetsThisGuest) return;
+
+    for (const stall of order.stalls || []) {
+      const eventId = stall?.notificationEventId;
+      const notifiedAt = stall?.lastNotifiedAt || stall?.notifiedAt;
+      if (!eventId || !notifiedAt) continue;
+      if (this.seenNotificationEvents.has(eventId)) continue;
+      this.seenNotificationEvents.add(eventId);
+
+      const attempt = stall.notificationCount || 1;
+      const history = Array.isArray(stall.notificationHistory) ? stall.notificationHistory : [];
+      const lastAttempt = history.length > 0 ? history[history.length - 1] : null;
+
+      this.trigger('stall_ready_confirmed', {
+        orderId: order.id,
+        token: order.token,
+        tableId: order.tableId || null,
+        clientId: order.clientId || null,
+        customerName: order.customerName || null,
+        customerPhone: order.customerPhone || null,
+        stallId: stall.stallId,
+        stallName: stall.stallName,
+        serviceType: order.serviceType || 'SELF_SERVICE',
+        confirmedBy: stall.confirmedBy || null,
+        items: stall.items || [],
+        notificationEventId: eventId,
+        notifiedAt,
+        attempt,
+        reason: lastAttempt?.reason || null,
+        isRepeat: attempt > 1
+      });
     }
   }
 

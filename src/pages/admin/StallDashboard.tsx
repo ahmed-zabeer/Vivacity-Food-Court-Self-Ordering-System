@@ -161,8 +161,11 @@ export const StallDashboard: React.FC = () => {
     );
   }
 
-  // Extract only this stall's sub-orders
+  // Extract only this stall's sub-orders. Orders that are still waiting for cash
+  // at the Central Counter must never reach the kitchen before payment is
+  // confirmed, and cancelled/refunded food must not be prepared either.
   const stallOrders = orders
+    .filter(order => order.paymentStatus === 'PAID' && order.status !== 'CANCELLED')
     .map(order => {
       const sub = order.stalls.find(s => s.stallId === stall.id);
       return sub ? { ...order, stallSubOrder: sub } : null;

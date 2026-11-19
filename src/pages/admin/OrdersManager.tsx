@@ -17,6 +17,7 @@ export const OrdersManager: React.FC = () => {
   const [search, setSearch] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const selectedOrderIdRef = useRef<string | null>(null);
+  const [stallActionKey, setStallActionKey] = useState<string | null>(null);
 
   // Track seen order IDs in state and persistent storage
   const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(() => {
@@ -224,22 +225,53 @@ export const OrdersManager: React.FC = () => {
   }, []);
 
   const handleMarkStallCollected = async (orderId: string, stallId: string) => {
+    const actionKey = `${orderId}:${stallId}`;
+    if (stallActionKey === actionKey) return;
+    setStallActionKey(actionKey);
     try {
       const res = await api.markStallCollected(orderId, stallId, currentUser?.name || 'Central Counter Manager');
       setSelectedOrder(res.order);
       setOrders(prev => prev.map(o => o.id === res.order.id ? res.order : o));
     } catch (e: any) {
       alert(e.message || 'Failed to mark stall collected');
+    } finally {
+      setStallActionKey(null);
+    }
+  };
+
+  const handleMarkStallReady = async (orderId: string, stallId: string) => {
+    const actionKey = `${orderId}:${stallId}`;
+    if (stallActionKey === actionKey) return;
+    setStallActionKey(actionKey);
+    try {
+      const updated = await api.markStallReady(
+        orderId,
+        stallId,
+        `${currentUser?.name || 'Central Counter'} (Central Counter)`,
+        currentUser?.role,
+        currentUser?.stallId
+      );
+      setSelectedOrder(updated);
+      setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+    } catch (e: any) {
+      alert(e.message || 'Failed to mark stall ready');
+    } finally {
+      setStallActionKey(null);
     }
   };
 
   const handleCounterConfirm = async (orderId: string, stallId: string) => {
+    const actionKey = `${orderId}:${stallId}`;
+    if (stallActionKey === actionKey) return;
+    setStallActionKey(actionKey);
     try {
       const res = await api.confirmAndNotifyCustomer(orderId, stallId, currentUser?.name || 'Central Counter Manager');
       setSelectedOrder(res.order);
       setOrders(prev => prev.map(o => o.id === res.order.id ? res.order : o));
     } catch (e: any) {
       alert(e.message || 'Failed to confirm customer notification');
+    } finally {
+      setStallActionKey(null);
     }
   };
 
@@ -312,15 +344,18 @@ export const OrdersManager: React.FC = () => {
 
   const handleConfirmCash = async (orderId: string) => {
     try {
-      const updated = await api.processPayment(orderId, {
+      const updated: any = await api.processPayment(orderId, {
         paymentMethod: 'CASH',
-        cashierName: 'Central Cashier (Hasan)'
+        cashierName: currentUser?.name || 'Central Cashier'
       });
+      if (!updated || updated.error || !updated.id) {
+        throw new Error(updated?.error || 'Payment could not be confirmed. Please retry.');
+      }
       sound.playPaymentSuccess();
       setSelectedOrder(updated);
       setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
-    } catch (e) {
-      alert('Failed to confirm cash');
+    } catch (e: any) {
+      alert(e.message || 'Failed to confirm cash');
     }
   };
 
@@ -1076,14 +1111,45 @@ export const OrdersManager: React.FC = () => {
                           <p className="text-[11px] text-zinc-500 mt-0.5">
                             {stall.items.map(it => `${it.quantity}x ${it.name}`).join(', ')}
                           </p>
+                          {stall.status === 'NOTIFIED' && (
+                            <p className="text-[10px] font-bold text-emerald-700 mt-1">
+                              Notified by {stall.confirmedBy || 'Staff'}
+                              {stall.lastNotifiedAt
+                                ? ` • ${new Date(stall.lastNotifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                : ''}
+                              {` • Attempt #${stall.notificationCount || 1}`}
+                            </p>
+                          )}
+                          {stall.status === 'READY' && stall.readyAt && (
+                            <p className="text-[10px] font-semibold text-amber-700 mt-1">
+                              Kitchen ready at {new Date(stall.readyAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
+                          {stall.status === 'COLLECTED' && stall.collectedAt && (
+                            <p className="text-[10px] font-semibold text-blue-700 mt-1">
+                              Collected at {new Date(stall.collectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
                         </div>
 
                         {/* Action buttons per stall */}
                         <div className="flex items-center gap-2 shrink-0">
+                          {['NEW', 'ACCEPTED', 'PREPARING'].includes(stall.status) && selectedOrder.paymentStatus === 'PAID' && (
+                            <button
+                              onClick={() => handleMarkStallReady(selectedOrder.id, stall.stallId)}
+                              disabled={stallActionKey === `${selectedOrder.id}:${stall.stallId}`}
+                              className="px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                              title="Mark this stall's food ready from the Central Counter"
+                            >
+                              <ChefHat className="w-3.5 h-3.5" />
+                              <span>MARK READY</span>
+                            </button>
+                          )}
                           {stall.status === 'READY' && (
                             <button
                               onClick={() => handleCounterConfirm(selectedOrder.id, stall.stallId)}
-                              className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                              disabled={stallActionKey === `${selectedOrder.id}:${stall.stallId}`}
+                              className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                               title="Counter rings bell and notifies customer that this stall's food is ready"
                             >
                               <Bell className="w-3.5 h-3.5 animate-bounce" />
@@ -1098,7 +1164,8 @@ export const OrdersManager: React.FC = () => {
                               </span>
                               <button
                                 onClick={() => handleCounterConfirm(selectedOrder.id, stall.stallId)}
-                                className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs flex items-center gap-1 transition-colors cursor-pointer"
+                                disabled={stallActionKey === `${selectedOrder.id}:${stall.stallId}`}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
                                 title="Send repeat reminder and ring alarm again"
                               >
                                 <Bell className="w-3.5 h-3.5 animate-bounce" />
@@ -1106,7 +1173,8 @@ export const OrdersManager: React.FC = () => {
                               </button>
                               <button
                                 onClick={() => handleMarkStallCollected(selectedOrder.id, stall.stallId)}
-                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center gap-1 transition-colors cursor-pointer"
+                                disabled={stallActionKey === `${selectedOrder.id}:${stall.stallId}`}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
                                 title="Customer has picked up food from pickup counter"
                               >
                                 <CheckCircle className="w-3.5 h-3.5" />

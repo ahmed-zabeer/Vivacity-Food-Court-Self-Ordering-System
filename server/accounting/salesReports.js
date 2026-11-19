@@ -73,8 +73,14 @@ export class SalesReportsEngine {
    */
   getTopSellingItems({ dateFrom = null, dateTo = null, stallId = null, category = null, limit = 50, sortBy = 'quantity', search = '' } = {}) {
     const orders = this._filterOrders({ dateFrom, dateTo, stallId });
-    // Only count legitimate sales (paid orders, not cancelled)
-    const validOrders = orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
+    // Sales are recognised on payment. Refunds are subtracted on their own date.
+    const validOrders = orders.filter(o => Boolean(o.paidAt) && !['FAILED', 'UNPAID', 'PAYMENT DUE', 'CANCELLED'].includes(o.paymentStatus));
+
+    const refundsInRange = this._refundsInRange({ dateFrom, dateTo });
+    const refundByOrder = new Map();
+    for (const r of refundsInRange.rows) {
+      refundByOrder.set(r.orderId, (refundByOrder.get(r.orderId) || 0) + r.amount);
+    }
 
     const itemMap = new Map();
     let totalSalesOverall = 0;
@@ -82,14 +88,24 @@ export class SalesReportsEngine {
     for (const order of validOrders) {
       const orderDiscountRate = order.subtotal > 0 ? (order.discount || 0) / order.subtotal : 0;
 
-      for (const item of (order.items || [])) {
-        if (stallId && stallId !== 'ALL' && item.stallId !== stallId) continue;
-        
+      const includedItems = (order.items || []).filter(item => {
+        if (stallId && stallId !== 'ALL' && item.stallId !== stallId) return false;
         const dbItem = this.db.getMenuItem ? this.db.getMenuItem(item.menuItemId) : null;
         const itemCategory = dbItem?.category || 'General';
-        if (category && category !== 'ALL' && itemCategory !== category) continue;
+        if (category && category !== 'ALL' && itemCategory !== category) return false;
+        if (search && !(item.name || '').toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      });
 
-        if (search && !(item.name || '').toLowerCase().includes(search.toLowerCase())) continue;
+      const orderRefund = refundByOrder.get(order.id) || 0;
+      const includedNet = includedItems.reduce((s, item) => {
+        const gross = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+        return s + (gross - Math.round(gross * orderDiscountRate));
+      }, 0);
+
+      for (const item of includedItems) {
+        const dbItem = this.db.getMenuItem ? this.db.getMenuItem(item.menuItemId) : null;
+        const itemCategory = dbItem?.category || 'General';
 
         const itemId = item.menuItemId || item.id;
         if (!itemMap.has(itemId)) {
@@ -118,14 +134,19 @@ export class SalesReportsEngine {
         const price = Number(item.price) || 0;
         const itemGross = price * qty;
         const itemDiscount = Math.round(itemGross * orderDiscountRate);
+        const itemNet = itemGross - itemDiscount;
+        const itemRefund = (orderRefund > 0 && includedNet > 0)
+          ? Math.round(orderRefund * (itemNet / includedNet))
+          : 0;
 
         entry.quantitySold += qty;
         entry.orderCount += 1;
         entry.grossSales += itemGross;
         entry.discounts += itemDiscount;
-        entry.netSales += (itemGross - itemDiscount);
+        entry.refunds += itemRefund;
+        entry.netSales += (itemNet - itemRefund);
 
-        totalSalesOverall += (itemGross - itemDiscount);
+        totalSalesOverall += (itemNet - itemRefund);
       }
     }
 
@@ -639,13 +660,25 @@ export class SalesReportsEngine {
    */
   getCategoryWiseSales({ dateFrom = null, dateTo = null, stallId = null } = {}) {
     const orders = this._filterOrders({ dateFrom, dateTo, stallId });
-    const validOrders = orders.filter(o => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED');
+    const validOrders = orders.filter(o => Boolean(o.paidAt) && !['FAILED', 'UNPAID', 'PAYMENT DUE', 'CANCELLED'].includes(o.paymentStatus));
+
+    const refundsInRange = this._refundsInRange({ dateFrom, dateTo });
+    const refundByOrder = new Map();
+    for (const r of refundsInRange.rows) {
+      refundByOrder.set(r.orderId, (refundByOrder.get(r.orderId) || 0) + r.amount);
+    }
 
     const catMap = new Map();
     let totalSales = 0;
 
     for (const order of validOrders) {
       const orderDiscountRate = order.subtotal > 0 ? (order.discount || 0) / order.subtotal : 0;
+      const orderRefund = refundByOrder.get(order.id) || 0;
+      const orderNet = (order.items || []).reduce((s, item) => {
+        if (stallId && stallId !== 'ALL' && item.stallId !== stallId) return s;
+        const gross = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+        return s + (gross - Math.round(gross * orderDiscountRate));
+      }, 0);
 
       for (const item of (order.items || [])) {
         if (stallId && stallId !== 'ALL' && item.stallId !== stallId) continue;
@@ -659,6 +692,7 @@ export class SalesReportsEngine {
             quantitySold: 0,
             grossSales: 0,
             discounts: 0,
+            refunds: 0,
             netSales: 0
           });
         }
@@ -669,12 +703,14 @@ export class SalesReportsEngine {
         const gross = price * qty;
         const disc = Math.round(gross * orderDiscountRate);
         const net = gross - disc;
+        const refund = (orderRefund > 0 && orderNet > 0) ? Math.round(orderRefund * (net / orderNet)) : 0;
 
         entry.quantitySold += qty;
         entry.grossSales += gross;
         entry.discounts += disc;
-        entry.netSales += net;
-        totalSales += net;
+        entry.refunds += refund;
+        entry.netSales += (net - refund);
+        totalSales += (net - refund);
       }
     }
 
@@ -758,17 +794,29 @@ export class SalesReportsEngine {
 
       target.transactions += 1;
 
-      if (order.paymentStatus === 'PAID' && order.status !== 'CANCELLED') {
+      const wasCollected = Boolean(order.paidAt)
+        && !['FAILED', 'UNPAID', 'PAYMENT DUE', 'CANCELLED'].includes(order.paymentStatus);
+
+      if (wasCollected) {
+        // A refunded sale was still collected on its payment date. The refund is
+        // subtracted separately below, on the date the money left the till.
         target.successfulCollections += amt;
         target.netCollected += amt;
         totalCollections += amt;
-      } else if (order.paymentStatus === 'REFUNDED') {
-        target.refunds += amt;
       } else if (order.paymentStatus === 'FAILED') {
         target.failedAmount += amt;
       } else {
         target.pendingAmount += amt;
       }
+    }
+
+    // Refunds paid out inside this window, whatever the original sale date.
+    const refundsInRange = this._refundsInRange({ dateFrom, dateTo });
+    for (const refund of refundsInRange.rows) {
+      const key = refund.method || 'CASH';
+      const target = methods[key] || methods.CASH;
+      target.refunds += refund.amount;
+      target.netCollected -= refund.amount;
     }
 
     const list = Object.entries(methods).map(([key, val]) => ({
@@ -779,7 +827,8 @@ export class SalesReportsEngine {
 
     return {
       methods: list,
-      totalCollections
+      totalCollections,
+      totalRefunds: refundsInRange.total
     };
   }
 
@@ -790,7 +839,7 @@ export class SalesReportsEngine {
     const orders = this._filterOrders({ dateFrom, dateTo });
 
     const discountsList = [];
-    const refundsList = [];
+    let refundsList = [];
     const cancellationsList = [];
 
     let totalDiscounts = 0;
@@ -813,20 +862,6 @@ export class SalesReportsEngine {
         });
       }
 
-      // Check refund
-      if (order.paymentStatus === 'REFUNDED') {
-        totalRefunds += order.grandTotal;
-        const cancelHistory = order.history?.find(h => h.status === 'CANCELLED');
-        refundsList.push({
-          orderId: order.id,
-          token: order.token,
-          date: getDhakaDateParts(new Date(cancelHistory?.time || order.createdAt)).dateStr,
-          amount: order.grandTotal,
-          reason: cancelHistory?.note || 'Customer refund requested',
-          refundedBy: cancelHistory?.note?.match(/by (.*)\./)?.[1] || 'Manager'
-        });
-      }
-
       // Check cancelled without refund
       if (order.status === 'CANCELLED' && order.paymentStatus !== 'REFUNDED') {
         totalCancelledValue += order.grandTotal;
@@ -841,6 +876,22 @@ export class SalesReportsEngine {
         });
       }
     }
+
+    // Refunds are reported on the date the money was actually paid back, even
+    // when the original sale happened in an earlier period.
+    const refundsInRange = this._refundsInRange({ dateFrom, dateTo });
+    totalRefunds = refundsInRange.total;
+    refundsList = refundsInRange.rows.map(r => ({
+      orderId: r.orderId,
+      token: r.token,
+      invoiceNo: r.invoiceNo,
+      date: r.date,
+      amount: r.amount,
+      reason: r.reason || 'Customer refund requested',
+      refundedBy: r.refundedBy || 'Manager',
+      method: r.method || 'CASH',
+      transactionId: r.transactionId || null
+    }));
 
     return {
       totalDiscounts,

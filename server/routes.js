@@ -614,6 +614,17 @@ router.post('/orders/:id/stalls/:stallId/ready', (req, res) => {
     }
   }
 
+  // A kitchen must never start working on food that has not been paid for.
+  // QR cash orders stay NEW / PAYMENT DUE at the Central Counter until the
+  // cashier confirms the cash, which is what releases them to the kitchens.
+  const targetOrder = db.getOrder(req.params.id);
+  if (!targetOrder) return res.status(404).json({ error: 'Order not found' });
+  if (!['PAID', 'PARTIALLY_REFUNDED'].includes(targetOrder.paymentStatus)) {
+    return res.status(400).json({
+      error: 'Cannot mark food ready: payment for this order has not been confirmed at the Central Counter yet.'
+    });
+  }
+
   const order = db.markStallReady(req.params.id, req.params.stallId, req.body.staffName || 'Kitchen Staff');
   if (!order) return res.status(404).json({ error: 'Order or stall sub-order not found' });
   res.json(order);

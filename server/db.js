@@ -11,6 +11,7 @@ import { PurchaseReportsEngine } from './accounting/purchaseReports.js';
 import { InventoryReportsEngine } from './accounting/inventoryReports.js';
 import { DailyClosingEngine } from './accounting/dailyClosing.js';
 import { BusinessIntelligenceEngine } from './accounting/biInsights.js';
+import { getOrderRefunds, getRefundDateStr } from './accounting/refunds.js';
 import { hydrateFromKv, markDurableDirty } from './persist.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2858,10 +2859,26 @@ class Database {
     if (!stall) return null;
 
     const nowIso = new Date().toISOString();
+    const alreadyReady = ["READY", "NOTIFIED", "COLLECTED", "DELIVERED"].includes(stall.status);
     stall.status = "READY";
-    stall.readyAt = nowIso;
+    if (!stall.readyAt) stall.readyAt = nowIso;
+
+    // The master order must follow its stalls. Without this, marking every stall
+    // ready from the Central Counter left the order stuck on PREPARING.
+    const allStallsReady = order.stalls.every(s => ["READY", "NOTIFIED", "COLLECTED", "DELIVERED"].includes(s.status));
+    if (allStallsReady && !["READY", "OUT FOR DELIVERY", "DELIVERED", "COMPLETED"].includes(order.status)) {
+      order.status = "READY";
+      if (order.tableId) this.updateTableStatus(order.tableId, "READY");
+      order.history.push({
+        status: "READY",
+        time: nowIso,
+        note: "All stall kitchens marked items ready for runner pickup!"
+      });
+      this.createRunnerTask(order);
+    }
+
     this.saveData();
-    this.logAudit("STALL_KITCHEN_READY", `Stall "${stall.stallName}" marked food READY for #${order.token} (Awaiting counter confirmation)`, { orderId, stallId }, staffName);
+    this.logAudit("STALL_KITCHEN_READY", `Stall "${stall.stallName}" marked food READY for #${order.token}${alreadyReady ? ' (re-confirmed)' : ''} (Awaiting counter confirmation)`, { orderId, stallId }, staffName);
 
     // Broadcast to Central Counter Dashboard: Kitchen Ready!
     eventBus.broadcast("stall_kitchen_ready", {
@@ -3275,8 +3292,12 @@ class Database {
     let prevYearlyOrders = 0;
 
     for (const order of this.orders) {
-      // Must be confirmed PAID and not CANCELLED
-      if (order.paymentStatus !== 'PAID' || order.status === 'CANCELLED') continue;
+      // A sale is recognised on the date the money was collected. A later
+      // refund is subtracted separately, on the date the refund was paid out,
+      // so past days never silently lose a sale they really made.
+      const isCollectedSale = Boolean(order.paidAt)
+        && !['FAILED', 'UNPAID', 'PAYMENT DUE', 'CANCELLED'].includes(order.paymentStatus);
+      if (!isCollectedSale) continue;
 
       const paidDateTimestamp = order.paidAt || order.createdAt;
       if (!paidDateTimestamp) continue;
@@ -3326,6 +3347,45 @@ class Database {
       } else if (orderParts.dateStr >= prevStartOfWeekStr && orderParts.dateStr <= prevEndOfWeekStr) {
         prevWeeklyRevenue += amount;
         prevWeeklyOrders++;
+      }
+    }
+
+    // Refunds are money that left the till. Subtract each one in the period it
+    // was actually paid out, regardless of when the original sale happened.
+    for (const order of this.orders) {
+      for (const refund of getOrderRefunds(order)) {
+        const refundDateStr = getRefundDateStr(refund, order);
+        if (!refundDateStr) continue;
+        const stamp = refund.date || order.paidAt || order.createdAt || null;
+        const refundMs = stamp ? new Date(stamp).getTime() : NaN;
+        if (!Number.isFinite(refundMs)) continue;
+        const parts = getDhakaDateParts(new Date(refundMs));
+        const amount = Number(refund.amount) || 0;
+        if (amount <= 0) continue;
+
+        if (parts.yearStr === todayParts.yearStr) {
+          if (refundMs > yearlyResetCutoff) yearlyRevenue -= amount;
+        } else if (parts.yearStr === prevYearStr) {
+          prevYearlyRevenue -= amount;
+        }
+
+        if (parts.monthStr === todayParts.monthStr) {
+          if (refundMs > monthlyResetCutoff) monthlyRevenue -= amount;
+        } else if (parts.monthStr === prevMonthStr) {
+          prevMonthlyRevenue -= amount;
+        }
+
+        if (parts.dateStr === todayParts.dateStr) {
+          if (refundMs > dailyResetCutoff) dailyRevenue -= amount;
+        } else if (parts.dateStr === yesterdayParts.dateStr) {
+          prevDailyRevenue -= amount;
+        }
+
+        if (parts.dateStr >= startOfWeekStr && parts.dateStr <= todayParts.dateStr) {
+          weeklyRevenue -= amount;
+        } else if (parts.dateStr >= prevStartOfWeekStr && parts.dateStr <= prevEndOfWeekStr) {
+          prevWeeklyRevenue -= amount;
+        }
       }
     }
 
