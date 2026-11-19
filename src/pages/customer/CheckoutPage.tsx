@@ -8,6 +8,8 @@ import { PaymentMethod, Order, ServiceType } from '../../types';
 import { useLocation } from 'wouter';
 import { CreditCard, Banknote, Wifi, ShieldCheck, AlertCircle, ArrowRight, Lock, User, Phone, MapPin, UtensilsCrossed, Store, Package } from 'lucide-react';
 
+type ValidationField = 'order-type' | 'service-type' | 'name' | 'phone' | 'payment-method';
+
 export const CheckoutPage: React.FC = () => {
   const {
     items, subtotal, discount, couponCode, clearCart, clearCustomerDetails,
@@ -36,15 +38,16 @@ export const CheckoutPage: React.FC = () => {
   });
   const [serviceTypeError, setServiceTypeError] = useState<string | null>(null);
 
+  // Payment Method selection state
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+
   // Validation Error States
   const [nameError, setNameError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
-  const [orderTypeError, setOrderTypeError] = useState<string | null>(null);
-  const [serviceTypeError, setServiceTypeError] = useState<string | null>(null);
   const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null);
 
   // Track which field last had focus for sequential validation navigation
-  const [lastFocusedField, setLastFocusedField] = useState<'order-type' | 'service-type' | 'name' | 'phone' | null>(null);
+  const [lastFocusedField, setLastFocusedField] = useState<ValidationField | null>(null);
   const [customerNotes, setCustomerNotes] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('vivacity_customer_notes') || '';
@@ -126,16 +129,16 @@ export const CheckoutPage: React.FC = () => {
   };
 
   // Scroll to and focus the first missing field for the validation step
-  const scrollToFirstMissingField = (field: 'order-type' | 'service-type' | 'name' | 'phone' | null) => {
+  const scrollToFirstMissingField = (field: 'order-type' | 'service-type' | 'name' | 'phone' | 'payment-method' | null) => {
     if (!field) return;
 
-    const fieldMapping: Record<string, { element: HTMLInputElement | HTMLSelectElement | null; scroll: boolean }> = {
+    const fieldMapping: Record<string, { element: HTMLElement | null; scroll: boolean }> = {
       'order-type': {
-        element: document.getElementById('order-type-section') as HTMLInputElement | HTMLSelectElement | null,
+        element: document.getElementById('order-type-section'),
         scroll: true
       },
       'service-type': {
-        element: document.getElementById('service-type-section') as HTMLInputElement | HTMLSelectElement | null,
+        element: document.getElementById('service-type-section'),
         scroll: true
       },
       'name': {
@@ -145,19 +148,26 @@ export const CheckoutPage: React.FC = () => {
       'phone': {
         element: document.getElementsByTagName('input')[1] as HTMLInputElement | null, // Second input is phone
         scroll: true
+      },
+      'payment-method': {
+        element: document.getElementById('payment-method-section'),
+        scroll: true
       }
     };
 
     const mapped = fieldMapping[field];
-    if (mapped.element) {
+    if (mapped?.element) {
       if (mapped.scroll) {
         mapped.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       // Set focus with a slight delay to allow scrollIntoView to complete
       setTimeout(() => {
         try {
-          mapped.element?.focus();
-          mapped.element?.select();
+          const el = mapped.element;
+          if (el) {
+            el.focus();
+            if (el instanceof HTMLInputElement) el.select();
+          }
         } catch {}
       }, 100);
     }
@@ -166,7 +176,7 @@ export const CheckoutPage: React.FC = () => {
   // Validation priority order: first missing field wins.
   // Returns the field key that is missing, or null if all valid.
   // Also returns a boolean indicating validity.
-  const validateFields = (): { valid: boolean; firstMissing: keyof typeof orderTypeError | keyof typeof serviceTypeError | keyof typeof nameError | keyof typeof phoneError | keyof typeof paymentMethodError | null } => {
+  const validateFields = (): { valid: boolean; firstMissing: ValidationField | null } => {
     // Reset all error states first
     setNameError(null);
     setPhoneError(null);

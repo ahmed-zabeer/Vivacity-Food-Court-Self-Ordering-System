@@ -278,7 +278,7 @@ export const OrderTrackingPage: React.FC = () => {
     const notice = buildCancellationEvent(order);
     const cancelledAt = notice?.cancelledAt || null;
     const refundText =
-      order.paymentStatus === 'REFUNDED' || order.paymentStatus === 'PARTIALLY_REFUNDED'
+      order.paymentStatus === 'REFUNDED' || order.paymentStatus === 'PARTIALLY REFUNDED'
         ? notice?.refundAmount
           ? `৳${Number(notice.refundAmount).toLocaleString()} refund has been recorded.`
           : 'A refund has been recorded.'

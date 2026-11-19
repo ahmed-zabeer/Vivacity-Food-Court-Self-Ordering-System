@@ -27,7 +27,7 @@ const refundLabel = (notice: GuestOrderCancelledEvent): string | null => {
       ? `৳${Number(notice.refundAmount).toLocaleString()} will be returned to you.`
       : 'Your payment has been refunded.';
   }
-  if (notice.paymentStatus === 'PARTIALLY_REFUNDED') {
+  if (notice.paymentStatus === 'PARTIALLY REFUNDED') {
     return notice.refundAmount && notice.refundAmount > 0
       ? `A refund of ৳${Number(notice.refundAmount).toLocaleString()} has been recorded.`
       : 'A partial refund has been recorded.';

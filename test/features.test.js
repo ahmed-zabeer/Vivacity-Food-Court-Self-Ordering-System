@@ -294,6 +294,8 @@ console.log("✅ Passed: All Six Stall Dashboards direct notification, repeat ca
 
 // 7. Server-Enforced Stall Ownership Security Test
 console.log("Test 7: Verifying Server-Enforced Stall Ownership Security...");
+// Ensure inventory for test item
+db.setItemStock('mb-mom-1', 50, 'Admin');
 // Test that a Stall Manager of fusion-cafe cannot notify an order for momo-buzz
 const testOrder = db.createOrder({
   tableId: "T35",

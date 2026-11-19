@@ -254,7 +254,7 @@ console.log("✅ Passed: Backend and frontend validation reject incomplete order
 console.log("Test 8: Verifying Sales, Daily Closing & Accounting records update correctly...");
 const salesReport = salesEngine.getSalesSummary({});
 assert.ok(salesReport.totalOrders > 0, "Orders must appear in Sales Report");
-const closingReport = closingEngine.getDailyClosingReport(new Date().toISOString().slice(0, 10));
+const closingReport = closingEngine.getDailyClosingReport();
 assert.ok(closingReport.sales.netSales > 0, "Daily closing must record revenue");
 console.log("✅ Passed: Sales and Daily Closing engines updated accurately.\n");
 
