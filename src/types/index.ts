@@ -214,6 +214,28 @@ export interface StallReadyConfirmedEvent {
   isRepeat?: boolean;
 }
 
+export interface GuestOrderCancelledEvent {
+  type?: 'ORDER_CANCELLED';
+  eventId: string;
+  cancellationEventId: string;
+  orderId: string;
+  token: string;
+  invoiceNo?: string | null;
+  tableId: string | null;
+  clientId?: string | null;
+  customerName?: string | null;
+  reason: string;
+  cancelledAt: string | null;
+  cancelledBy?: string | null;
+  cancelledByRole?: string | null;
+  source?: string | null;
+  paymentStatus?: PaymentStatus | null;
+  paymentMethod?: PaymentMethod | null;
+  grandTotal?: number;
+  refundAmount?: number;
+  isRepeat?: boolean;
+}
+
 export interface CounterReadyItem {
   orderId: string;
   token: string;
@@ -313,6 +335,12 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
+  clientId?: string | null;
+  cancellationEventId?: string | null;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  cancelledByRole?: string | null;
+  cancellationSource?: string | null;
   customerName?: string;
   customerPhone?: string;
   customerAddress?: string;

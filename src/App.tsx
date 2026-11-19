@@ -9,8 +9,16 @@ import { BrandSplash } from './components/common/BrandSplash';
 
 import { GlobalFooter } from './components/common/GlobalFooter';
 import { FoodReadyModal } from './components/customer/FoodReadyModal';
-import { StallReadyConfirmedEvent } from './types';
+import { OrderCancelledModal } from './components/customer/OrderCancelledModal';
+import { StallReadyConfirmedEvent, GuestOrderCancelledEvent } from './types';
 import { realtime } from './services/events';
+import {
+  acknowledgeCancellation,
+  buildCancellationEvent,
+  isCancellationAcknowledged,
+  isCancellationForThisGuest
+} from './services/cancellation';
+import { api } from './services/api';
 import { AlertTriangle } from 'lucide-react';
 
 // Customer Pages
@@ -74,6 +82,36 @@ const MainContent: React.FC = () => {
   const [reminderQueue, setReminderQueue] = useState<StallReadyConfirmedEvent[]>([]);
   const activeReadyReminder = reminderQueue[0] || null;
   const seenEventIds = React.useRef<Set<string>>(new Set());
+
+  // Global guest cancellation queue. Shown only to the exact device that owns
+  // the cancelled order, and persisted so a refresh/reconnect still informs it.
+  const [cancellationQueue, setCancellationQueue] = useState<GuestOrderCancelledEvent[]>([]);
+  const activeCancellation = cancellationQueue[0] || null;
+  const seenCancellationIds = React.useRef<Set<string>>(new Set());
+
+  const enqueueCancellation = React.useCallback((evt: GuestOrderCancelledEvent | null | undefined) => {
+    if (!evt || !evt.cancellationEventId) return;
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
+      const isStaffScreen =
+        pathname.startsWith('/admin') ||
+        pathname.startsWith('/kitchen') ||
+        pathname.includes('/dashboard');
+      if (isStaffScreen) return;
+    }
+    if (seenCancellationIds.current.has(evt.cancellationEventId)) return;
+    if (isCancellationAcknowledged(evt.cancellationEventId)) return;
+    if (!isCancellationForThisGuest(evt)) return;
+
+    seenCancellationIds.current.add(evt.cancellationEventId);
+    setCancellationQueue(prev => [...prev, evt]);
+  }, []);
+
+  const handleDismissCancellation = () => {
+    const current = cancellationQueue[0];
+    if (current) acknowledgeCancellation(current.cancellationEventId);
+    setCancellationQueue(prev => prev.slice(1));
+  };
 
   // Automatically reset scroll position to 0 on every route transition (mobile & desktop)
   React.useLayoutEffect(() => {
@@ -257,6 +295,56 @@ const MainContent: React.FC = () => {
     };
   }, []);
 
+  // Live cancellation notices from the server (SSE on LAN/localhost, or the
+  // polling fallback rebuilt from /sync/state on Vercel).
+  React.useEffect(() => {
+    const unsubCancel = realtime.on('guest_order_cancelled', (evt: GuestOrderCancelledEvent) => {
+      enqueueCancellation(evt);
+    });
+    return () => unsubCancel();
+  }, [enqueueCancellation]);
+
+  // Refresh / reconnect safety net: inspect the orders this tab owns and show
+  // any cancellation the phone missed while it was offline or backgrounded.
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const pathname = window.location.pathname;
+    const isStaffScreen =
+      pathname.startsWith('/admin') ||
+      pathname.startsWith('/kitchen') ||
+      pathname.includes('/dashboard');
+    if (isStaffScreen) return;
+
+    const ids = new Set<string>();
+    try {
+      const sessionOrders = JSON.parse(sessionStorage.getItem('vivacity_session_orders') || '[]');
+      if (Array.isArray(sessionOrders)) sessionOrders.filter(Boolean).forEach((id: string) => ids.add(id));
+    } catch {}
+    const routeMatch = pathname.match(/^\/orders\/([^/]+)\/?$/);
+    if (routeMatch) {
+      try {
+        ids.add(decodeURIComponent(routeMatch[1]));
+      } catch {
+        ids.add(routeMatch[1]);
+      }
+    }
+    if (ids.size === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const id of ids) {
+        try {
+          const order = await api.getOrder(id);
+          if (cancelled) return;
+          enqueueCancellation(buildCancellationEvent(order));
+        } catch {}
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enqueueCancellation, connectionStatus.connected]);
+
   const handleDismissReminder = () => {
     setReminderQueue(prev => prev.slice(1));
   };
@@ -353,6 +441,15 @@ const MainContent: React.FC = () => {
           key={activeReadyReminder.notificationEventId}
           notification={activeReadyReminder}
           onDismiss={handleDismissReminder}
+        />
+      )}
+
+      {/* Dedicated Full-Screen Order Cancelled Notice (exact guest only) */}
+      {activeCancellation && (
+        <OrderCancelledModal
+          key={activeCancellation.cancellationEventId}
+          notice={activeCancellation}
+          onDismiss={handleDismissCancellation}
         />
       )}
     </div>

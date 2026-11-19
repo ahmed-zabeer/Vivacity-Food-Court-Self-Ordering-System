@@ -21,6 +21,14 @@ function requireManagerRole(req, res) {
   return false;
 }
 
+// Cancellation/refund authority: when a caller explicitly declares a role, it
+// must be a manager-level role. Cashiers can still submit a void request, but
+// they cannot cancel or refund an order on their own.
+function blockedFromCancelling(req) {
+  const role = getRequestRole(req);
+  return Boolean(role) && !MANAGER_ROLES.has(role);
+}
+
 // --- Real-time SSE Endpoint ---
 router.get('/events', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -41,6 +49,17 @@ router.get('/events', (req, res) => {
     : [];
 
   eventBus.addClient(res, { clientId, tableId, role, orderIds });
+
+  // Replay any persisted cancellation for these exact order ids. This keeps a
+  // refreshing/reconnecting guest phone informed even though the original
+  // broadcast happened while it was offline.
+  for (const orderId of new Set(orderIds.filter(Boolean))) {
+    const order = db.getOrder(orderId);
+    if (order && order.status === 'CANCELLED' && order.cancellationEventId && clientId) {
+      const payload = db.getGuestCancellationPayload(order);
+      if (payload) eventBus.sendToClient(clientId, 'guest_order_cancelled', payload);
+    }
+  }
 });
 
 // Late-binding subscription: the EventSource may connect before the guest page
@@ -51,6 +70,17 @@ router.post('/events/subscribe', (req, res) => {
     return res.status(400).json({ error: 'clientId is required to subscribe.' });
   }
   eventBus.subscribeClient(clientId, { tableId, orderId, orderIds, role });
+
+  // Replay a persisted cancellation notice to this exact phone only.
+  const ids = [orderId, ...(Array.isArray(orderIds) ? orderIds : [])].filter(Boolean);
+  for (const id of new Set(ids)) {
+    const order = db.getOrder(id);
+    if (order && order.status === 'CANCELLED' && order.cancellationEventId) {
+      const payload = db.getGuestCancellationPayload(order);
+      if (payload) eventBus.sendToClient(clientId, 'guest_order_cancelled', payload);
+    }
+  }
+
   res.json({ success: true, clientId });
 });
 
@@ -64,6 +94,7 @@ router.get('/sync/state', (req, res) => {
     let t = Date.parse(o.createdAt || '') || 0;
     if (o.paidAt) t = Math.max(t, Date.parse(o.paidAt) || 0);
     if (o.refundedAt) t = Math.max(t, Date.parse(o.refundedAt) || 0);
+    if (o.cancelledAt) t = Math.max(t, Date.parse(o.cancelledAt) || 0);
     for (const h of o.history || []) {
       const v = Date.parse(h.time || '');
       if (Number.isFinite(v) && v > t) t = v;
@@ -457,7 +488,12 @@ router.post('/orders/:id/accept', (req, res) => {
 });
 
 router.post('/orders/:id/reject', (req, res) => {
-  const order = db.rejectOrder(req.params.id, req.body.reason || 'Kitchen overloaded');
+  if (blockedFromCancelling(req)) {
+    return res.status(403).json({ error: 'Unauthorized: Cashiers and stall staff cannot reject or cancel an order without manager approval. Submit a void request instead.' });
+  }
+  const staffName = req.body.managerName || req.headers['x-user-name'] || req.body.staffName || 'Central Counter';
+  const staffRole = getRequestRole(req) || null;
+  const order = db.rejectOrder(req.params.id, req.body.reason || 'Kitchen overloaded', staffName, staffRole);
   if (!order) return res.status(404).json({ error: 'Order not found' });
   res.json(order);
 });
@@ -465,8 +501,11 @@ router.post('/orders/:id/reject', (req, res) => {
 // Manager Update Status directly (without navigating away or closing page)
 router.patch('/orders/:id/status', (req, res) => {
   try {
-    const { status, note, staffName } = req.body;
-    const order = db.updateOrderStatus(req.params.id, status, note, staffName || 'Manager');
+    const { status, note, staffName, staffRole } = req.body;
+    if (status === 'CANCELLED' && blockedFromCancelling(req)) {
+      return res.status(403).json({ error: 'Unauthorized: Cashiers and stall staff cannot cancel an order without manager approval. Submit a void request instead.' });
+    }
+    const order = db.updateOrderStatus(req.params.id, status, note, staffName || 'Manager', staffRole || getRequestRole(req) || null);
     if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json(order);
   } catch (err) {
@@ -476,8 +515,11 @@ router.patch('/orders/:id/status', (req, res) => {
 
 router.post('/orders/:id/status', (req, res) => {
   try {
-    const { status, note, staffName } = req.body;
-    const order = db.updateOrderStatus(req.params.id, status, note, staffName || 'Manager');
+    const { status, note, staffName, staffRole } = req.body;
+    if (status === 'CANCELLED' && blockedFromCancelling(req)) {
+      return res.status(403).json({ error: 'Unauthorized: Cashiers and stall staff cannot cancel an order without manager approval. Submit a void request instead.' });
+    }
+    const order = db.updateOrderStatus(req.params.id, status, note, staffName || 'Manager', staffRole || getRequestRole(req) || null);
     if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json(order);
   } catch (err) {
@@ -534,10 +576,14 @@ router.post('/orders/:id/payment', (req, res) => {
 
 router.post('/orders/:id/refund', (req, res) => {
   try {
+    if (blockedFromCancelling(req)) {
+      return res.status(403).json({ error: 'Unauthorized: Cashiers and stall staff cannot refund or cancel an order without manager approval. Submit a void request instead.' });
+    }
     const order = db.refundOrder(
       req.params.id,
       req.body?.reason || 'Customer refund',
-      req.body?.staffName || getRequestName(req)
+      req.body?.staffName || getRequestName(req),
+      getRequestRole(req) || req.body?.staffRole || null
     );
     if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json(order);

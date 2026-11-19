@@ -1691,7 +1691,72 @@ class Database {
     return order;
   }
 
-  rejectOrder(orderId, reason = "Kitchen overloaded", managerName = "Central Counter") {
+  /**
+   * Build the exact payload a guest's phone needs in order to show the
+   * "Your Order Has Been Cancelled" popup. Safe to persist and replay.
+   */
+  getGuestCancellationPayload(order) {
+    if (!order || !order.cancellationEventId) return null;
+    const refundedAmount = Array.isArray(order.refunds)
+      ? order.refunds.reduce((sum, r) => sum + (Number(r.refundAmount) || 0), 0)
+      : 0;
+
+    return {
+      type: 'ORDER_CANCELLED',
+      eventId: order.cancellationEventId,
+      cancellationEventId: order.cancellationEventId,
+      orderId: order.id,
+      token: order.token,
+      invoiceNo: order.invoiceNo || null,
+      tableId: order.tableId || null,
+      clientId: order.clientId || null,
+      customerName: order.customerName || null,
+      reason: order.cancellationReason || 'Cancelled by the food court',
+      cancelledAt: order.cancelledAt || null,
+      cancelledBy: order.cancelledBy || null,
+      cancelledByRole: order.cancelledByRole || null,
+      source: order.cancellationSource || null,
+      paymentStatus: order.paymentStatus || null,
+      paymentMethod: order.paymentMethod || null,
+      grandTotal: Number(order.grandTotal) || 0,
+      refundAmount: refundedAmount || Number(order.refundDetails?.refundAmount) || 0
+    };
+  }
+
+  /**
+   * Persist the cancellation notice on the order and push it to the exact
+   * guest device. Idempotent: the first cancellation assigns one stable
+   * event id; later calls reuse it, so a guest can never see duplicate
+   * cancellation popups for the same order.
+   */
+  _notifyGuestOrderCancelled(order, { reason, cancelledBy, cancelledByRole, source } = {}) {
+    if (!order) return null;
+
+    const firstTime = !order.cancellationEventId;
+    if (!order.cancellationEventId) {
+      order.cancellationEventId = `cancel-${order.id}-${Date.now().toString(36)}`;
+    }
+    order.cancelledAt = order.cancelledAt || new Date().toISOString();
+    if (cancelledBy) order.cancelledBy = order.cancelledBy || cancelledBy;
+    if (cancelledByRole) order.cancelledByRole = order.cancelledByRole || cancelledByRole;
+    if (source) order.cancellationSource = order.cancellationSource || source;
+    if (reason) order.cancellationReason = reason;
+
+    const payload = this.getGuestCancellationPayload(order);
+
+    if (firstTime && payload) {
+      eventBus.notifyGuestCancellation(payload);
+      eventBus.broadcast('guest_cancellation_recorded', {
+        orderId: order.id,
+        token: order.token,
+        cancellationEventId: order.cancellationEventId
+      });
+    }
+
+    return payload;
+  }
+
+  rejectOrder(orderId, reason = "Kitchen overloaded", managerName = "Central Counter", managerRole = null) {
     const order = this.getOrder(orderId);
     if (!order) return null;
 
@@ -1702,6 +1767,14 @@ class Database {
     // Release inventory reservations when order is rejected
     this._releaseInventoryReservation(order);
 
+    this._notifyGuestOrderCancelled(order, {
+      reason,
+      cancelledBy: managerName,
+      cancelledByRole: managerRole,
+      source: 'ORDER_REJECTED'
+    });
+
+    this.saveData();
     this.logAudit("ORDER_REJECTED", `Order #${order.token} rejected by ${managerName}: ${reason}`, { orderId });
     eventBus.broadcast("order_updated", order);
     eventBus.broadcast("revenue_updated", this.getRevenueSummary());
@@ -1711,7 +1784,7 @@ class Database {
   }
 
   // Manager Direct Status Update (OK / Confirm)
-  updateOrderStatus(orderId, newStatus, note = "", staffName = "Manager") {
+  updateOrderStatus(orderId, newStatus, note = "", staffName = "Manager", staffRole = null) {
     const order = this.getOrder(orderId);
     if (!order) return null;
 
@@ -1758,6 +1831,12 @@ class Database {
       if (order.paymentStatus !== "PAID") {
         this._releaseInventoryReservation(order);
       }
+      this._notifyGuestOrderCancelled(order, {
+        reason: note || order.cancellationReason || `Cancelled by ${staffName}`,
+        cancelledBy: staffName,
+        cancelledByRole: staffRole,
+        source: 'ORDER_STATUS'
+      });
     }
 
     // Sync stall statuses
@@ -1803,7 +1882,7 @@ class Database {
     return order;
   }
 
-  refundOrder(orderId, reason = "Customer refund", staffName = "Manager") {
+  refundOrder(orderId, reason = "Customer refund", staffName = "Manager", staffRole = null) {
     const order = this.getOrder(orderId);
     if (!order) return null;
 
@@ -1849,6 +1928,13 @@ class Database {
       note: wasPaid
         ? `Payment refunded (৳${refundAmount}) and order cancelled: ${reason} by ${staffName}.`
         : `Order cancelled before payment (no money collected): ${reason} by ${staffName}.`
+    });
+
+    this._notifyGuestOrderCancelled(order, {
+      reason,
+      cancelledBy: staffName,
+      cancelledByRole: staffRole,
+      source: wasPaid ? 'REFUND' : 'CANCELLED_UNPAID'
     });
 
     this.saveData();
@@ -2146,6 +2232,15 @@ class Database {
         });
       }
 
+      // Notify ONLY the guest who placed this exact order. A shared table id is
+      // never used here, so other orders at the same table stay untouched.
+      this._notifyGuestOrderCancelled(order, {
+        reason: voidReq.reason,
+        cancelledBy: resolverName,
+        cancelledByRole: resolverRole,
+        source: 'VOID_REQUEST'
+      });
+
       order.history.push({
         status: 'CANCELLED',
         time: nowIso,
@@ -2356,7 +2451,9 @@ class Database {
       refundTransactionId,
       inventoryRestored,
       inventoryItemsAdjusted,
-      stallsNotified: Array.from(new Set(stallsNotified))
+      stallsNotified: Array.from(new Set(stallsNotified)),
+      cancellationEventId: order.cancellationEventId || null,
+      guestNotified: Boolean(order.cancellationEventId)
     };
 
     order.voidStatus = 'APPROVED';

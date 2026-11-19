@@ -88,6 +88,67 @@ class EventBroadcaster {
     }
   }
 
+  /**
+   * Send one event to a single guest connection by its private client id.
+   * Used to replay a persisted cancellation notice when a phone reconnects.
+   */
+  sendToClient(clientId, eventType, data) {
+    if (!clientId) return 0;
+    const message = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+    let delivered = 0;
+    for (const client of this.clients) {
+      try {
+        if (client._clientMeta && client._clientMeta.clientId === clientId) {
+          client.write(message);
+          delivered++;
+        }
+      } catch (err) {
+        this.clients.delete(client);
+      }
+    }
+    return delivered;
+  }
+
+  /**
+   * ORDER CANCELLED notification.
+   *
+   * STRICT guest targeting: an event is delivered only to the device that
+   * matches the order's private client id, or to a connection that explicitly
+   * subscribed to that exact order id from its tracking page.
+   *
+   * A shared table id is deliberately NOT enough: one table can hold several
+   * independent orders from different phones, and every one of them must keep
+   * receiving nothing when a different order at the same table is cancelled.
+   */
+  notifyGuestCancellation(payload) {
+    const targetOrderId = payload && payload.orderId;
+    const targetClientId = payload && payload.clientId;
+    const eventId = payload && (payload.cancellationEventId || payload.eventId);
+    if (!eventId || !targetOrderId) return 0;
+
+    const message = `event: guest_order_cancelled\ndata: ${JSON.stringify(payload)}\n\n`;
+    let delivered = 0;
+
+    for (const client of this.clients) {
+      try {
+        const meta = client._clientMeta || {};
+        const isStaff = ['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER', 'KITCHEN', 'STALL MANAGER', 'KITCHEN STAFF', 'RUNNER', 'RUNNER / WAITER'].includes(meta.role);
+        if (isStaff) continue;
+
+        const matchesClient = Boolean(targetClientId && meta.clientId && meta.clientId === targetClientId);
+        const hasExactOrder = Boolean(meta.orderIds && meta.orderIds.has(targetOrderId));
+
+        if (matchesClient || hasExactOrder) {
+          client.write(message);
+          delivered++;
+        }
+      } catch (err) {
+        this.clients.delete(client);
+      }
+    }
+    return delivered;
+  }
+
   broadcast(eventType, data) {
     const message = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const client of this.clients) {

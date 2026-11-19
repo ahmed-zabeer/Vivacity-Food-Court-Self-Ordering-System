@@ -1,4 +1,5 @@
 import { API_BASE } from '../config/api';
+import { buildCancellationEvent } from './cancellation';
 
 type EventHandler = (data: any) => void;
 
@@ -55,6 +56,7 @@ class RealtimeEventsClient {
   private subscribedOrderIds: Set<string> = new Set();
   private subscribedTableId: string | null = null;
   private seenNotificationEvents: Set<string> = new Set();
+  private seenCancellationEvents: Set<string> = new Set();
 
   private defaultEvents = [
     'order_created',
@@ -80,7 +82,9 @@ class RealtimeEventsClient {
     'void_request_approved',
     'void_request_rejected',
     'void_request_updated',
-    'wastage_removed'
+    'wastage_removed',
+    'guest_order_cancelled',
+    'guest_cancellation_recorded'
   ];
 
   connect() {
@@ -246,6 +250,7 @@ class RealtimeEventsClient {
         }
         this.trigger('order_updated', order);
         this.emitPendingNotifications(order);
+        this.emitCancellationNotice(order);
       }
 
       const hashes = data.hashes || {};
@@ -320,6 +325,27 @@ class RealtimeEventsClient {
         isRepeat: attempt > 1
       });
     }
+  }
+
+  /**
+   * Reconstruct an ORDER CANCELLED popup from a polled order record. Only the
+   * device that placed the order (private client id) or a page explicitly
+   * watching this exact order id is notified — never the whole table.
+   */
+  private emitCancellationNotice(order: any) {
+    const evt = buildCancellationEvent(order);
+    if (!evt) return;
+
+    const cid = getClientId();
+    const targetsThisGuest =
+      this.subscribedOrderIds.has(order.id) ||
+      Boolean(evt.clientId && cid && evt.clientId === cid);
+
+    if (!targetsThisGuest) return;
+    if (this.seenCancellationEvents.has(evt.cancellationEventId)) return;
+    this.seenCancellationEvents.add(evt.cancellationEventId);
+
+    this.trigger('guest_order_cancelled', evt);
   }
 
   private registerEvent(name: string) {

@@ -283,20 +283,30 @@ export const api = {
     return res.json();
   },
 
-  async rejectOrder(id: string, reason: string): Promise<Order> {
+  async rejectOrder(id: string, reason: string, staffName?: string, staffRole?: string): Promise<Order> {
     const res = await fetch(`${API_BASE}/orders/${id}/reject`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason })
+      headers: {
+        'Content-Type': 'application/json',
+        ...(staffRole ? { 'x-user-role': staffRole } : {})
+      },
+      body: JSON.stringify({ reason, staffName, staffRole, userRole: staffRole })
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to reject order');
+    }
     return res.json();
   },
 
-  async updateOrderStatus(id: string, status: string, note?: string, staffName?: string): Promise<Order> {
+  async updateOrderStatus(id: string, status: string, note?: string, staffName?: string, staffRole?: string): Promise<Order> {
     const res = await fetch(`${API_BASE}/orders/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, note, staffName })
+      headers: {
+        'Content-Type': 'application/json',
+        ...(staffRole ? { 'x-user-role': staffRole } : {})
+      },
+      body: JSON.stringify({ status, note, staffName, staffRole, userRole: staffRole })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

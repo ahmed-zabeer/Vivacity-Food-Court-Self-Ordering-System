@@ -6,7 +6,8 @@ import { useRoute, useLocation } from 'wouter';
 import { ReceiptModal } from '../../components/common/ReceiptModal';
 import { FoodPreparationAnimation } from '../../components/customer/FoodPreparationAnimation';
 import { OrderReviewModal } from '../../components/customer/OrderReviewModal';
-import { Clock, CheckCircle2, ChefHat, Receipt, Store, PlusCircle, AlertTriangle, Bell, Package, CircleCheck, Utensils, Trash2, Star, Sparkles } from 'lucide-react';
+import { Clock, CheckCircle2, ChefHat, Receipt, Store, PlusCircle, AlertTriangle, Bell, Package, CircleCheck, Utensils, Trash2, Star, Sparkles, Ban, Wallet } from 'lucide-react';
+import { buildCancellationEvent } from '../../services/cancellation';
 
 // --- Stall Card Component ---
 interface StallCardProps {
@@ -267,6 +268,107 @@ export const OrderTrackingPage: React.FC = () => {
         >
           Return to Food Court
         </button>
+      </div>
+    );
+  }
+
+  // ---- Cancelled order: a dedicated, unambiguous state. Never show it as an
+  // active/preparing order again, and keep the receipt available for the guest.
+  if (order.status === 'CANCELLED') {
+    const notice = buildCancellationEvent(order);
+    const cancelledAt = notice?.cancelledAt || null;
+    const refundText =
+      order.paymentStatus === 'REFUNDED' || order.paymentStatus === 'PARTIALLY_REFUNDED'
+        ? notice?.refundAmount
+          ? `৳${Number(notice.refundAmount).toLocaleString()} refund has been recorded.`
+          : 'A refund has been recorded.'
+        : order.paymentStatus === 'PAYMENT DUE' || order.paymentStatus === 'UNPAID' || order.paymentStatus === 'CANCELLED'
+        ? 'No payment was collected for this order.'
+        : null;
+
+    return (
+      <div className="max-w-full md:max-w-2xl mx-auto w-full p-4 sm:p-6 pb-4 sm:pb-6 space-y-4 overflow-x-hidden">
+        <div className="bg-white rounded-3xl border-2 border-red-200 shadow-md overflow-hidden">
+          <div className="relative bg-gradient-to-br from-red-600 via-red-700 to-zinc-950 px-6 py-7 text-white text-center overflow-hidden">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-44 h-44 rounded-full bg-red-400/20 blur-2xl" />
+            </div>
+            <div className="relative w-14 h-14 mx-auto rounded-full bg-white/20 ring-4 ring-white/30 flex items-center justify-center mb-2">
+              <Ban className="w-7 h-7 text-white" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-red-100">Live Dining Tracker</p>
+            <h1 className="text-2xl font-black tracking-tight uppercase">Order Cancelled</h1>
+            <p className="mt-1 text-[11px] font-bold text-red-100">Token #{order.token} is no longer active.</p>
+          </div>
+
+          <div className="p-5 space-y-3">
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl text-center">
+              <p className="text-xs font-black text-red-800 leading-snug">
+                This order has been cancelled by the food court. Please do not wait for this food.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl px-3 py-2 text-center">
+                <p className="text-[9px] font-black uppercase tracking-wider text-zinc-400">Table</p>
+                <p className="text-base font-black text-zinc-900">{order.tableId || 'Takeaway'}</p>
+              </div>
+              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl px-3 py-2 text-center">
+                <p className="text-[9px] font-black uppercase tracking-wider text-zinc-400">Token</p>
+                <p className="text-base font-black text-brand-600">#{order.token}</p>
+              </div>
+            </div>
+
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl divide-y divide-zinc-200 text-xs">
+              <div className="flex items-start justify-between gap-3 px-3.5 py-2.5">
+                <span className="text-[9px] font-black uppercase tracking-wider text-zinc-400 shrink-0 pt-0.5">Order ID</span>
+                <span className="font-mono font-bold text-zinc-800 text-right break-all">{order.id}</span>
+              </div>
+              <div className="flex items-start justify-between gap-3 px-3.5 py-2.5">
+                <span className="text-[9px] font-black uppercase tracking-wider text-zinc-400 shrink-0 pt-0.5">Cancelled At</span>
+                <span className="font-bold text-zinc-800 text-right">
+                  {cancelledAt ? new Date(cancelledAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                </span>
+              </div>
+              {order.cancelledBy && (
+                <div className="flex items-start justify-between gap-3 px-3.5 py-2.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-zinc-400 shrink-0 pt-0.5">Cancelled By</span>
+                  <span className="font-bold text-zinc-800 text-right">{order.cancelledBy}</span>
+                </div>
+              )}
+              <div className="flex items-start justify-between gap-3 px-3.5 py-2.5">
+                <span className="text-[9px] font-black uppercase tracking-wider text-zinc-400 shrink-0 pt-0.5">Reason</span>
+                <span className="font-bold text-zinc-800 text-right break-words">{order.cancellationReason || 'Cancelled by the food court'}</span>
+              </div>
+            </div>
+
+            {refundText && (
+              <div className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                <Wallet className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] font-bold text-emerald-800 leading-snug">{refundText}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pt-2">
+          <button
+            onClick={() => setShowReceipt(true)}
+            className="py-3 px-4 rounded-2xl bg-zinc-900 hover:bg-black text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs"
+          >
+            <Receipt className="w-4 h-4" />
+            <span>View Receipt</span>
+          </button>
+          <button
+            onClick={() => setLocation('/')}
+            className="py-3 px-4 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-brand-500/25 shadow-md"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Order Again</span>
+          </button>
+        </div>
+
+        {showReceipt && <ReceiptModal order={order} onClose={() => setShowReceipt(false)} />}
       </div>
     );
   }

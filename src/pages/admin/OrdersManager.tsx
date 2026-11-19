@@ -291,7 +291,7 @@ export const OrdersManager: React.FC = () => {
     setStatusFeedback(null);
     try {
       const staffName = currentUser?.name || 'Manager';
-      const updated = await api.updateOrderStatus(selectedOrder.id, statusToUpdate, '', staffName);
+      const updated = await api.updateOrderStatus(selectedOrder.id, statusToUpdate, '', staffName, currentUser?.role);
       setSelectedOrder(updated);
       setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
       setStatusFeedback(`Order #${updated.token} status updated to ${updated.status} ✓`);
@@ -323,7 +323,7 @@ export const OrdersManager: React.FC = () => {
     }
 
     try {
-      const updated = await api.rejectOrder(orderId, rejectReason);
+      const updated = await api.rejectOrder(orderId, rejectReason, currentUser?.name || 'Manager', currentUser?.role);
       setSelectedOrder(updated);
       setShowRejectModal(false);
       fetchOrders();
