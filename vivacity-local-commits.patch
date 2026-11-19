@@ -1,0 +1,7 @@
+From 87f104ae5e0a6ca453092d88e6a78017347c101c Mon Sep 17 00:00:00 2001
+From: ahmed-zabeer <ahmedzabeer2006@gmail.com>
+Date: Mon, 16 Nov 2026 14:32:09 +0600
+Subject: [PATCH 1/2] Fix npm cache-dir, esbuild allowScripts, chunk size
+ splitting, and vercel config
+
+---

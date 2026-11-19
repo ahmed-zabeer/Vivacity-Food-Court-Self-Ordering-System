@@ -1,0 +1,14 @@
+[
+  {
+    "id": "pur-bd77443c-9",
+    "supplier": "zabeer",
+    "description": "",
+    "category": "burger",
+    "amount": 1000,
+    "date": "2026-10-27",
+    "status": "UNPAID",
+    "paidAt": null,
+    "createdBy": "Counter Cashier (Hasan)",
+    "createdAt": "2026-10-27T17:18:08.450Z"
+  }
+]

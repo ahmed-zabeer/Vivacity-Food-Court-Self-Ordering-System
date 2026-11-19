@@ -1,0 +1,24 @@
+[
+  {
+    "id": "exp-cccbf0e4-1",
+    "amount": 500,
+    "date": "2026-10-24",
+    "category": "Food Cost",
+    "notes": "",
+    "createdBy": "Chief Administrator",
+    "createdAt": "2026-10-24T13:59:03.650Z",
+    "updatedAt": null,
+    "updatedBy": null,
+    "history": [
+      {
+        "amount": 500,
+        "date": "2026-10-24",
+        "category": "Food Cost",
+        "notes": "",
+        "modifiedBy": "Chief Administrator",
+        "modifiedAt": "2026-10-24T13:59:03.650Z",
+        "action": "CREATED"
+      }
+    ]
+  }
+]

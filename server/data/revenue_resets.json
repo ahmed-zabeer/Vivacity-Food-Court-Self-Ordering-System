@@ -2234,5 +2234,53 @@
     "resetAt": "2026-11-16T08:45:48.888Z",
     "user": "Sajib Manager",
     "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-day-c00e8471-5a32-4386-b959-b1ed0c28cb67",
+    "type": "daily",
+    "date": "2026-11-18",
+    "resetAt": "2026-11-18T14:43:56.216Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-month-8cc0c5eb-a7a2-42e5-86e6-371a379fca2b",
+    "type": "monthly",
+    "month": "2026-11",
+    "resetAt": "2026-11-18T14:43:56.216Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-year-cfd40816-8d0d-4acc-be66-71fa4de54928",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-11-18T14:43:56.216Z",
+    "user": "Chief Administrator",
+    "role": "SUPER ADMIN"
+  },
+  {
+    "id": "rev-reset-day-47b2999e-6ac0-474b-9147-1f75e9c4d559",
+    "type": "daily",
+    "date": "2026-11-18",
+    "resetAt": "2026-11-18T16:01:24.830Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-month-6315293f-07b8-4a4a-ab8d-d39e30607b31",
+    "type": "monthly",
+    "month": "2026-11",
+    "resetAt": "2026-11-18T16:01:24.830Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
+  },
+  {
+    "id": "rev-reset-year-f558dcf3-c275-4be6-9def-10e6f3c429fe",
+    "type": "yearly",
+    "year": "2026",
+    "resetAt": "2026-11-18T16:01:24.830Z",
+    "user": "Food Court Manager",
+    "role": "MANAGER"
   }
 ]

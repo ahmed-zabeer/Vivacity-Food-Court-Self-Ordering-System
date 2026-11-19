@@ -1,0 +1,36 @@
+{
+  "bb-bgr-3": {
+    "menuItemId": "bb-bgr-3",
+    "itemName": "Chicken Cheese Delight",
+    "stallId": "burger-bar",
+    "ingredients": [
+      { "id": "ing-bun", "name": "Brioche Burger Bun", "quantity": 1, "unit": "pcs", "cost": 22 },
+      { "id": "ing-chk-patty", "name": "Crispy Chicken Patty (120g)", "quantity": 1, "unit": "pcs", "cost": 65 },
+      { "id": "ing-cheese", "name": "Cheddar Cheese Slice", "quantity": 1, "unit": "slice", "cost": 18 },
+      { "id": "ing-sauce", "name": "Signature Secret Burger Sauce", "quantity": 30, "unit": "ml", "cost": 10 },
+      { "id": "ing-lettuce", "name": "Fresh Iceberg Lettuce", "quantity": 25, "unit": "g", "cost": 8 },
+      { "id": "ing-pack", "name": "Food Grade Burger Box & Wrap", "quantity": 1, "unit": "box", "cost": 7 }
+    ]
+  },
+  "cb-stk-1": {
+    "menuItemId": "cb-stk-1",
+    "itemName": "T Bone Steak (300+6M)",
+    "stallId": "fusion-cafe",
+    "ingredients": [
+      { "id": "ing-tbone", "name": "Prime Beef T-Bone Cut (300g)", "quantity": 300, "unit": "g", "cost": 520 },
+      { "id": "ing-butter", "name": "Herb Garlic Butter", "quantity": 40, "unit": "g", "cost": 45 },
+      { "id": "ing-veg-side", "name": "Sautéed Fresh Veggies & Corn", "quantity": 120, "unit": "g", "cost": 40 },
+      { "id": "ing-pepper-sauce", "name": "Mushroom Black Pepper Gravy", "quantity": 60, "unit": "ml", "cost": 30 }
+    ]
+  },
+  "mb-mom-1": {
+    "menuItemId": "mb-mom-1",
+    "itemName": "Chicken Momo",
+    "stallId": "momo-buzz",
+    "ingredients": [
+      { "id": "ing-momo-flour", "name": "Refined Momo Dough Sheet", "quantity": 6, "unit": "wraps", "cost": 15 },
+      { "id": "ing-mince-chk", "name": "Spiced Minced Chicken Filling", "quantity": 90, "unit": "g", "cost": 38 },
+      { "id": "ing-momo-chutney", "name": "Spicy Tomato Garlic Chutney", "quantity": 40, "unit": "ml", "cost": 12 }
+    ]
+  }
+}

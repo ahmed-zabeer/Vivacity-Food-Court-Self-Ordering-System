@@ -1,0 +1,16 @@
+[
+  {
+    "date": "2026-11-12",
+    "openingCash": 5000,
+    "countedCash": 2760,
+    "expectedCash": -40000,
+    "discrepancy": 42760,
+    "cashDeposits": 5000,
+    "cashWithdrawals": 50000,
+    "adjustments": 0,
+    "notes": "",
+    "isClosed": true,
+    "closedBy": "Chief Administrator",
+    "closedAt": "2026-11-12T10:49:01.980Z"
+  }
+]

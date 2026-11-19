@@ -1,0 +1,252 @@
+{
+  "boba_pearls": [
+    {
+      "id": "boba-no-extra",
+      "name": "No Extra Pearls",
+      "price": 0
+    },
+    {
+      "id": "boba-regular",
+      "name": "Regular Pearls",
+      "price": 0
+    },
+    {
+      "id": "extra-pearl",
+      "name": "Extra Pearls",
+      "price": 50
+    },
+    {
+      "id": "boba-more-pearl",
+      "name": "More Pearls",
+      "price": 80
+    }
+  ],
+  "pizza_toppings": [
+    {
+      "id": "piz-top-cheese",
+      "name": "Extra Cheese",
+      "price": 60
+    },
+    {
+      "id": "piz-top-chicken",
+      "name": "Chicken",
+      "price": 60
+    },
+    {
+      "id": "piz-top-sausage",
+      "name": "Sausage",
+      "price": 50
+    },
+    {
+      "id": "piz-top-beef",
+      "name": "Beef",
+      "price": 80
+    },
+    {
+      "id": "piz-top-capsicum",
+      "name": "Capsicum",
+      "price": 30
+    },
+    {
+      "id": "piz-top-onion",
+      "name": "Onion",
+      "price": 20
+    },
+    {
+      "id": "piz-top-mushroom",
+      "name": "Mushroom",
+      "price": 40
+    },
+    {
+      "id": "piz-top-olives",
+      "name": "Black Olives",
+      "price": 40
+    },
+    {
+      "id": "piz-top-corn",
+      "name": "Sweet Corn",
+      "price": 30
+    },
+    {
+      "id": "piz-top-jalapeno",
+      "name": "Jalapeño",
+      "price": 40
+    },
+    {
+      "id": "piz-top-tomato",
+      "name": "Tomato",
+      "price": 20
+    }
+  ],
+  "burger_patties": [
+    {
+      "id": "bgr-pat-chicken",
+      "name": "Chicken Patty",
+      "price": 0
+    },
+    {
+      "id": "bgr-pat-beef",
+      "name": "Beef Patty",
+      "price": 40
+    },
+    {
+      "id": "bgr-pat-extra",
+      "name": "Extra Patty",
+      "price": 99
+    }
+  ],
+  "burger_addons": [
+    {
+      "id": "bgr-ado-cheese",
+      "name": "Extra Cheese Slice",
+      "price": 35
+    },
+    {
+      "id": "bgr-ado-egg",
+      "name": "Fried Egg",
+      "price": 30
+    },
+    {
+      "id": "bgr-ado-sausage",
+      "name": "Sausage",
+      "price": 40
+    },
+    {
+      "id": "bgr-ado-chicken",
+      "name": "Extra Chicken",
+      "price": 60
+    },
+    {
+      "id": "bgr-ado-beef",
+      "name": "Extra Beef",
+      "price": 80
+    },
+    {
+      "id": "bgr-ado-lettuce",
+      "name": "Lettuce",
+      "price": 15
+    },
+    {
+      "id": "bgr-ado-tomato",
+      "name": "Tomato",
+      "price": 15
+    },
+    {
+      "id": "bgr-ado-onion",
+      "name": "Onion",
+      "price": 10
+    },
+    {
+      "id": "bgr-ado-pickles",
+      "name": "Pickles",
+      "price": 20
+    },
+    {
+      "id": "bgr-ado-jalapeno",
+      "name": "Jalapeño",
+      "price": 25
+    },
+    {
+      "id": "bgr-ado-mayo",
+      "name": "Extra Mayo",
+      "price": 35
+    },
+    {
+      "id": "bgr-ado-bbq",
+      "name": "BBQ Sauce",
+      "price": 20
+    },
+    {
+      "id": "bgr-ado-special",
+      "name": "Special Sauce",
+      "price": 25
+    }
+  ],
+  "waffle_toppings": [
+    {
+      "id": "waf-top-vanilla-ice",
+      "name": "Vanilla Ice Cream",
+      "price": 60
+    },
+    {
+      "id": "waf-top-choc-ice",
+      "name": "Chocolate Ice Cream",
+      "price": 60
+    },
+    {
+      "id": "waf-top-straw-ice",
+      "name": "Strawberry Ice Cream",
+      "price": 60
+    },
+    {
+      "id": "waf-top-nutella",
+      "name": "Nutella",
+      "price": 50
+    },
+    {
+      "id": "waf-top-choc-syrup",
+      "name": "Chocolate Syrup",
+      "price": 30
+    },
+    {
+      "id": "waf-top-caramel-syrup",
+      "name": "Caramel Syrup",
+      "price": 30
+    },
+    {
+      "id": "waf-top-honey",
+      "name": "Honey",
+      "price": 30
+    },
+    {
+      "id": "waf-top-whip-cream",
+      "name": "Whipped Cream",
+      "price": 40
+    },
+    {
+      "id": "waf-top-oreo",
+      "name": "Oreo Crumbs",
+      "price": 30
+    },
+    {
+      "id": "waf-top-brownie",
+      "name": "Brownie Pieces",
+      "price": 50
+    },
+    {
+      "id": "waf-top-strawberry",
+      "name": "Strawberry",
+      "price": 40
+    },
+    {
+      "id": "waf-top-banana",
+      "name": "Banana",
+      "price": 30
+    },
+    {
+      "id": "waf-top-fruits",
+      "name": "Mixed Fruits",
+      "price": 50
+    },
+    {
+      "id": "waf-top-nuts",
+      "name": "Chopped Nuts",
+      "price": 20
+    },
+    {
+      "id": "waf-top-chips",
+      "name": "Chocolate Chips",
+      "price": 30
+    },
+    {
+      "id": "waf-top-sprinkles",
+      "name": "Colour Sprinkles",
+      "price": 20
+    },
+    {
+      "id": "waf-top-extra-portion",
+      "name": "Extra Waffle Portion",
+      "price": 80
+    }
+  ]
+}

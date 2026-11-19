@@ -1,0 +1,30 @@
+{
+  "fusion-cafe": {
+    "isPaused": false,
+    "pausedAt": null,
+    "pauseReason": "",
+    "pauseUntil": null,
+    "pausedBy": null
+  },
+  "momo-buzz": {
+    "isPaused": false,
+    "pausedAt": null,
+    "pauseReason": "",
+    "pauseUntil": null,
+    "pausedBy": null
+  },
+  "top-town": {
+    "isPaused": false,
+    "pausedAt": null,
+    "pauseReason": "",
+    "pauseUntil": null,
+    "pausedBy": null
+  },
+  "live-station": {
+    "isPaused": false,
+    "pausedAt": null,
+    "pauseReason": "",
+    "pauseUntil": null,
+    "pausedBy": null
+  }
+}
