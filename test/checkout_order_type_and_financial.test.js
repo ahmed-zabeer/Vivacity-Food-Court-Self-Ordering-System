@@ -242,7 +242,7 @@ async function runTests() {
     // Confirm payment for this order
     const resPaid = await fetch(`${baseUrl}/orders/${bodyUnpaid.id}/payment`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-user-role': 'CASHIER' },
       body: JSON.stringify({
         paymentMethod: 'CASH',
         transactionId: 'TXN-TEST-1234',

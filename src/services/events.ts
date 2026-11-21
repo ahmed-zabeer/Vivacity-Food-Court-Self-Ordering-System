@@ -5,13 +5,20 @@ type EventHandler = (data: any) => void;
 
 export const getClientId = (): string => {
   if (typeof window === 'undefined') return 'server';
-  let cid = sessionStorage.getItem('vivacity_client_id');
+  let cid: string | null = null;
+  try {
+    // Prefer the current tab (already created orders), then fall back to the
+    // device id so refresh / a reopened tab / reconnect still identifies the
+    // same guest and can re-read its own orders securely.
+    cid = sessionStorage.getItem('vivacity_client_id') || localStorage.getItem('vivacity_client_id');
+  } catch {}
   if (!cid) {
     cid = 'cli_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
-    try {
-      sessionStorage.setItem('vivacity_client_id', cid);
-    } catch {}
   }
+  try {
+    sessionStorage.setItem('vivacity_client_id', cid);
+    localStorage.setItem('vivacity_client_id', cid);
+  } catch {}
   return cid;
 };
 
@@ -176,6 +183,14 @@ class RealtimeEventsClient {
         })
       }).catch(() => {});
     }
+
+    // The polling fallback may already have taken its baseline before the page
+    // registered its order ids. Poll again immediately so a missed ready /
+    // cancelled notification is replayed from the database without waiting for
+    // the next interval.
+    if (this.pollTimer) {
+      setTimeout(() => this.pollOnce(), 150);
+    }
   }
 
   reconnectWithMetadata() {
@@ -222,7 +237,23 @@ class RealtimeEventsClient {
       if (this.lastSync) params.append('since', this.lastSync);
       else params.append('includeIds', '1');
 
-      const res = await fetch(`${API_BASE}/sync/state?${params.toString()}`, { cache: 'no-store' });
+      // Always re-read the exact orders this device owns. This is what makes a
+      // ready-to-collect popup (or cancellation) survive an offline period,
+      // a page refresh or a reconnect where the original event was missed.
+      const ownedOrderIds = Array.from(this.subscribedOrderIds);
+      if (ownedOrderIds.length > 0) params.append('orderIds', ownedOrderIds.join(','));
+      const cid = getClientId();
+      if (cid) params.append('clientId', cid);
+
+      let role = '';
+      try {
+        const storedUser = JSON.parse(localStorage.getItem('vivacity_user') || 'null');
+        role = String(storedUser?.role || '').toUpperCase();
+      } catch {}
+      const res = await fetch(`${API_BASE}/sync/state?${params.toString()}`, {
+        cache: 'no-store',
+        headers: role ? { 'x-user-role': role } : undefined
+      });
       if (!res.ok) throw new Error(`Sync failed (${res.status})`);
       const data = await res.json();
 
@@ -232,25 +263,31 @@ class RealtimeEventsClient {
         this.trigger('connection_status', { connected: true, attempts: 0 });
       }
 
+      const orders: any[] = Array.isArray(data.orders) ? data.orders : [];
+
+      // Baseline bookkeeping must not skip notifications. Orders returned for
+      // this device are still inspected below before the baseline is stored.
       if (!this.hasBaseline) {
         (data.orderIds || []).forEach((id: string) => this.knownOrderIds.add(id));
         this.lastHashes = data.hashes || {};
         this.lastRevenue = JSON.stringify(data.revenue || {});
         this.lastSync = data.now;
         this.hasBaseline = true;
-        return;
       }
 
-      const orders: any[] = Array.isArray(data.orders) ? data.orders : [];
       for (const order of orders) {
         if (!order || !order.id) continue;
-        if (!this.knownOrderIds.has(order.id)) {
-          this.knownOrderIds.add(order.id);
-          this.trigger('order_created', order);
-        }
-        this.trigger('order_updated', order);
+        const isNewToDevice = !this.knownOrderIds.has(order.id);
+        if (isNewToDevice) this.knownOrderIds.add(order.id);
+
+        // Never mistake the baseline for a brand new order; but always replay
+        // persisted notification / cancellation state for this order.
         this.emitPendingNotifications(order);
         this.emitCancellationNotice(order);
+
+        if (!isNewToDevice) {
+          this.trigger('order_updated', order);
+        }
       }
 
       const hashes = data.hashes || {};

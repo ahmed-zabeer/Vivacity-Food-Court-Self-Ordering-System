@@ -99,7 +99,7 @@ async function runTests() {
     // Cashier confirms payment
     const resConfirm = await fetch(`${baseUrl}/orders/${cashOrder.id}/payment`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-user-role': 'CASHIER' },
       body: JSON.stringify({
         paymentMethod: 'CASH',
         transactionId: 'TXN-CASHIER-CONFIRM-1',

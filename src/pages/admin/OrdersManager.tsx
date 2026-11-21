@@ -55,6 +55,20 @@ export const OrdersManager: React.FC = () => {
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [, setLoading] = useState<boolean>(true);
 
+  // Shown only when the deployed serverless instance is using an ephemeral
+  // filesystem (no KV/Upstash configured). Hiding this would pretend orders are
+  // durable when they are not.
+  const [storageHealth, setStorageHealth] = useState<{ environment?: string; durable?: boolean; warning?: string | null } | null>(null);
+  useEffect(() => {
+    api.getNetworkInfo()
+      .then(info => setStorageHealth({
+        environment: info.environment,
+        durable: info.storage?.durable,
+        warning: info.storage?.warning || null
+      }))
+      .catch(() => {});
+  }, []);
+
   // Keep ref in sync with selected order
   useEffect(() => {
     selectedOrderIdRef.current = selectedOrder?.id || null;
@@ -265,7 +279,12 @@ export const OrdersManager: React.FC = () => {
     if (stallActionKey === actionKey) return;
     setStallActionKey(actionKey);
     try {
-      const res = await api.confirmAndNotifyCustomer(orderId, stallId, currentUser?.name || 'Central Counter Manager');
+      const res = await api.confirmAndNotifyCustomer(
+        orderId,
+        stallId,
+        currentUser?.name || 'Central Counter Manager',
+        currentUser?.role
+      );
       setSelectedOrder(res.order);
       setOrders(prev => prev.map(o => o.id === res.order.id ? res.order : o));
     } catch (e: any) {
@@ -346,7 +365,8 @@ export const OrdersManager: React.FC = () => {
     try {
       const updated: any = await api.processPayment(orderId, {
         paymentMethod: 'CASH',
-        cashierName: currentUser?.name || 'Central Cashier'
+        cashierName: currentUser?.name || 'Central Cashier',
+        role: currentUser?.role
       });
       if (!updated || updated.error || !updated.id) {
         throw new Error(updated?.error || 'Payment could not be confirmed. Please retry.');
@@ -506,6 +526,17 @@ export const OrdersManager: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {storageHealth?.environment === 'vercel' && storageHealth.durable === false && (
+        <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl text-[11px] text-amber-900 font-semibold flex items-start gap-2">
+          <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <span>
+            <strong>Production storage warning:</strong>{' '}
+            {storageHealth.warning || 'This deployment has no durable database configured.'}{' '}
+            Orders placed now can disappear after a cold start. Add Vercel KV / Upstash Redis environment variables to make orders permanent.
+          </span>
+        </div>
+      )}
 
       {/* Primary Navigation Tabs: Live Orders vs Void Requests */}
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 pb-2">

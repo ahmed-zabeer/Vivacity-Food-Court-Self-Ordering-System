@@ -11,7 +11,7 @@ import { GlobalFooter } from './components/common/GlobalFooter';
 import { FoodReadyModal } from './components/customer/FoodReadyModal';
 import { OrderCancelledModal } from './components/customer/OrderCancelledModal';
 import { StallReadyConfirmedEvent, GuestOrderCancelledEvent } from './types';
-import { realtime } from './services/events';
+import { realtime, getClientId } from './services/events';
 import {
   acknowledgeCancellation,
   buildCancellationEvent,
@@ -213,8 +213,7 @@ const MainContent: React.FC = () => {
 
       // Check client ID matching
       if (!isForThisGuest && evt.clientId) {
-        const currentClientId = sessionStorage.getItem('vivacity_client_id');
-        if (currentClientId && currentClientId === evt.clientId) {
+        if (getClientId() === evt.clientId) {
           isForThisGuest = true;
         }
       }

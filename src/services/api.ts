@@ -7,6 +7,19 @@ import {
 } from '../types';
 import { API_BASE } from '../config/api';
 import { stallsData, menuItemsData, tablesData } from '../data/menuData';
+import { getClientId } from './events';
+
+// Reads the signed-in staff role so admin/counter screens can call protected
+// endpoints. Guests have no stored user and therefore remain unprivileged.
+const getStoredRole = (): string => {
+  if (typeof window === 'undefined') return '';
+  try {
+    const user = JSON.parse(localStorage.getItem('vivacity_user') || 'null');
+    return String(user?.role || '').trim().toUpperCase();
+  } catch {
+    return '';
+  }
+};
 
 export const api = {
   // Tables
@@ -182,9 +195,12 @@ export const api = {
     if (params?.status) query.set('status', params.status);
     if (params?.tableId) query.set('tableId', params.tableId);
     if (params?.stallId) query.set('stallId', params.stallId);
+    const role = String(params?.role || getStoredRole() || '').trim().toUpperCase();
+    const clientId = getClientId();
+    if (clientId) query.set('clientId', clientId);
     const res = await fetch(`${API_BASE}/orders?${query.toString()}`, {
       headers: {
-        ...(params?.role ? { 'x-user-role': params.role } : {}),
+        ...(role ? { 'x-user-role': role } : {}),
         ...(params?.userStallId ? { 'x-user-stall-id': params.userStallId } : {})
       }
     });
@@ -192,7 +208,14 @@ export const api = {
   },
 
   async getOrder(idOrToken: string): Promise<Order> {
-    const res = await fetch(`${API_BASE}/orders/${idOrToken}`);
+    const clientId = getClientId();
+    const role = getStoredRole();
+    const query = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+    const res = await fetch(`${API_BASE}/orders/${idOrToken}${query}`, {
+      headers: {
+        ...(role ? { 'x-user-role': role } : {})
+      }
+    });
     return res.json();
   },
 
@@ -254,7 +277,8 @@ export const api = {
     const res = await fetch(`${API_BASE}/orders/manual`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(getStoredRole() ? { 'x-user-role': getStoredRole() } : {})
       },
       body: JSON.stringify(payload)
     });
@@ -356,11 +380,18 @@ export const api = {
     paymentMethod: string;
     transactionId?: string;
     cashierName?: string;
+    clientId?: string | null;
+    role?: string;
   }): Promise<Order> {
+    const role = String(payload.role || getStoredRole() || '').trim().toUpperCase();
+    const clientId = payload.clientId || getClientId();
     const res = await fetch(`${API_BASE}/orders/${orderId}/payment`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      headers: {
+        'Content-Type': 'application/json',
+        ...(role ? { 'x-user-role': role } : {})
+      },
+      body: JSON.stringify({ ...payload, clientId })
     });
     const body = await res.json().catch(() => ({} as any));
     if (!res.ok || body?.error) {
@@ -669,6 +700,14 @@ export const api = {
     isVercel?: boolean;
     environment?: 'vercel' | 'localhost';
     savedQrBaseUrl?: string | null;
+    storage?: {
+      durable: boolean;
+      backend: string;
+      dataDir: string;
+      lastPersistAt?: string | null;
+      lastError?: string | null;
+      warning?: string | null;
+    };
   }> {
     const res = await fetch(`${API_BASE}/network-info`);
     if (!res.ok) throw new Error('Failed to fetch network information');

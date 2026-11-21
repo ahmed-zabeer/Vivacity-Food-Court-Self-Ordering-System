@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { db, DATA_DIR } from './db.js';
 import { eventBus } from './events.js';
-import { kvEnabled } from './persist.js';
+import { kvEnabled, getDurableStatus } from './persist.js';
 import os from 'os';
 
 const router = Router();
 const MANAGER_ROLES = new Set(['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER']);
+// Roles that may receive physical cash and confirm it in the Central Counter.
+const PAYMENT_ROLES = new Set(['SUPER ADMIN', 'FOOD COURT OWNER', 'MANAGER', 'CASHIER']);
 
 function getRequestRole(req) {
   return String(req.headers['x-user-role'] || req.body?.userRole || '').trim().toUpperCase();
@@ -120,6 +122,34 @@ router.get('/sync/state', (req, res) => {
     ? db.orders.filter(o => touchTime(o) >= sinceMs)
     : [];
 
+  // Guests reconnect with the exact order ids they own. Return those records
+  // even when nothing has "changed" since the last poll, so a ready
+  // notification or cancellation that happened while the phone was offline is
+  // replayed on the next connection instead of being missed forever.
+  const requestedOrderIds = String(req.query.orderIds || '')
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
+  const role = getRequestRole(req);
+  const isStaffCaller = PAYMENT_ROLES.has(role) || ['KITCHEN', 'RUNNER', 'STALL MANAGER', 'KITCHEN STAFF', 'RUNNER / WAITER'].includes(role);
+  const callerClientId = String(req.query.clientId || '');
+  const requestedOrders = [];
+  for (const id of requestedOrderIds) {
+    const order = db.getOrder(id);
+    if (!order) continue;
+    // A guest may only re-read orders that belong to this device. Staff polling
+    // (Central Counter / Kitchen) is allowed to read any order id it asks for.
+    if (!isStaffCaller && order.clientId && callerClientId && order.clientId !== callerClientId) {
+      continue;
+    }
+    requestedOrders.push(order);
+  }
+
+  const mergedOrders = new Map();
+  for (const order of [...requestedOrders, ...changedOrders]) {
+    mergedOrders.set(order.id, order);
+  }
+
   const hashes = {
     tables: hashOf(db.getAllTables().map(t => [t.id, t.status, t.currentSessionId || t.sessionId || null])),
     stalls: hashOf(db.stalls.map(s => [s.id, s.status || s.isPaused, s.isPaused])),
@@ -129,8 +159,8 @@ router.get('/sync/state', (req, res) => {
 
   res.json({
     now,
-    orderIds: includeIds ? db.orders.map(o => o.id) : undefined,
-    orders: changedOrders,
+    orderIds: includeIds && isStaffCaller ? db.orders.map(o => o.id) : undefined,
+    orders: Array.from(mergedOrders.values()),
     hashes,
     revenue: db.getRevenueSummary()
   });
@@ -293,7 +323,7 @@ router.patch('/inventory/:id/reset', (req, res) => {
 
 // --- Orders API ---
 router.get('/orders', (req, res) => {
-  const role = req.headers['x-user-role'] || req.query.role;
+  const role = String(req.headers['x-user-role'] || req.query.role || '').trim().toUpperCase();
   const userStallId = req.headers['x-user-stall-id'] || req.query.userStallId;
   let { status, tableId, stallId } = req.query;
 
@@ -302,13 +332,46 @@ router.get('/orders', (req, res) => {
     stallId = userStallId;
   }
 
-  const orders = db.getAllOrders({ status, tableId, stallId });
+  let orders = db.getAllOrders({ status, tableId, stallId });
+
+  // Guest privacy: without a staff role, only return this device's own orders.
+  // A table id alone is not enough to expose another guest's items or payment
+  // details, so an unidentified guest gets an empty list rather than the whole
+  // order book.
+  const isStaffCaller = PAYMENT_ROLES.has(role) ||
+    ['KITCHEN', 'RUNNER', 'STALL MANAGER', 'KITCHEN STAFF', 'RUNNER / WAITER'].includes(role);
+  if (!isStaffCaller) {
+    const callerClientId = String(req.query.clientId || req.headers['x-client-id'] || '');
+    if (callerClientId) {
+      orders = orders.filter(o => !o.clientId || o.clientId === callerClientId);
+    } else if (tableId) {
+      // Table scan compatibility: only return orders that carry no private
+      // client id (legacy) so a phone never sees another guest's order.
+      orders = orders.filter(o => !o.clientId);
+    } else {
+      orders = [];
+    }
+  }
+
   res.json(orders);
 });
 
 router.get('/orders/:id', (req, res) => {
   const order = db.getOrder(req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found' });
+
+  // Guest authorization: a QR order belongs to the private client id of the
+  // phone that placed it. Staff counters may read any order; a guest may read
+  // only their own order. Orders without a client id (legacy/manual counter
+  // records) stay readable so existing receipts keep working.
+  const role = getRequestRole(req);
+  const isStaffCaller = PAYMENT_ROLES.has(role) ||
+    ['KITCHEN', 'RUNNER', 'STALL MANAGER', 'KITCHEN STAFF', 'RUNNER / WAITER'].includes(role);
+  const callerClientId = String(req.query.clientId || req.headers['x-client-id'] || '');
+  if (!isStaffCaller && order.clientId && order.clientId !== callerClientId) {
+    return res.status(403).json({ error: 'Unauthorized: this order belongs to a different guest device.' });
+  }
+
   res.json(order);
 });
 
@@ -385,6 +448,11 @@ router.post('/orders', (req, res) => {
 // Central Counter Manual POS Ordering
 router.post('/orders/manual', (req, res) => {
   try {
+    if (!PAYMENT_ROLES.has(getRequestRole(req))) {
+      return res.status(403).json({
+        error: 'Unauthorized: Manual POS orders can only be created by an authorized Central Counter user.'
+      });
+    }
     const {
       tableId,
       type,
@@ -557,15 +625,39 @@ router.post('/orders/:id/payment', (req, res) => {
     const order = db.getOrder(req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
+    // Idempotent: a second confirmation returns the already-paid order and can
+    // never double-count revenue, KOT or inventory.
     if (order.paymentStatus === 'PAID') {
       return res.json(order);
+    }
+
+    const role = getRequestRole(req);
+    const isStaffCaller = PAYMENT_ROLES.has(role) ||
+      ['KITCHEN', 'RUNNER', 'STALL MANAGER', 'KITCHEN STAFF', 'RUNNER / WAITER'].includes(role);
+    const callerClientId = String(req.body?.clientId || req.query.clientId || req.headers['x-client-id'] || '');
+    const isCashRequest = paymentMethod === 'CASH' || order.paymentMethod === 'CASH';
+
+    // Cash must be accepted by an authorized counter user. A guest phone is
+    // never allowed to mark its own cash order as paid.
+    if (isCashRequest && !PAYMENT_ROLES.has(role)) {
+      return res.status(403).json({
+        error: 'Unauthorized: only an authorized Central Counter cashier can confirm a cash payment.'
+      });
+    }
+
+    // Online confirmation must come from the guest device that placed the
+    // order (or an authorized counter user correcting a payment).
+    if (!isStaffCaller && order.clientId && order.clientId !== callerClientId) {
+      return res.status(403).json({
+        error: 'Unauthorized: this order belongs to a different guest device.'
+      });
     }
 
     const updated = db.confirmPayment(
       req.params.id,
       paymentMethod,
       transactionId || null,
-      cashierName || 'Guest Online Payment'
+      cashierName || (isStaffCaller ? 'Central Counter' : 'Guest Online Payment')
     );
     if (!updated) return res.status(404).json({ error: 'Order not found' });
     res.json(updated);
@@ -1297,6 +1389,8 @@ export function getNetworkInfo(port = process.env.PORT || 3000) {
       durable: kvEnabled,
       backend: kvEnabled ? 'kv' : 'filesystem',
       dataDir: DATA_DIR,
+      lastPersistAt: getDurableStatus().lastPersistAt,
+      lastError: getDurableStatus().lastError,
       warning: !kvEnabled && isVercel
         ? 'Orders will not survive a cold start. Configure KV_REST_API_URL and KV_REST_API_TOKEN (or Upstash equivalents).'
         : null

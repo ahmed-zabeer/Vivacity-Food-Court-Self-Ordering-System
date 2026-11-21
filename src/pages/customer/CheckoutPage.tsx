@@ -359,7 +359,8 @@ export const CheckoutPage: React.FC = () => {
 
       const updated = await api.processPayment(pendingOrder.id, {
         paymentMethod,
-        transactionId: `${paymentMethod.toUpperCase().replace(/\s+/g, '')}-${Date.now().toString().slice(-6)}`
+        transactionId: `${paymentMethod.toUpperCase().replace(/\s+/g, '')}-${Date.now().toString().slice(-6)}`,
+        clientId: getClientId()
       });
 
       // Professional audio feedback

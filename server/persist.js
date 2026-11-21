@@ -67,6 +67,16 @@ const lastPersisted = new Map();
 // before the response is sent).
 let durableDirty = false;
 let activeDataDir = null;
+let lastPersistAt = null;
+let lastStorageError = null;
+
+export function getDurableStatus() {
+  return {
+    enabled: kvEnabled,
+    lastPersistAt,
+    lastError: lastStorageError
+  };
+}
 
 export function markDurableDirty() {
   durableDirty = true;
@@ -182,8 +192,10 @@ export async function hydrateFromKv(dataDir) {
       }
     });
 
+    lastStorageError = null;
     return { hydrated, seeded };
   } catch (err) {
+    lastStorageError = err.message;
     console.error('[storage] Failed to hydrate data from KV:', err.message);
     return { hydrated: 0, seeded };
   }
@@ -197,19 +209,27 @@ export async function persistToKv(dataDir) {
   activeDataDir = dataDir;
   if (!kvEnabled) return true;
   try {
-    const commands = [];
+    const pending = [];
     for (const file of PERSISTED_FILES) {
       const fullPath = path.join(dataDir, file);
       if (!fs.existsSync(fullPath)) continue;
       const content = fs.readFileSync(fullPath, 'utf-8');
       if (lastPersisted.get(file) === content) continue;
-      commands.push(['SET', KEY_PREFIX + file, content]);
+      pending.push({ file, content });
+    }
+    if (pending.length === 0) return true;
+    const commands = pending.map(({ file, content }) => ['SET', KEY_PREFIX + file, content]);
+    await kvPipeline(commands);
+    // Only remember a value after the write actually succeeded, so a transient
+    // KV failure is retried on the next request instead of being skipped.
+    for (const { file, content } of pending) {
       lastPersisted.set(file, content);
     }
-    if (commands.length === 0) return true;
-    await kvPipeline(commands);
+    lastPersistAt = new Date().toISOString();
+    lastStorageError = null;
     return true;
   } catch (err) {
+    lastStorageError = err.message;
     console.error('[storage] Failed to persist data to KV:', err.message);
     return false;
   }

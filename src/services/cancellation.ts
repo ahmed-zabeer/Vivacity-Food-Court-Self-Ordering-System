@@ -25,7 +25,8 @@ const readJsonArray = (key: string, storage: 'local' | 'session'): string[] => {
 const getClientId = (): string => {
   if (typeof window === 'undefined') return '';
   try {
-    return sessionStorage.getItem('vivacity_client_id') || '';
+    // Same device id used for order ownership (session first, then device).
+    return sessionStorage.getItem('vivacity_client_id') || localStorage.getItem('vivacity_client_id') || '';
   } catch {
     return '';
   }
